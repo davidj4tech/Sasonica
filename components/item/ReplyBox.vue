@@ -21,6 +21,9 @@
 
     <div class="flex items-center">
       <ui-text-input ref="input" v-model="text" :disabled="sending" :autofocus="false" placeholder="Say something back…" class="flex-grow text-sm" @keyup.enter.native="send" @focusin.native="keepInView" />
+      <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate">
+        <span class="material-symbols text-xl" :class="listening ? 'animate-pulse' : ''">mic</span>
+      </ui-btn>
       <ui-btn :disabled="!text.trim() || sending" :loading="sending" color="success" :padding-x="3" class="ml-2 flex items-center justify-center" @click="send">
         <span class="material-symbols text-xl">send</span>
       </ui-btn>
@@ -43,6 +46,8 @@
 </template>
 
 <script>
+import { AbsSpeechInput } from '@/plugins/capacitor'
+
 export default {
   props: {
     libraryItemId: String
@@ -58,7 +63,9 @@ export default {
       failed: false,
       pane: null,
       boxInView: true,
-      observer: null
+      observer: null,
+      canDictate: false,
+      listening: false
     }
   },
   computed: {
@@ -133,6 +140,22 @@ export default {
       const input = this.$refs.input?.$refs?.input
       if (input && document.activeElement === input) this.scrollBoxIntoView()
     },
+    // The remote's assistant button cannot be borrowed — it belongs to the
+    // system's voice interaction service and never reaches an app — so on a
+    // television this button is the only way to put words in the box.
+    async dictate() {
+      if (this.listening) return
+      this.listening = true
+      try {
+        const res = await AbsSpeechInput.listen({ prompt: 'Reply to this conversation' })
+        const heard = (res?.text || '').trim()
+        // Cancelled or heard nothing: leave what was already typed alone.
+        if (heard) this.text = this.text.trim() ? `${this.text.trim()} ${heard}` : heard
+      } catch (error) {
+        console.error('[ReplyBox] dictation failed', error)
+      }
+      this.listening = false
+    },
     jumpToBox() {
       if (!this.$refs.box) return
       this.$refs.box.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -164,7 +187,16 @@ export default {
         this.isConversation = !!res.ok
         this.live = !!res.live
         this.pane = res.live ? res.pane : null
-        if (this.isConversation) this.watchBox()
+        if (this.isConversation) {
+          this.watchBox()
+          AbsSpeechInput.available()
+            .then((r) => {
+              this.canDictate = !!r?.available
+            })
+            .catch(() => {
+              this.canDictate = false
+            })
+        }
       } catch (error) {
         // Not a conversation, not allowed, or no canvas reachable — all of
         // which mean the same thing here: draw nothing.

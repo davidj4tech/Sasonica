@@ -24,6 +24,7 @@ import com.audiobookshelf.app.plugins.AbsDatabase
 import com.audiobookshelf.app.plugins.AbsDownloader
 import com.audiobookshelf.app.plugins.AbsFileSystem
 import com.audiobookshelf.app.plugins.AbsLogger
+import com.audiobookshelf.app.plugins.AbsSpeechInput
 import com.getcapacitor.BridgeActivity
 
 
@@ -52,6 +53,7 @@ class MainActivity : BridgeActivity() {
     registerPlugin(AbsFileSystem::class.java)
     registerPlugin(AbsDatabase::class.java)
     registerPlugin(AbsLogger::class.java)
+    registerPlugin(AbsSpeechInput::class.java)
 
     super.onCreate(savedInstanceState)
     Log.d(tag, "onCreate")
