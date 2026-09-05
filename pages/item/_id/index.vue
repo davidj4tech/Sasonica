@@ -152,7 +152,7 @@
              of first sentences. Upstream's table is untouched, just stood down
              while the log is showing — two lists of the same turns is worse
              than either one. -->
-        <item-conversation-log :library-item-id="serverLibraryItemId" @playAtTimestamp="playAtTimestamp" @has-log="hasConversationLog = $event" />
+        <item-conversation-log ref="conversationLog" :library-item-id="serverLibraryItemId" @playAtTimestamp="playAtTimestamp" @has-log="hasConversationLog = $event" />
 
         <tables-chapters-table v-if="numChapters && !hasConversationLog" :library-item="libraryItem" @playAtTimestamp="playAtTimestamp" />
 
@@ -163,7 +163,7 @@
         <!-- Sasonica: reply into the session behind a recorded conversation.
              Below the chapters, because a reply comes after the thing it
              answers. Draws nothing unless the server says this item is one. -->
-        <item-reply-box :library-item-id="serverLibraryItemId" />
+        <item-reply-box :library-item-id="serverLibraryItemId" @replied="onReplied" />
       </div>
     </div>
 
@@ -540,6 +540,11 @@ export default {
       } else {
         this.$store.commit('showReader', { libraryItem: this.libraryItem, keepProgress: true })
       }
+    },
+    // A reply is not a turn until it has been rendered and published, so the
+    // log goes looking for it rather than being told what it says.
+    onReplied() {
+      this.$refs.conversationLog?.replied()
     },
     playAtTimestamp(seconds) {
       this.play(seconds)

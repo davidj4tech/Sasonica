@@ -39,6 +39,15 @@
 </template>
 
 <script>
+// How often the log re-asks while the page is up. A turn takes longer than
+// this to render and publish, so anything faster would mostly ask the same
+// question twice.
+const POLL_MS = 15000
+// After a reply is sent, the turn appears once record_listener_turn has
+// rendered it — a second or two, on a background thread. These are the
+// catch-up asks, so it lands without waiting out a whole poll.
+const AFTER_REPLY_MS = [1500, 4000, 9000]
+
 export default {
   props: {
     libraryItemId: String
@@ -47,7 +56,9 @@ export default {
     return {
       baseUrl: '',
       lines: [],
-      expanded: true
+      expanded: true,
+      timer: null,
+      catchUp: []
     }
   },
   computed: {
@@ -69,8 +80,11 @@ export default {
       if (line.start == null) return
       this.$emit('playAtTimestamp', line.start)
     },
-    async init() {
-      this.baseUrl = (await this.$localStore.getAgentMediaUrl()) || this.defaultBaseUrl
+    // One ask. `quiet` is a refresh rather than the first look: a transient
+    // failure then means the network blinked, not that this stopped being a
+    // conversation, and blanking a transcript the reader is part-way through
+    // would be worse than showing one that is a few seconds old.
+    async fetchLog({ quiet = false } = {}) {
       if (!this.baseUrl || !this.libraryItemId) return
       try {
         const token = this.$store.getters['user/getToken']
@@ -81,13 +95,58 @@ export default {
         // The page hides upstream's chapters table while this is up.
         this.$emit('has-log', this.lines.length > 0)
       } catch (error) {
+        if (quiet) return
         // Not a conversation, not allowed, or no canvas: show nothing.
         this.lines = []
       }
+    },
+    // Called by the page when a reply has been accepted, and used by the poll.
+    refresh() {
+      this.fetchLog({ quiet: true })
+    },
+    replied() {
+      this.clearCatchUp()
+      this.catchUp = AFTER_REPLY_MS.map((ms) => window.setTimeout(this.refresh, ms))
+    },
+    clearCatchUp() {
+      this.catchUp.forEach((id) => window.clearTimeout(id))
+      this.catchUp = []
+    },
+    // Only while the page is actually being looked at. A conversation the
+    // reader has left is not worth a request every fifteen seconds, and on a
+    // backgrounded app they would queue up and all fire at once on resume.
+    startPolling() {
+      if (this.timer || !this.lines.length) return
+      this.timer = window.setInterval(this.refresh, POLL_MS)
+    },
+    stopPolling() {
+      if (!this.timer) return
+      window.clearInterval(this.timer)
+      this.timer = null
+    },
+    onVisibilityChange() {
+      if (document.hidden) {
+        this.stopPolling()
+      } else {
+        this.refresh()
+        this.startPolling()
+      }
+    },
+    async init() {
+      this.baseUrl = (await this.$localStore.getAgentMediaUrl()) || this.defaultBaseUrl
+      if (!this.baseUrl || !this.libraryItemId) return
+      await this.fetchLog()
+      this.startPolling()
     }
   },
   mounted() {
     this.init()
+    document.addEventListener('visibilitychange', this.onVisibilityChange)
+  },
+  beforeDestroy() {
+    this.stopPolling()
+    this.clearCatchUp()
+    document.removeEventListener('visibilitychange', this.onVisibilityChange)
   }
 }
 </script>

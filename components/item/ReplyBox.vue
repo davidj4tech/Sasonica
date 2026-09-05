@@ -130,6 +130,11 @@ export default {
         // A revived session reads the reply once it has finished loading, which
         // can take a minute — saying "sent" there would be a small lie.
         this.status = res.opened ? 'Session reopened — it will pick this up shortly.' : 'Sent.'
+        // The transcript above is a snapshot from when the page opened, and
+        // this reply is not in it. It is not in the server's answer yet either
+        // — the words have to be rendered and published before they are a turn
+        // — so the log watches for it rather than being handed it.
+        this.$emit('replied')
       } catch (error) {
         this.failed = true
         this.status = error.message || 'Could not send that.'
