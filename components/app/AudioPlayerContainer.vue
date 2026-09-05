@@ -230,6 +230,13 @@ export default {
         if (startTime !== undefined && startTime !== null) {
           // seek to start time
           AbsAudioPlayer.seek({ value: Math.floor(startTime) })
+          // ...and start playing, if it was not. Seeking a paused player only
+          // moves the position, so tapping a chapter's start time while
+          // stopped looked like nothing happened at all: the session is still
+          // open, so this branch runs, and the play() below was never reached.
+          if (startWhenReady && !this.$store.state.playerIsPlaying && this.$refs.audioPlayer) {
+            this.$refs.audioPlayer.play()
+          }
         } else if (this.$refs.audioPlayer) {
           this.$refs.audioPlayer.play()
         }
