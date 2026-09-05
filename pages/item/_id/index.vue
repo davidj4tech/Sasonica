@@ -148,7 +148,13 @@
         <!-- tables -->
         <tables-podcast-episodes-table v-if="isPodcast" :library-item="libraryItem" :local-library-item-id="localLibraryItemId" :episodes="episodes" :local-episodes="localLibraryItemEpisodes" :is-local="isLocal" />
 
-        <tables-chapters-table v-if="numChapters" :library-item="libraryItem" @playAtTimestamp="playAtTimestamp" />
+        <!-- Sasonica: a conversation reads better as a chat log than as a list
+             of first sentences. Upstream's table is untouched, just stood down
+             while the log is showing — two lists of the same turns is worse
+             than either one. -->
+        <item-conversation-log :library-item-id="serverLibraryItemId" @playAtTimestamp="playAtTimestamp" @has-log="hasConversationLog = $event" />
+
+        <tables-chapters-table v-if="numChapters && !hasConversationLog" :library-item="libraryItem" @playAtTimestamp="playAtTimestamp" />
 
         <tables-tracks-table v-if="numTracks" :tracks="tracks" :library-item-id="libraryItemId" />
 
@@ -220,6 +226,7 @@ export default {
       showSelectLocalFolder: false,
       showMoreMenu: false,
       showFullscreenCover: false,
+      hasConversationLog: false,
       coverRgb: null,
       coverBgIsLight: false,
       windowWidth: 0,
