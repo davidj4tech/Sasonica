@@ -11,7 +11,7 @@
     It draws nothing unless the server says this item is a conversation the
     signed-in user may reply to, so it is invisible on ordinary audiobooks.
   -->
-  <div v-if="isConversation" class="w-full mt-4">
+  <div v-if="isConversation" ref="box" class="w-full mt-6">
     <div class="flex items-center mb-1.5">
       <span class="material-symbols text-lg text-fg-muted">reply</span>
       <p class="px-1.5 text-sm text-fg-muted">Reply to this conversation</p>
@@ -30,6 +30,15 @@
       <p class="text-xs" :class="failed ? 'text-error' : 'text-fg-muted'">{{ status }}</p>
       <p v-if="pane" class="text-xs text-info underline pl-2" @click="goToPane">go to {{ pane }}</p>
     </div>
+
+    <!--
+      The box sits under the chapters, which is where a reply belongs — after
+      the thing you are replying to. That puts it a long scroll away on a
+      conversation with fifty of them, so this floats until you can see it.
+    -->
+    <div v-show="!boxInView" class="fixed right-4 z-30 rounded-full bg-primary border border-border shadow-lg w-11 h-11 flex items-center justify-center" :class="playerIsOpen ? 'bottom-28' : 'bottom-6'" @click="jumpToBox">
+      <span class="material-symbols text-2xl">reply</span>
+    </div>
   </div>
 </template>
 
@@ -47,10 +56,15 @@ export default {
       sending: false,
       status: '',
       failed: false,
-      pane: null
+      pane: null,
+      boxInView: true,
+      observer: null
     }
   },
   computed: {
+    playerIsOpen() {
+      return this.$store.getters['getIsPlayerOpen']
+    },
     // agent-media runs alongside Audiobookshelf, so the server you are signed
     // in to is almost always the right host — take its address and swap the
     // port. That makes the setting something to override, not something to
@@ -100,6 +114,21 @@ export default {
       }
       this.sending = false
     },
+    jumpToBox() {
+      if (!this.$refs.box) return
+      this.$refs.box.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    },
+    watchBox() {
+      // Only worth watching once the box exists, which is after the server has
+      // said this item is a conversation.
+      this.$nextTick(() => {
+        if (!this.$refs.box || typeof IntersectionObserver === 'undefined') return
+        this.observer = new IntersectionObserver((entries) => {
+          this.boxInView = entries.some((entry) => entry.isIntersecting)
+        })
+        this.observer.observe(this.$refs.box)
+      })
+    },
     async goToPane() {
       try {
         await this.request('POST', '/focus', { pane: this.pane })
@@ -115,6 +144,7 @@ export default {
         this.isConversation = !!res.ok
         this.live = !!res.live
         this.pane = res.live ? res.pane : null
+        if (this.isConversation) this.watchBox()
       } catch (error) {
         // Not a conversation, not allowed, or no canvas reachable — all of
         // which mean the same thing here: draw nothing.
@@ -124,6 +154,9 @@ export default {
   },
   mounted() {
     this.init()
+  },
+  beforeDestroy() {
+    if (this.observer) this.observer.disconnect()
   }
 }
 </script>
