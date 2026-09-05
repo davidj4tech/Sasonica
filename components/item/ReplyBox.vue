@@ -50,6 +50,24 @@ export default {
       pane: null
     }
   },
+  computed: {
+    // agent-media runs alongside Audiobookshelf, so the server you are signed
+    // in to is almost always the right host — take its address and swap the
+    // port. That makes the setting something to override, not something to
+    // fill in. Wrong guesses fail closed: the probe below just does not
+    // resolve and no box appears.
+    defaultBaseUrl() {
+      const address = this.$store.state.user.serverConnectionConfig?.address || ''
+      if (!address) return ''
+      try {
+        const url = new URL(address)
+        url.port = '8781'
+        return url.origin
+      } catch (error) {
+        return ''
+      }
+    }
+  },
   methods: {
     // The canvas is a different service from Audiobookshelf, so these are
     // absolute URLs and the bearer goes on by hand — $nativeHttp only attaches
@@ -90,7 +108,7 @@ export default {
       }
     },
     async init() {
-      this.baseUrl = await this.$localStore.getAgentMediaUrl()
+      this.baseUrl = (await this.$localStore.getAgentMediaUrl()) || this.defaultBaseUrl
       if (!this.baseUrl || !this.libraryItemId) return
       try {
         const res = await this.request('GET', `/conversation?item=${this.libraryItemId}`)

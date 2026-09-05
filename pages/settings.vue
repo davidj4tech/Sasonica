@@ -179,8 +179,8 @@
     <p class="uppercase text-xs font-semibold text-fg-muted mb-2 mt-10">Sasonica</p>
     <div class="py-3">
       <p class="pb-1">agent-media canvas</p>
-      <ui-text-input v-model="agentMediaUrl" :autofocus="false" placeholder="http://host:8781" @input="saveAgentMediaUrl" />
-      <p class="text-xs text-fg-muted pt-1">Where to send replies typed under a conversation. Leave blank to hide the reply box.</p>
+      <ui-text-input v-model="agentMediaUrl" :autofocus="false" :placeholder="defaultAgentMediaUrl || 'http://host:8781'" @input="saveAgentMediaUrl" />
+      <p class="text-xs text-fg-muted pt-1">Where to send replies typed under a conversation. Blank uses this server on port 8781.</p>
     </div>
 
     <div v-show="loading" class="w-full h-full absolute top-0 left-0 flex items-center justify-center z-10">
@@ -351,6 +351,17 @@ export default {
     }
   },
   computed: {
+    defaultAgentMediaUrl() {
+      // Same derivation the reply box uses when the field is left blank.
+      const address = this.$store.state.user.serverConnectionConfig?.address || ''
+      try {
+        const url = new URL(address)
+        url.port = '8781'
+        return url.origin
+      } catch (error) {
+        return ''
+      }
+    },
     // This is flipped because alt view was the default until v0.9.61-beta
     enableBookshelfView: {
       get() {
