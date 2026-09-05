@@ -19,8 +19,22 @@
       <p v-if="!live" class="text-xs text-fg-muted">session ended</p>
     </div>
 
-    <div class="flex items-center">
-      <ui-text-input ref="input" v-model="text" :disabled="sending" :autofocus="false" placeholder="Say something back…" class="flex-grow text-sm" @keyup.enter.native="send" @focusin.native="keepInView" />
+    <div class="flex items-end">
+      <!-- A plain textarea rather than ui-text-input: this one has to grow, and
+           the shared input is an <input> used by every other screen. One row
+           until the text needs more, then up to six, then it scrolls. Enter
+           sends; the growth comes from wrapping, not from typing returns. -->
+      <textarea
+        ref="input"
+        v-model="text"
+        rows="1"
+        :disabled="sending"
+        placeholder="Say something back…"
+        class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto"
+        @input="grow"
+        @keydown.enter.exact.prevent="send"
+        @focusin="keepInView"
+      />
       <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate">
         <span class="material-symbols text-xl" :class="listening ? 'animate-pulse' : ''">mic</span>
       </ui-btn>
@@ -110,6 +124,7 @@ export default {
       try {
         const res = await this.request('POST', '/reply', { item: this.libraryItemId, text })
         this.text = ''
+        this.$nextTick(this.grow)
         this.live = true
         this.pane = res.pane || null
         // A revived session reads the reply once it has finished loading, which
@@ -137,8 +152,9 @@ export default {
     onViewportResize() {
       // Only when the input actually has focus: the viewport also changes on
       // rotation, and yanking the page around then would be rude.
-      const input = this.$refs.input?.$refs?.input
-      if (input && document.activeElement === input) this.scrollBoxIntoView()
+      if (this.$refs.input && document.activeElement === this.$refs.input) {
+        this.scrollBoxIntoView()
+      }
     },
     // The remote's assistant button cannot be borrowed — it belongs to the
     // system's voice interaction service and never reaches an app — so on a
@@ -150,11 +166,21 @@ export default {
         const res = await AbsSpeechInput.listen({ prompt: 'Reply to this conversation' })
         const heard = (res?.text || '').trim()
         // Cancelled or heard nothing: leave what was already typed alone.
-        if (heard) this.text = this.text.trim() ? `${this.text.trim()} ${heard}` : heard
+        if (heard) {
+          this.text = this.text.trim() ? `${this.text.trim()} ${heard}` : heard
+          this.$nextTick(this.grow)
+        }
       } catch (error) {
         console.error('[ReplyBox] dictation failed', error)
       }
       this.listening = false
+    },
+    grow() {
+      const el = this.$refs.input
+      if (!el) return
+      el.style.height = 'auto'
+      // Six rows is where a reply stops being a reply; after that it scrolls.
+      el.style.height = `${Math.min(el.scrollHeight, 6 * 24 + 16)}px`
     },
     jumpToBox() {
       if (!this.$refs.box) return
