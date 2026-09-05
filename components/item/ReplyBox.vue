@@ -20,7 +20,7 @@
     </div>
 
     <div class="flex items-center">
-      <ui-text-input v-model="text" :disabled="sending" :autofocus="false" placeholder="Say something back…" class="flex-grow text-sm" @keyup.enter.native="send" />
+      <ui-text-input ref="input" v-model="text" :disabled="sending" :autofocus="false" placeholder="Say something back…" class="flex-grow text-sm" @keyup.enter.native="send" @focusin.native="keepInView" />
       <ui-btn :disabled="!text.trim() || sending" :loading="sending" color="success" :padding-x="3" class="ml-2 flex items-center justify-center" @click="send">
         <span class="material-symbols text-xl">send</span>
       </ui-btn>
@@ -114,6 +114,25 @@ export default {
       }
       this.sending = false
     },
+    // The box lives at the bottom of the page, so the soft keyboard opens
+    // straight over it. Android resizes the viewport rather than telling the
+    // page anything, so the signal is visualViewport shrinking — and the
+    // keyboard animates in, so scrolling on the first frame lands where the
+    // box used to be. Scroll on the resize, and again once it settles.
+    keepInView() {
+      this.scrollBoxIntoView()
+      window.setTimeout(this.scrollBoxIntoView, 350)
+    },
+    scrollBoxIntoView() {
+      if (!this.$refs.box) return
+      this.$refs.box.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    },
+    onViewportResize() {
+      // Only when the input actually has focus: the viewport also changes on
+      // rotation, and yanking the page around then would be rude.
+      const input = this.$refs.input?.$refs?.input
+      if (input && document.activeElement === input) this.scrollBoxIntoView()
+    },
     jumpToBox() {
       if (!this.$refs.box) return
       this.$refs.box.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -127,6 +146,7 @@ export default {
           this.boxInView = entries.some((entry) => entry.isIntersecting)
         })
         this.observer.observe(this.$refs.box)
+        window.visualViewport?.addEventListener('resize', this.onViewportResize)
       })
     },
     async goToPane() {
@@ -157,6 +177,7 @@ export default {
   },
   beforeDestroy() {
     if (this.observer) this.observer.disconnect()
+    window.visualViewport?.removeEventListener('resize', this.onViewportResize)
   }
 }
 </script>
