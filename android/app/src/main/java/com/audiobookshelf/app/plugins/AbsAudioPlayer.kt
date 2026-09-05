@@ -51,7 +51,7 @@ class AbsAudioPlayer : Plugin() {
 
       playerNotificationService.clientEventEmitter = (object : PlayerNotificationService.ClientEventEmitter {
         override fun onPlaybackSession(playbackSession: PlaybackSession) {
-          notifyListeners("onPlaybackSession", JSObject(jacksonMapper.writeValueAsString(playbackSession)))
+          notifyListeners("onPlaybackSession", sessionForWebView(playbackSession))
         }
 
         override fun onPlaybackClosed() {
@@ -201,6 +201,33 @@ class AbsAudioPlayer : Plugin() {
 
     castManager = CastManager(mainActivity)
     castManager?.startRouteScan(connListener)
+  }
+
+  /**
+   * The session, with the parts the web player never reads taken out.
+   *
+   * A plugin event reaches the WebView as JavaScript handed to
+   * evaluateJavascript, so the whole session travels as one string. A
+   * conversation is one audio file per sentence, and a long one runs to
+   * hundreds: this item measured 1.7 MB, three quarters of it duplicated
+   * inside libraryItem — media.tracks is the same list as audioTracks, and
+   * libraryFiles and media.audioFiles are read by the item page, which fetches
+   * the item itself. Past some size the event simply does not arrive, and the
+   * symptom is native playback running with no player drawn.
+   *
+   * Everything the player uses is at the top level, so this is a removal, not
+   * a redesign.
+   */
+  private fun sessionForWebView(session: PlaybackSession): JSObject {
+    val json = JSObject(jacksonMapper.writeValueAsString(session))
+    val item = json.optJSONObject("libraryItem") ?: return json
+    item.remove("libraryFiles")
+    item.optJSONObject("media")?.apply {
+      remove("audioFiles")
+      remove("tracks")
+      remove("chapters")
+    }
+    return json
   }
 
   @PluginMethod
