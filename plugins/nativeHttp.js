@@ -43,7 +43,9 @@ export default function ({ store, $db, $socket }, inject) {
         }
         if (res.status >= 400) {
           console.error(`[nativeHttp] ${res.status} status for url "${url}"`)
-          const message = typeof res.data === 'string' ? res.data : `HTTP ${res.status}`
+          // A JSON body's own message beats "HTTP 404": the server usually
+          // says something worth showing, and it was being thrown away.
+          const message = typeof res.data === 'string' ? res.data : res.data?.error || `HTTP ${res.status}`
           throw new Error(message)
         }
         return res.data
