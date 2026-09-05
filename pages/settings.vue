@@ -175,6 +175,14 @@
       </div>
     </template>
 
+    <!-- Sasonica settings -->
+    <p class="uppercase text-xs font-semibold text-fg-muted mb-2 mt-10">Sasonica</p>
+    <div class="py-3">
+      <p class="pb-1">agent-media canvas</p>
+      <ui-text-input v-model="agentMediaUrl" :autofocus="false" placeholder="http://host:8781" @input="saveAgentMediaUrl" />
+      <p class="text-xs text-fg-muted pt-1">Where to send replies typed under a conversation. Leave blank to hide the reply box.</p>
+    </div>
+
     <div v-show="loading" class="w-full h-full absolute top-0 left-0 flex items-center justify-center z-10">
       <ui-loading-indicator />
     </div>
@@ -195,6 +203,7 @@ export default {
     return {
       loading: false,
       deviceData: null,
+      agentMediaUrl: '',
       showMoreMenuDialog: false,
       showSleepTimerLengthModal: false,
       showAutoSleepTimerRewindLengthModal: false,
@@ -628,6 +637,11 @@ export default {
       this.$setOrientationLock(this.settings.lockOrientation)
       this.saveSettings()
     },
+    saveAgentMediaUrl() {
+      // Not a DeviceSetting: it lives in Preferences so the fork does not have
+      // to change the Kotlin data class to carry one string.
+      this.$localStore.setAgentMediaUrl((this.agentMediaUrl || '').trim())
+    },
     async saveSettings() {
       await this.$hapticsImpact()
       const updatedDeviceData = await this.$db.updateDeviceSettings({ ...this.settings })
@@ -675,6 +689,7 @@ export default {
     async init() {
       this.loading = true
       this.theme = (await this.$localStore.getTheme()) || 'dark'
+      this.agentMediaUrl = await this.$localStore.getAgentMediaUrl()
       this.deviceData = await this.$db.getDeviceData()
       this.$store.commit('setDeviceData', this.deviceData)
       this.setDeviceSettings()

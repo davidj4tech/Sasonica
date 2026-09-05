@@ -78,6 +78,27 @@ class LocalStorage {
     }
   }
 
+  // Sasonica: where agent-media's canvas lives, e.g. http://red5:8781. Set in
+  // settings; blank means the reply box never appears. Kept here rather than in
+  // DeviceSettings so the fork does not have to touch the Kotlin data class.
+  async setAgentMediaUrl(url) {
+    try {
+      await Preferences.set({ key: 'agentMediaUrl', value: url || '' })
+    } catch (error) {
+      console.error('[LocalStorage] Failed to set agent-media url', error)
+    }
+  }
+
+  async getAgentMediaUrl() {
+    try {
+      const obj = (await Preferences.get({ key: 'agentMediaUrl' })) || {}
+      return (obj.value || '').replace(/\/+$/, '')
+    } catch (error) {
+      console.error('[LocalStorage] Failed to get agent-media url', error)
+      return ''
+    }
+  }
+
   async setLastLibraryId(libraryId) {
     try {
       await Preferences.set({ key: 'lastLibraryId', value: libraryId })
