@@ -14,7 +14,7 @@
   -->
   <div v-if="lines.length" class="w-full my-4">
     <div class="w-full bg-primary px-4 py-2 flex items-center" :class="expanded ? 'rounded-t-md' : 'rounded-md'" @click.stop="expanded = !expanded">
-      <p class="pr-2">Conversation</p>
+      <p class="pr-2">Transcript</p>
       <div class="h-6 w-6 rounded-full bg-fg/10 flex items-center justify-center">
         <span class="text-xs font-mono">{{ lines.length }}</span>
       </div>
