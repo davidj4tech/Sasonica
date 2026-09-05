@@ -83,10 +83,22 @@ class MainActivity : BridgeActivity() {
       """.trimIndent()
       webView.evaluateJavascript(js, null)
 
+      // The soft keyboard is an inset too, and this listener consumes every
+      // inset it is given — so without this the keyboard simply drew over the
+      // page, and windowSoftInputMode had nothing to act on: an edge-to-edge
+      // window is already full height, and the app moves its own margins.
+      // Take whichever is taller so the WebView shrinks to sit above the
+      // keyboard, and the page's viewport shrinks with it.
+      val imeBottom = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        insets.getInsets(WindowInsets.Type.ime()).bottom
+      } else {
+        0
+      }
+
       // Set margins
       v.updateLayoutParams<ViewGroup.MarginLayoutParams> {
         leftMargin = left
-        bottomMargin = bottom
+        bottomMargin = maxOf(bottom, imeBottom)
         rightMargin = right
         topMargin = top
       }
