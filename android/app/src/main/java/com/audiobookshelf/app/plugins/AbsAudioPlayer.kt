@@ -207,25 +207,42 @@ class AbsAudioPlayer : Plugin() {
    * The session, with the parts the web player never reads taken out.
    *
    * A plugin event reaches the WebView as JavaScript handed to
-   * evaluateJavascript, so the whole session travels as one string. A
-   * conversation is one audio file per sentence, and a long one runs to
-   * hundreds: this item measured 1.7 MB, three quarters of it duplicated
-   * inside libraryItem — media.tracks is the same list as audioTracks, and
-   * libraryFiles and media.audioFiles are read by the item page, which fetches
-   * the item itself. Past some size the event simply does not arrive, and the
-   * symptom is native playback running with no player drawn.
+   * evaluateJavascript, so the whole session travels as one string, and past
+   * some size it simply does not arrive: native playback runs and no player is
+   * ever drawn, because the web layer never learns a session exists.
    *
-   * Everything the player uses is at the top level, so this is a removal, not
-   * a redesign.
+   * A conversation is one audio file per sentence, so the track list is what
+   * makes the string grow without limit — about 1.2 KB per track, hundreds of
+   * tracks. It does not need to cross at all. On this path the native player
+   * plays; the web layer draws. Everything it draws with is either at the top
+   * level of the session or arrives separately: the scrub bar's duration and
+   * position come from onMetadata, and the chapter it is inside comes from the
+   * session's own top-level chapters. The one reader of audioTracks is the
+   * browser-only fallback player in plugins/capacitor/AbsAudioPlayer.js, which
+   * builds its own session from the server and never sees this event.
+   *
+   * The same holds for the file lists nested inside the items: the item page
+   * fetches the item itself, and of the local item the player reads only its
+   * id and cover.
    */
   private fun sessionForWebView(session: PlaybackSession): JSObject {
     val json = JSObject(jacksonMapper.writeValueAsString(session))
-    val item = json.optJSONObject("libraryItem") ?: return json
-    item.remove("libraryFiles")
-    item.optJSONObject("media")?.apply {
-      remove("audioFiles")
-      remove("tracks")
-      remove("chapters")
+    json.remove("audioTracks")
+    json.optJSONObject("libraryItem")?.apply {
+      remove("libraryFiles")
+      optJSONObject("media")?.apply {
+        remove("audioFiles")
+        remove("tracks")
+        remove("chapters")
+      }
+    }
+    json.optJSONObject("localLibraryItem")?.apply {
+      remove("localFiles")
+      optJSONObject("media")?.apply {
+        remove("audioFiles")
+        remove("tracks")
+        remove("chapters")
+      }
     }
     return json
   }
@@ -302,11 +319,13 @@ class AbsAudioPlayer : Plugin() {
               }
 
               Handler(Looper.getMainLooper()).post {
-                Log.d(tag, "Preparing Player playback session ${jacksonMapper.writeValueAsString(it)}")
+                Log.d(tag, "Preparing Player playback session ${it.id} \"${it.displayTitle}\" (${it.audioTracks.size} tracks)")
                 PlayerListener.lazyIsPlaying = false
                 playerNotificationService.preparePlayer(it, playWhenReady, playbackRate)
               }
-              call.resolve(JSObject(jacksonMapper.writeValueAsString(it)))
+              // Both callers discard this, and it is the same session that
+              // reaches them as onPlaybackSession — send the same trimmed one.
+              call.resolve(sessionForWebView(it))
             }
           }
         }
