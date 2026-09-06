@@ -193,6 +193,20 @@ export default {
         serverConfig.token = this.$store.getters['user/getToken'] || serverConfig.token
       }
 
+      // Sasonica: forget the libraries of whatever server we were on before.
+      //
+      // lastLibraryId is remembered per DEVICE, not per server, so connecting
+      // to a different server sets the current library to an id that does not
+      // exist there. libraries/load already corrects that — it picks the first
+      // library when the current one is not in the results — but it declines
+      // to run at all if it loaded within the last five minutes, so the store
+      // keeps the previous server's libraries and its now-meaningless current
+      // id. What you see is a library list belonging to a server you are no
+      // longer talking to, and nothing selectable.
+      //
+      // Resetting zeroes that timer, so the load below is a real one.
+      this.$store.commit('libraries/reset')
+
       // Set library - Use last library if set and available fallback to default user library
       const lastLibraryId = await this.$localStore.getLastLibraryId()
       if (lastLibraryId && (!user.librariesAccessible.length || user.librariesAccessible.includes(lastLibraryId))) {
