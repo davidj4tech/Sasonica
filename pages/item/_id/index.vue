@@ -156,7 +156,13 @@
 
         <tables-chapters-table v-if="numChapters && !hasConversationLog" :library-item="libraryItem" @playAtTimestamp="playAtTimestamp" />
 
-        <tables-tracks-table v-if="numTracks" :tracks="tracks" :library-item-id="libraryItemId" />
+        <!-- Sasonica: no audio-file table. It lists the files a book is made
+             of, which is a thing about the storage rather than about the book,
+             and on a conversation — one audio file per sentence — it is
+             hundreds of rows reading "sentence-042.opus". Collapsing it did
+             not help: the bar is v-show, so every row was built and then
+             hidden, which is the cost without the use. The component is left
+             where upstream put it, unused, so upstream can move it freely. -->
 
         <tables-ebook-files-table v-if="ebookFiles.length" :library-item="libraryItem" />
 
