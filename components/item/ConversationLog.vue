@@ -61,19 +61,6 @@ export default {
       catchUp: []
     }
   },
-  computed: {
-    defaultBaseUrl() {
-      const address = this.$store.state.user.serverConnectionConfig?.address || ''
-      if (!address) return ''
-      try {
-        const url = new URL(address)
-        url.port = '8781'
-        return url.origin
-      } catch (error) {
-        return ''
-      }
-    }
-  },
   methods: {
     play(line) {
       // Tapping a line plays from it, the same move the chapters table makes.
@@ -133,7 +120,7 @@ export default {
       }
     },
     async init() {
-      this.baseUrl = (await this.$localStore.getAgentMediaUrl()) || this.defaultBaseUrl
+      this.baseUrl = await this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address)
       if (!this.baseUrl || !this.libraryItemId) return
       await this.fetchLog()
       this.startPolling()

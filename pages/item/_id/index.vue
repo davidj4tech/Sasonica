@@ -804,12 +804,40 @@ export default {
         window['item-page'].scrollTop = this.$store.state.lastItemScrollData.scrollTop || 0
       }
     },
+    // Sasonica: the same item, from agent-media, carrying only what this page
+    // reads. Audiobookshelf sends 1267 KB for a long conversation — three
+    // enumerations of the same 485 sentence-files, plus a track record
+    // describing each file on disk — and none of it compressed, because ABS
+    // ignores Accept-Encoding. The canvas answers the same question in 138 KB,
+    // 29 KB on the wire, which matters twice over: a plugin response reaches
+    // this WebView as one JavaScript string, and that is the thing with a
+    // ceiling in it.
+    //
+    // A shortcut, never a dependency. No canvas configured, canvas down,
+    // canvas says no: fall through to Audiobookshelf and be slow.
+    async loadItemViaCanvas() {
+      try {
+        const base = await this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address)
+        if (!base) return null
+        const token = this.$store.getters['user/getToken']
+        const item = await this.$nativeHttp.request('GET', `${base}/item?id=${this.libraryItemId}`, null, {
+          connectTimeout: 5000,
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        return item?.id ? item : null
+      } catch (error) {
+        console.log('[item] canvas did not serve the item, asking the server', error?.message || error)
+        return null
+      }
+    },
     async loadServerLibraryItem() {
       console.log(`Fetching library item "${this.libraryItemId}" from server`)
-      const libraryItem = await this.$nativeHttp.get(`/api/items/${this.libraryItemId}?expanded=1&include=rssfeed`, { connectTimeout: 5000 }).catch((error) => {
-        console.error('Failed', error)
-        return null
-      })
+      const libraryItem =
+        (await this.loadItemViaCanvas()) ||
+        (await this.$nativeHttp.get(`/api/items/${this.libraryItemId}?expanded=1&include=rssfeed`, { connectTimeout: 5000 }).catch((error) => {
+          console.error('Failed', error)
+          return null
+        }))
 
       if (libraryItem) {
         const localLibraryItem = await this.$db.getLocalLibraryItemByLId(this.libraryItemId)

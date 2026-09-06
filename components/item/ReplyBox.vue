@@ -85,22 +85,6 @@ export default {
   computed: {
     playerIsOpen() {
       return this.$store.getters['getIsPlayerOpen']
-    },
-    // agent-media runs alongside Audiobookshelf, so the server you are signed
-    // in to is almost always the right host — take its address and swap the
-    // port. That makes the setting something to override, not something to
-    // fill in. Wrong guesses fail closed: the probe below just does not
-    // resolve and no box appears.
-    defaultBaseUrl() {
-      const address = this.$store.state.user.serverConnectionConfig?.address || ''
-      if (!address) return ''
-      try {
-        const url = new URL(address)
-        url.port = '8781'
-        return url.origin
-      } catch (error) {
-        return ''
-      }
     }
   },
   methods: {
@@ -211,7 +195,7 @@ export default {
       }
     },
     async init() {
-      this.baseUrl = (await this.$localStore.getAgentMediaUrl()) || this.defaultBaseUrl
+      this.baseUrl = await this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address)
       if (!this.baseUrl || !this.libraryItemId) return
       try {
         const res = await this.request('GET', `/conversation?item=${this.libraryItemId}`)

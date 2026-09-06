@@ -99,6 +99,24 @@ class LocalStorage {
     }
   }
 
+  // The canvas address to use, setting first and otherwise a guess: agent-media
+  // runs alongside Audiobookshelf, so the server you are signed in to is almost
+  // always the right host and only the port differs. That makes the setting
+  // something to override rather than something to fill in, and a wrong guess
+  // fails closed — the probe does not resolve and nothing appears.
+  async agentMediaBaseUrl(serverAddress) {
+    const set = await this.getAgentMediaUrl()
+    if (set) return set
+    if (!serverAddress) return ''
+    try {
+      const url = new URL(serverAddress)
+      url.port = '8781'
+      return url.origin
+    } catch (error) {
+      return ''
+    }
+  }
+
   async setLastLibraryId(libraryId) {
     try {
       await Preferences.set({ key: 'lastLibraryId', value: libraryId })
