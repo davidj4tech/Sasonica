@@ -9,6 +9,16 @@ export default function ({ store, $db, $socket }, inject) {
 
       let url = _url
       let headers = {}
+      // Sasonica: is this our Audiobookshelf, or some other service?
+      //
+      // Only the server's own 401 means "your login is stale, refresh it".
+      // agent-media's canvas is a different service that happens to take the
+      // same bearer — it hands it to the Audiobookshelf IT is configured for,
+      // and if that is a different server than the app is signed in to, it
+      // answers 401 truthfully and about a completely different question.
+      // Refreshing on that is at best pointless, and at worst ends the
+      // session: a refresh that fails logs the user out.
+      const isServerRequest = !_url.startsWith('http') || (serverConnectionConfig?.address && _url.startsWith(serverConnectionConfig.address))
       if (!url.startsWith('http') && !url.startsWith('capacitor')) {
         const bearerToken = store.getters['user/getToken']
         if (bearerToken) {
@@ -36,10 +46,16 @@ export default function ({ store, $db, $socket }, inject) {
         headers,
         ...options
       }).then((res) => {
-        if (res.status === 401) {
+        if (res.status === 401 && isServerRequest) {
           console.error(`[nativeHttp] 401 status for url "${url}"`)
           // Handle refresh token automatically
           return this.handleTokenRefresh(method, url, data, headers, options, serverConnectionConfig)
+        }
+        if (res.status === 401) {
+          // Somebody else's 401. The caller decides what it means; the session
+          // is not in question and must not be spent finding out.
+          console.log(`[nativeHttp] 401 from another service, leaving the session alone: "${url}"`)
+          throw new Error(typeof res.data === 'string' ? res.data : res.data?.error || 'Unauthorized')
         }
         if (res.status >= 400) {
           console.error(`[nativeHttp] ${res.status} status for url "${url}"`)
