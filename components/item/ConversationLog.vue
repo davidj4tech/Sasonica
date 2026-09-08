@@ -28,7 +28,16 @@
           <p class="text-xs text-fg-muted">{{ line.who === 'you' ? 'You' : 'Claude' }}</p>
           <p v-if="line.start != null" class="text-xs font-mono text-fg-muted underline pl-2">{{ $secondsToTimestamp(line.start) }}</p>
         </div>
-        <p class="text-sm whitespace-pre-line">{{ line.text }}</p>
+        <!-- A turn being spoken right now is shown sentence by sentence: what
+             has been said in the usual colour, the sentence in the air bold,
+             what is still to come dimmed. The server marks the line live and
+             says which sentence, refreshed every poll. -->
+        <p v-if="line.live && line.sentences && line.sentences.length" class="text-sm whitespace-pre-line">
+          <template v-for="(sentence, i) in line.sentences">
+            <span :key="i" :class="i === line.sentence ? 'font-semibold text-fg' : i < line.sentence ? 'text-fg' : 'text-fg-muted'">{{ sentence }} </span>
+          </template>
+        </p>
+        <p v-else class="text-sm whitespace-pre-line">{{ line.text }}</p>
         <!-- The picture the canvas drew for this reply, when it still has it.
              A figure was drawn to be read and gets the width; ambient artwork
              is kept small so it decorates rather than interrupts. -->
@@ -169,10 +178,19 @@ export default {
     thinking() {
       return this.awaiting || this.pending
     },
-    // The line being spoken: the last one that starts at or before the clock.
-    // Lines still on the live tail have no start and are never it.
+    // Whether a turn is being spoken right now, by the host rather than the
+    // player. Polled fast while it is, so the sentence keeps up.
+    liveIndex() {
+      return this.lines.findIndex((line) => line.live)
+    },
+    // The line being spoken. A turn the host is speaking right now wins; it
+    // is not in the audio item yet, so the player cannot be on it. Otherwise
+    // the last line that starts at or before the player's clock — lines on
+    // the live tail have no start and are never it.
     activeIndex() {
-      if (!this.chat || !this.following) return -1
+      if (!this.chat) return -1
+      if (this.liveIndex >= 0) return this.liveIndex
+      if (!this.following) return -1
       const t = Number(this.currentTime) + 0.05
       let found = -1
       this.lines.forEach((line, i) => {
@@ -224,7 +242,7 @@ export default {
         // fast cadence (see nextDelay), which is what makes a turn from any
         // source show up promptly instead of waiting out an idle poll.
         const last = lines[lines.length - 1]
-        const sig = lines.length + '|' + (last ? last.who + ':' + last.text : '')
+        const sig = lines.length + '|' + (last ? last.who + ':' + last.text + '#' + (last.live ? last.sentence : '') : '')
         if (sig !== this.lastSig) {
           this.lastSig = sig
           this.lastChangeAt = Date.now()
@@ -289,6 +307,9 @@ export default {
     // answer up to a ceiling so a reply that never comes still falls back to
     // idle. Otherwise idle.
     nextDelay() {
+      // A turn being spoken moves a sentence every few seconds for as long as
+      // it lasts; the linger after a change is not enough for a long one.
+      if (this.liveIndex >= 0) return POLL_FAST_MS
       const since = Date.now() - this.lastChangeAt
       if (since < FAST_LINGER_MS) return POLL_FAST_MS
       if (this.thinking && since < FAST_WINDOW_MS) return POLL_FAST_MS
