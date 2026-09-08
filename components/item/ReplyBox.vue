@@ -26,10 +26,8 @@
     <div class="flex items-end">
       <!-- A plain textarea rather than ui-text-input: this one has to grow, and
            the shared input is an <input> used by every other screen. One row
-           until the text needs more, then up to six, then it scrolls. Enter is
-           a newline and only the button sends: on a soft keyboard Enter sits
-           where a thumb lands mid-sentence, and a reply cut off at "tighten
-           the" is worse than a reply that took one more tap. -->
+           until the text needs more, then up to six, then it scrolls. Enter
+           sends; the growth comes from wrapping, not from typing returns. -->
       <textarea
         ref="input"
         v-model="text"
@@ -38,7 +36,7 @@
         placeholder="Say something back…"
         class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto"
         @input="grow"
-        @keydown.ctrl.enter.prevent="send"
+        @keydown.enter.exact.prevent="send"
         @focusin="keepInView"
       />
       <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate">
