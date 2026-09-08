@@ -187,10 +187,19 @@ class SasonicaControl(private val service: PlayerNotificationService) {
           } else {
             if (startTime != null) session.currentTime = startTime
             main.post {
-              PlayerListener.lazyIsPlaying = false
-              service.preparePlayer(session, true, rate)
-              result = 200 to state()
-              latch.countDown()
+              try {
+                PlayerListener.lazyIsPlaying = false
+                service.preparePlayer(session, true, rate)
+                result = 200 to state()
+              } catch (e: Exception) {
+                // preparePlayer can throw after it has taken the session (a
+                // foreground-start refused in the background, say); say so
+                // rather than time out with the player half-prepared.
+                Log.w(tag, "play: preparePlayer threw: $e")
+                result = 500 to err("preparePlayer threw: $e").put("state", state())
+              } finally {
+                latch.countDown()
+              }
             }
           }
         }
