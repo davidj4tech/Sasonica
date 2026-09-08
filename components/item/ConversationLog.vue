@@ -70,8 +70,13 @@ const POLL_IDLE_MS = 15000
 // which was the whole complaint. Cheap: the log is derived on demand and the
 // payload is small.
 const POLL_FAST_MS = 2000
-// A ceiling on the fast cadence, so a reply that never comes (a session that
-// did not answer) drops back to idle rather than polling fast forever.
+// Keep the fast cadence for a short while after the transcript last CHANGED,
+// so a reply that is still growing (and the moment right after it settles)
+// stays snappy no matter who started the turn or how it arrived.
+const FAST_LINGER_MS = 20 * 1000
+// A ceiling on the fast cadence while merely waiting (pending, but nothing
+// changing), so a reply that never comes drops back to idle rather than
+// polling fast forever.
 const FAST_WINDOW_MS = 3 * 60 * 1000
 
 export default {
@@ -92,8 +97,12 @@ export default {
       // line nor `pending` is here yet — this bridges the gap so the indicator
       // shows the instant Send is pressed.
       awaiting: false,
-      // When the fast window ends (0 = not fast).
-      fastUntil: 0
+      // When the transcript last changed, and a cheap signature to detect it.
+      // Any change re-arms the fast cadence, so a turn arriving by ANY route —
+      // a reply from the app, a message typed elsewhere, a turn spoken on the
+      // host — is picked up promptly, not only ones this page sent itself.
+      lastChangeAt: 0,
+      lastSig: ''
     }
   },
   computed: {
@@ -124,6 +133,16 @@ export default {
         if (this.awaiting && lines.length && lines[lines.length - 1].who !== 'you') {
           this.awaiting = false
         }
+        // A cheap signature of what is on screen — count plus the last line —
+        // catches a new turn and a growing reply alike. Any change re-arms the
+        // fast cadence (see nextDelay), which is what makes a turn from any
+        // source show up promptly instead of waiting out an idle poll.
+        const last = lines[lines.length - 1]
+        const sig = lines.length + '|' + (last ? last.who + ':' + last.text : '')
+        if (sig !== this.lastSig) {
+          this.lastSig = sig
+          this.lastChangeAt = Date.now()
+        }
         this.lines = lines
         this.pending = !!res?.pending
         // The page hides upstream's chapters table while this is up.
@@ -141,14 +160,18 @@ export default {
     // once and drop into the fast cadence until the answer lands.
     replied() {
       this.awaiting = true
-      this.fastUntil = Date.now() + FAST_WINDOW_MS
+      this.lastChangeAt = Date.now()   // treat the send as activity
       this.refresh()
       this.reschedule()
     },
-    // The next poll's delay, chosen each tick: fast while a reply is in flight
-    // and inside the fast window, idle otherwise.
+    // The next poll's delay, chosen each tick. Fast right after any change
+    // (a reply still arriving, whoever sent it), and fast while waiting on an
+    // answer up to a ceiling so a reply that never comes still falls back to
+    // idle. Otherwise idle.
     nextDelay() {
-      if (this.thinking && Date.now() < this.fastUntil) return POLL_FAST_MS
+      const since = Date.now() - this.lastChangeAt
+      if (since < FAST_LINGER_MS) return POLL_FAST_MS
+      if (this.thinking && since < FAST_WINDOW_MS) return POLL_FAST_MS
       return POLL_IDLE_MS
     },
     reschedule() {
