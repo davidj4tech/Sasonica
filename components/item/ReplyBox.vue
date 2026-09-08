@@ -108,8 +108,15 @@ export default {
       })
     },
     async send() {
-      const text = this.text.trim()
+      // The field's own value, not the bound one. Vue's v-model holds off
+      // updating while the soft keyboard is still composing the current word,
+      // and Gboard keeps the last word in composition until a space follows
+      // it — so a reply sent straight after its last word lost that word
+      // ("yeah maybe we should tighten the"). The textarea itself has it all.
+      const el = this.$refs.input
+      const text = ((el && el.value) || this.text || '').trim()
       if (!text || this.sending) return
+      this.text = text
       this.sending = true
       this.status = ''
       this.failed = false
