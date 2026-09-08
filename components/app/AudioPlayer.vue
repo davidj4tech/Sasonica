@@ -30,8 +30,13 @@
       </div>
     </div>
 
-    <div class="cover-wrapper absolute z-30 pointer-events-auto" @click="clickContainer">
-      <div class="w-full h-full flex justify-center">
+    <div class="cover-wrapper absolute z-30 pointer-events-auto" :class="{ canvas: showCanvas }" @click="clickContainer">
+      <!-- Sasonica: a conversation's full-screen player shows the live canvas
+           where the cover would be — the artwork agent-media draws as it
+           speaks, rather than a still. Only full screen; the mini player's
+           46px would be nothing to look at, and the frame costs a stream. -->
+      <iframe v-if="showCanvas" :src="canvasSrc" class="w-full h-full border-0 bg-black" allow="autoplay" referrerpolicy="no-referrer" title="agent-media canvas" />
+      <div v-else class="w-full h-full flex justify-center">
         <covers-book-cover v-if="libraryItem || localLibraryItemCoverSrc" ref="cover" :library-item="libraryItem" :download-cover="localLibraryItemCoverSrc" :width="bookCoverWidth" :book-cover-aspect-ratio="bookCoverAspectRatio" raw @imageLoaded="coverImageLoaded" />
       </div>
 
@@ -164,6 +169,7 @@ export default {
       draggingCurrentTime: 0,
       syncStatus: 0,
       showMoreMenuDialog: false,
+      canvasSrc: '', // Sasonica: the canvas page, once a conversation goes full screen
       coverRgb: 'rgb(55, 56, 56)',
       coverBgIsLight: false,
       titleMarquee: null,
@@ -171,6 +177,15 @@ export default {
     }
   },
   watch: {
+    // Sasonica: the canvas address is asked for on the first full-screen of a
+    // conversation, not before — most players never need it.
+    showFullscreen(val) {
+      if (val && this.isConversation && !this.canvasSrc) {
+        this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address).then((base) => {
+          this.canvasSrc = base ? `${base}/?subs=0` : ''
+        })
+      }
+    },
     showFullscreen(val) {
       this.updateScreenSize()
       this.$store.commit('setPlayerFullscreen', !!val)
@@ -294,6 +309,15 @@ export default {
     },
     libraryItem() {
       return this.playbackSession?.libraryItem || null
+    },
+    // Sasonica: the chat page marks the conversations it has opened; the
+    // playback session itself is Audiobookshelf's and does not know.
+    isConversation() {
+      const id = this.playbackSession?.libraryItemId
+      return !!id && this.$store.state.conversationItemIds.includes(id)
+    },
+    showCanvas() {
+      return this.showFullscreen && this.isConversation && !!this.canvasSrc
     },
     localLibraryItem() {
       return this.playbackSession?.localLibraryItem || null
@@ -1131,6 +1155,11 @@ export default {
   bottom: calc(50% + 120px - (calc(var(--cover-image-height)) / 2));
   border-radius: 16px;
   overflow: hidden;
+}
+/* Sasonica: the canvas draws for a wall, so give it the width. */
+.fullscreen .cover-wrapper.canvas {
+  width: calc(100vw - 32px);
+  left: 16px;
 }
 
 .fullscreen #playerControls {

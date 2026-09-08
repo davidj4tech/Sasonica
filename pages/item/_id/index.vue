@@ -909,6 +909,7 @@ export default {
         // the page can open as a chat instead of rearranging a book page.
         if (libraryItem.conversation) {
           this.isConversation = true
+          this.$store.commit('markConversation', libraryItem.id)
           try {
             this.$store.commit('setPlayerHidden', localStorage.getItem('sasonica-player-hidden') === '1')
           } catch (error) {

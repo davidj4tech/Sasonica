@@ -8,6 +8,7 @@ export const state = () => ({
   playerIsPlaying: false,
   playerIsFullscreen: false,
   playerIsHidden: false, // Sasonica: the chat page can tuck the mini player away
+  conversationItemIds: [], // Sasonica: items the chat page has seen are conversations
   playerIsStartingPlayback: false, // When pressing play before native play response
   playerStartingPlaybackMediaId: null,
   isCasting: false,
@@ -155,6 +156,9 @@ export const mutations = {
   },
   setPlayerHidden(state, val) {
     state.playerIsHidden = val
+  },
+  markConversation(state, id) {
+    if (id && !state.conversationItemIds.includes(id)) state.conversationItemIds.push(id)
   },
   setPlayerFullscreen(state, val) {
     state.playerIsFullscreen = val
