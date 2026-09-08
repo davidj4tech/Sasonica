@@ -12,6 +12,9 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    env:
+      # secrets are not readable from a step's `if`, so flag it here
+      HAS_RELEASE_KEY: ${{ secrets.SASONICA_KEYSTORE_B64 != '' }}
     steps:
       - name: checkout sources
         uses: actions/checkout@v3
@@ -42,7 +45,7 @@ jobs:
       # The release key comes from repo secrets (see android/app/build.gradle).
       # Pull requests from forks get no secrets, so the release build is skipped.
       - name: restore release keystore
-        if: ${{ secrets.SASONICA_KEYSTORE_B64 != '' }}
+        if: ${{ env.HAS_RELEASE_KEY == 'true' }}
         env:
           SASONICA_KEYSTORE_B64: ${{ secrets.SASONICA_KEYSTORE_B64 }}
         run: |
@@ -50,7 +53,7 @@ jobs:
           echo "SASONICA_KEYSTORE_FILE=$RUNNER_TEMP/sasonica-release.jks" >> "$GITHUB_ENV"
 
       - name: build release Android app
-        if: ${{ env.SASONICA_KEYSTORE_FILE != '' }}
+        if: ${{ env.HAS_RELEASE_KEY == 'true' }}
         env:
           SASONICA_KEYSTORE_PASSWORD: ${{ secrets.SASONICA_KEYSTORE_PASSWORD }}
           SASONICA_KEY_PASSWORD: ${{ secrets.SASONICA_KEY_PASSWORD }}
@@ -74,7 +77,7 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
 
       - name: upload release app
-        if: ${{ env.SASONICA_KEYSTORE_FILE != '' }}
+        if: ${{ env.HAS_RELEASE_KEY == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sasonica-apk
