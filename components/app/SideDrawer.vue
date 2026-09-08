@@ -108,6 +108,12 @@ export default {
           text: this.$strings.ButtonUserStats,
           to: '/stats'
         })
+        // Sasonica: a new conversation with the agent behind the library.
+        items.push({
+          icon: 'add_comment',
+          text: 'New chat',
+          to: '/ask'
+        })
       }
 
       if (this.$platform !== 'ios') {

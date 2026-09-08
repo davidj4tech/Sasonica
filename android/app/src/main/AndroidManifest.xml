@@ -105,6 +105,18 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
+            <!-- Sasonica: the digital-assistant slot. With this the app can be
+                 chosen under Default apps > Digital assistant, and the assist
+                 gesture, the power key's long press, an earbud's long press
+                 and a TV remote's assistant button all open it. Only the
+                 intent arrives (no microphone, no lock-screen session): the
+                 page it opens starts dictation itself. -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
             <!-- Register URL scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

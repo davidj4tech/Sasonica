@@ -2,7 +2,7 @@ import Vue from 'vue'
 import vClickOutside from 'v-click-outside'
 import { App } from '@capacitor/app'
 import { Dialog } from '@capacitor/dialog'
-import { AbsFileSystem } from '@/plugins/capacitor'
+import { AbsFileSystem, AbsSasonica } from '@/plugins/capacitor' // Sasonica: AbsSasonica
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { Clipboard } from '@capacitor/clipboard'
 import { Capacitor } from '@capacitor/core'
@@ -331,6 +331,17 @@ export default ({ store, app }, inject) => {
    */
   App.addListener('appUrlOpen', (data) => {
     eventBus.$emit('url-open', data.url)
+  })
+
+  // Sasonica: the phone's assistant button opens a new chat. Replace, not
+  // push: pressing it twice should not stack two empty ask pages.
+  AbsSasonica.addListener('assist', () => {
+    if (!app.router) return
+    if (app.router.currentRoute?.path === '/ask') {
+      eventBus.$emit('assist')
+    } else {
+      app.router.push('/ask')
+    }
   })
 }
 
