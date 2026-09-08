@@ -22,7 +22,7 @@
 
       <item-canvas-panel />
 
-      <item-conversation-log ref="conversationLog" chat class="flex-grow min-h-0" :library-item-id="serverLibraryItemId" :current-time="playerTime" :following="isPlaying" @playAtTimestamp="playAtTimestamp" />
+      <item-conversation-log ref="conversationLog" chat class="flex-grow min-h-0" :library-item-id="serverLibraryItemId" :current-time="playerTime" :following="isPlaying" @playAtTimestamp="playAtTimestamp" @suggestion="suggestion = $event" />
 
       <!-- Sasonica: the mini player can be tucked away, the way the canvas
            can — the transcript is the thing being read, and the player has
@@ -36,7 +36,7 @@
         <span class="material-symbols text-xl text-fg-muted duration-300" :class="$store.state.playerIsHidden ? '' : 'transform rotate-180'">arrow_drop_down</span>
       </div>
 
-      <item-reply-box docked class="flex-shrink-0" :library-item-id="serverLibraryItemId" @replied="onReplied" />
+      <item-reply-box docked class="flex-shrink-0" :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" />
     </template>
 
     <template v-else>
@@ -189,7 +189,7 @@
              of first sentences. Upstream's table is untouched, just stood down
              while the log is showing — two lists of the same turns is worse
              than either one. -->
-        <item-conversation-log ref="conversationLog" :library-item-id="serverLibraryItemId" @playAtTimestamp="playAtTimestamp" @has-log="hasConversationLog = $event" />
+        <item-conversation-log ref="conversationLog" :library-item-id="serverLibraryItemId" @playAtTimestamp="playAtTimestamp" @has-log="hasConversationLog = $event" @suggestion="suggestion = $event" />
 
         <tables-chapters-table v-if="numChapters && !hasConversationLog" :library-item="libraryItem" @playAtTimestamp="playAtTimestamp" />
 
@@ -206,7 +206,7 @@
         <!-- Sasonica: reply into the session behind a recorded conversation.
              Below the chapters, because a reply comes after the thing it
              answers. Draws nothing unless the server says this item is one. -->
-        <item-reply-box :library-item-id="serverLibraryItemId" @replied="onReplied" @is-conversation="isConversation = $event" />
+        <item-reply-box :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" @is-conversation="isConversation = $event" />
       </div>
     </div>
     </template>
@@ -274,6 +274,9 @@ export default {
       // Sasonica: the chat layout. Known from the item when agent-media
       // served it; otherwise the reply box says so once it has asked.
       isConversation: false,
+      // The ghost prompt: what Claude Code suggests saying next, read off the
+      // session's screen by the log's poll and offered in the reply box.
+      suggestion: '',
       // The player's clock, for the transcript to follow along.
       playerTime: 0,
       coverRgb: null,

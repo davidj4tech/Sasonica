@@ -23,6 +23,16 @@
     </div>
     <p v-else-if="!live" class="text-xs text-fg-muted pb-1">Session ended — a reply reopens it.</p>
 
+    <!-- The ghost prompt. On the terminal it is dim text in the input box,
+         taken with Tab; here it is the placeholder, and this row is the Tab:
+         a tap puts the words in the box to send or edit. It shows only while
+         the box is empty, as the ghost does. -->
+    <div v-if="ghost" class="flex items-center pb-1" @click="acceptGhost">
+      <span class="material-symbols text-base text-fg-muted">keyboard_tab</span>
+      <p class="text-xs text-fg-muted italic truncate px-1 flex-grow">{{ ghost }}</p>
+      <p class="text-xs text-info pl-2 flex-shrink-0">use</p>
+    </div>
+
     <div class="flex items-end">
       <!-- A plain textarea rather than ui-text-input: this one has to grow, and
            the shared input is an <input> used by every other screen. One row
@@ -33,7 +43,7 @@
         v-model="text"
         rows="1"
         :disabled="sending"
-        placeholder="Say something back…"
+        :placeholder="ghost || 'Say something back…'"
         class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto"
         @input="grow"
         @keydown.enter.exact.prevent="send"
@@ -73,7 +83,10 @@ export default {
     // button, no scrolling the page to find it. The keyboard is handled by
     // the layout — Android shrinks the viewport and the page is a column
     // whose last row this is.
-    docked: Boolean
+    docked: Boolean,
+    // Claude Code's suggested next prompt for this session, if it has one
+    // on screen right now. Comes from the log's poll, via the page.
+    suggestion: String
   },
   data() {
     return {
@@ -94,6 +107,10 @@ export default {
   computed: {
     playerIsOpen() {
       return this.$store.getters['getIsPlayerOpen']
+    },
+    // Only a live session has a ghost; and only an empty box shows one.
+    ghost() {
+      return this.live && !this.text && !this.sending ? (this.suggestion || '').trim() : ''
     }
   },
   methods: {
@@ -180,6 +197,14 @@ export default {
         console.error('[ReplyBox] dictation failed', error)
       }
       this.listening = false
+    },
+    acceptGhost() {
+      if (!this.ghost) return
+      this.text = this.ghost
+      this.$nextTick(() => {
+        this.grow()
+        this.$refs.input?.focus()
+      })
     },
     grow() {
       const el = this.$refs.input

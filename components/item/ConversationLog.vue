@@ -291,6 +291,10 @@ export default {
           this.$nextTick(this.scrollToBottom)
         }
         this.pending = !!res?.pending
+        // The ghost prompt — Claude Code's suggested next line, scraped off
+        // the session's screen — comes with every poll, because it appears a
+        // few seconds after the turn it follows. The reply box shows it.
+        this.$emit('suggestion', res?.suggestion || '')
         // The page hides upstream's chapters table while this is up.
         this.$emit('has-log', this.lines.length > 0)
       } catch (error) {
