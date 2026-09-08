@@ -24,6 +24,18 @@
 
       <item-conversation-log ref="conversationLog" chat class="flex-grow min-h-0" :library-item-id="serverLibraryItemId" :current-time="playerTime" :following="isPlaying" @playAtTimestamp="playAtTimestamp" />
 
+      <!-- Sasonica: the mini player can be tucked away, the way the canvas
+           can — the transcript is the thing being read, and the player has
+           a row's worth of controls for a thing you can pause by tapping a
+           line. Remembered per device; shown again on leaving the page so
+           the rest of the app is as upstream left it. -->
+      <div v-if="playerIsOpen" class="flex items-center px-3 py-1 border-t border-border flex-shrink-0" @click="togglePlayerHidden">
+        <span class="material-symbols text-base text-fg-muted">play_circle</span>
+        <p class="px-1.5 text-xs text-fg-muted">Player</p>
+        <div class="flex-grow" />
+        <span class="material-symbols text-xl text-fg-muted duration-300" :class="$store.state.playerIsHidden ? '' : 'transform rotate-180'">arrow_drop_down</span>
+      </div>
+
       <item-reply-box docked class="flex-shrink-0" :library-item-id="serverLibraryItemId" @replied="onReplied" />
     </template>
 
@@ -464,6 +476,9 @@ export default {
     isStreaming() {
       return this.isPlaying && !this.$store.getters['getIsCurrentSessionLocal']
     },
+    playerIsOpen() {
+      return this.$store.getters['getIsPlayerOpen']
+    },
     isPlaying() {
       if (this.localLibraryItemId && this.$store.getters['getIsMediaStreaming'](this.localLibraryItemId)) return true
       return this.$store.getters['getIsMediaStreaming'](this.libraryItemId)
@@ -582,6 +597,15 @@ export default {
     // log goes looking for it rather than being told what it says.
     onReplied() {
       this.$refs.conversationLog?.replied()
+    },
+    togglePlayerHidden() {
+      const hidden = !this.$store.state.playerIsHidden
+      this.$store.commit('setPlayerHidden', hidden)
+      try {
+        localStorage.setItem('sasonica-player-hidden', hidden ? '1' : '0')
+      } catch (error) {
+        // Storage refused: the choice just does not survive the page.
+      }
     },
     onPlayerTime(t) {
       // Only this item's clock is this page's business.
@@ -883,7 +907,14 @@ export default {
         }
         // Sasonica: agent-media flags a conversation on the item itself, so
         // the page can open as a chat instead of rearranging a book page.
-        if (libraryItem.conversation) this.isConversation = true
+        if (libraryItem.conversation) {
+          this.isConversation = true
+          try {
+            this.$store.commit('setPlayerHidden', localStorage.getItem('sasonica-player-hidden') === '1')
+          } catch (error) {
+            // no preference remembered
+          }
+        }
         this.libraryItem = libraryItem
       } else if (this.$route.query.localLibraryItemId) {
         // Failed to get server library item but is local library item so redirect
@@ -903,6 +934,7 @@ export default {
   beforeDestroy() {
     window.removeEventListener('resize', this.windowResized)
     this.$eventBus.$off('player-time', this.onPlayerTime)
+    this.$store.commit('setPlayerHidden', false)
     this.$eventBus.$off('library-changed', this.libraryChanged)
     this.$eventBus.$off('new-local-library-item', this.newLocalLibraryItem)
     this.$socket.$off('item_updated', this.itemUpdated)

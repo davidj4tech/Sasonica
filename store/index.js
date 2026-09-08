@@ -7,6 +7,7 @@ export const state = () => ({
   currentPlaybackSession: null,
   playerIsPlaying: false,
   playerIsFullscreen: false,
+  playerIsHidden: false, // Sasonica: the chat page can tuck the mini player away
   playerIsStartingPlayback: false, // When pressing play before native play response
   playerStartingPlaybackMediaId: null,
   isCasting: false,
@@ -151,6 +152,9 @@ export const mutations = {
   },
   setPlayerPlaying(state, val) {
     state.playerIsPlaying = val
+  },
+  setPlayerHidden(state, val) {
+    state.playerIsHidden = val
   },
   setPlayerFullscreen(state, val) {
     state.playerIsFullscreen = val
