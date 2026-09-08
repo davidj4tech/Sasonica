@@ -112,7 +112,7 @@ class SasonicaRemoteService : Service() {
     // /play that arrives while nothing is on screen has something to talk to.
     bindService(Intent(this, PlayerNotificationService::class.java), connection, Context.BIND_AUTO_CREATE)
     control = SasonicaControl(InetAddress.getByName("0.0.0.0"), SasonicaControl.REMOTE_PORT,
-                              { token }) { player }.also { it.start() }
+                              { token }) { player }.also { it.appContext = applicationContext; it.start() }
     Log.i(tag, "up on :${SasonicaControl.REMOTE_PORT} at ${addresses()}")
   }
 
