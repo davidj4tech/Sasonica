@@ -34,7 +34,7 @@
              says which sentence, refreshed every poll. -->
         <p v-if="line.live && line.sentences && line.sentences.length" class="text-sm whitespace-pre-line">
           <template v-for="(sentence, i) in line.sentences">
-            <span :key="i" :class="i === line.sentence ? 'font-semibold text-fg' : i < line.sentence ? 'text-fg' : 'text-fg-muted'">{{ sentence }} </span>
+            <span :key="i" :class="i === liveSentence ? 'font-semibold text-fg' : i < liveSentence ? 'text-fg' : 'text-fg-muted'">{{ sentence }} </span>
           </template>
         </p>
         <p v-else class="text-sm whitespace-pre-line">{{ line.text }}</p>
@@ -171,7 +171,17 @@ export default {
       // a reply from the app, a message typed elsewhere, a turn spoken on the
       // host — is picked up promptly, not only ones this page sent itself.
       lastChangeAt: 0,
-      lastSig: ''
+      lastSig: '',
+      // The live turn's clock, run here between polls. `liveElapsed` is what
+      // the server said, `liveElapsedAt` when it said it; the sentence is
+      // found on the timeline at elapsed-plus-however-long-ago, so the bold
+      // moves with the voice instead of a poll behind it. Skew between the
+      // two clocks does not matter: only the local interval is used.
+      liveElapsed: 0,
+      liveElapsedAt: 0,
+      livePaused: false,
+      liveClock: 0,
+      clockTimer: null
     }
   },
   computed: {
@@ -182,6 +192,20 @@ export default {
     // player. Polled fast while it is, so the sentence keeps up.
     liveIndex() {
       return this.lines.findIndex((line) => line.live)
+    },
+    // Which sentence of the live turn the voice is on: from the timeline and
+    // the local clock when the server sent a timeline, else what it said.
+    liveSentence() {
+      const line = this.liveIndex >= 0 ? this.lines[this.liveIndex] : null
+      if (!line) return -1
+      const offsets = line.offsets || []
+      if (!offsets.length) return line.sentence == null ? -1 : line.sentence
+      const elapsed = this.livePaused ? this.liveElapsed : this.liveElapsed + (this.liveClock - this.liveElapsedAt) / 1000
+      let idx = 0
+      offsets.forEach((off, i) => {
+        if (elapsed + 0.001 >= off) idx = i
+      })
+      return idx
     },
     // The line being spoken. A turn the host is speaking right now wins; it
     // is not in the audio item yet, so the player cannot be on it. Otherwise
@@ -250,6 +274,16 @@ export default {
         const first = !this.lines.length
         const grew = lines.length > this.lines.length
         this.lines = lines
+        const live = lines.find((line) => line.live)
+        if (live && live.elapsed != null) {
+          this.liveElapsed = Number(live.elapsed) || 0
+          this.liveElapsedAt = Date.now()
+          this.livePaused = !!live.paused
+          this.liveClock = this.liveElapsedAt
+          this.startClock()
+        } else {
+          this.stopClock()
+        }
         // A conversation opens at its newest turn, and stays there as turns
         // land — unless the reader has scrolled up to read something, in
         // which case the new turn waits below and the page holds still.
@@ -279,6 +313,19 @@ export default {
       if (Date.now() < this.ignoreScrollUntil) return
       this.lastUserScrollAt = Date.now()
       this.stickToBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX
+    },
+    // The local clock behind liveSentence: a tick every quarter second while
+    // a turn is live is what moves the bold between polls.
+    startClock() {
+      if (this.clockTimer) return
+      this.clockTimer = window.setInterval(() => {
+        this.liveClock = Date.now()
+      }, 250)
+    },
+    stopClock() {
+      if (!this.clockTimer) return
+      window.clearInterval(this.clockTimer)
+      this.clockTimer = null
     },
     scrollToBottom() {
       const el = this.$refs.scroller
@@ -362,6 +409,7 @@ export default {
     document.addEventListener('visibilitychange', this.onVisibilityChange)
   },
   beforeDestroy() {
+    this.stopClock()
     this.stopPolling()
     document.removeEventListener('visibilitychange', this.onVisibilityChange)
   }
