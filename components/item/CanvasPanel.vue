@@ -55,7 +55,9 @@ export default {
     const base = await this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address)
     // The canvas page itself. The frame carries no credential; the page is
     // reachable to anything on the tailnet, which is what the wall relies on.
-    this.src = base ? `${base}/` : ''
+    // Captions off: the transcript under the frame has the words, and the
+    // canvas drawing them too would be the same sentence twice on one screen.
+    this.src = base ? `${base}/?subs=0` : ''
   }
 }
 </script>
