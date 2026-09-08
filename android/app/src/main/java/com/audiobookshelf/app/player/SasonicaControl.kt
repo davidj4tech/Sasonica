@@ -58,9 +58,13 @@ class SasonicaControl(private val service: PlayerNotificationService) {
     Log.i(tag, "listening on 127.0.0.1:$PORT")
     while (!ss.isClosed) {
       val c = try { ss.accept() } catch (_: Exception) { break }
-      try { handle(c) } catch (e: Exception) { Log.w(tag, "request failed: $e") } finally {
-        try { c.close() } catch (_: Exception) {}
-      }
+      // One thread per request: /play waits on the server for up to 20 s and
+      // must not hold /state hostage meanwhile.
+      Thread({
+        try { handle(c) } catch (e: Exception) { Log.w(tag, "request failed: $e") } finally {
+          try { c.close() } catch (_: Exception) {}
+        }
+      }, "sasonica-control-req").apply { isDaemon = true; start() }
     }
   }
 
