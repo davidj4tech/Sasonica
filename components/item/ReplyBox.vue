@@ -11,13 +11,17 @@
     It draws nothing unless the server says this item is a conversation the
     signed-in user may reply to, so it is invisible on ordinary audiobooks.
   -->
-  <div v-if="isConversation" ref="box" class="w-full mt-6">
-    <div class="flex items-center mb-1.5">
+  <div v-if="isConversation" ref="box" class="w-full" :class="docked ? 'px-3 pt-2 pb-3 border-t border-border bg-bg' : 'mt-6'">
+    <!-- Docked, the box needs no title: it is where the composer of every chat
+         app is, and that says what it is for. The one thing worth a line is
+         that the session behind it has ended. -->
+    <div v-if="!docked" class="flex items-center mb-1.5">
       <span class="material-symbols text-lg text-fg-muted">reply</span>
       <p class="px-1.5 text-sm text-fg-muted">Reply to this conversation</p>
       <div class="flex-grow" />
       <p v-if="!live" class="text-xs text-fg-muted">session ended</p>
     </div>
+    <p v-else-if="!live" class="text-xs text-fg-muted pb-1">Session ended — a reply reopens it.</p>
 
     <div class="flex items-end">
       <!-- A plain textarea rather than ui-text-input: this one has to grow, and
@@ -53,7 +57,7 @@
       the thing you are replying to. That puts it a long scroll away on a
       conversation with fifty of them, so this floats until you can see it.
     -->
-    <div v-show="!boxInView" class="fixed right-4 z-30 rounded-full bg-primary border border-border shadow-lg w-11 h-11 flex items-center justify-center" :class="playerIsOpen ? 'bottom-28' : 'bottom-6'" @click="jumpToBox">
+    <div v-show="!docked && !boxInView" class="fixed right-4 z-30 rounded-full bg-primary border border-border shadow-lg w-11 h-11 flex items-center justify-center" :class="playerIsOpen ? 'bottom-28' : 'bottom-6'" @click="jumpToBox">
       <span class="material-symbols text-2xl">reply</span>
     </div>
   </div>
@@ -64,7 +68,12 @@ import { AbsSpeechInput } from '@/plugins/capacitor'
 
 export default {
   props: {
-    libraryItemId: String
+    libraryItemId: String,
+    // Pinned at the foot of a conversation page, always in view: no floating
+    // button, no scrolling the page to find it. The keyboard is handled by
+    // the layout — Android shrinks the viewport and the page is a column
+    // whose last row this is.
+    docked: Boolean
   },
   data() {
     return {
@@ -131,6 +140,7 @@ export default {
     // keyboard animates in, so scrolling on the first frame lands where the
     // box used to be. Scroll on the resize, and again once it settles.
     keepInView() {
+      if (this.docked) return
       this.scrollBoxIntoView()
       window.setTimeout(this.scrollBoxIntoView, 350)
     },
@@ -202,8 +212,11 @@ export default {
         this.isConversation = !!res.ok
         this.live = !!res.live
         this.pane = res.live ? res.pane : null
+        // The page normally knows already (the item carries the flag); this
+        // is for when the item came from Audiobookshelf instead.
+        this.$emit('is-conversation', this.isConversation)
         if (this.isConversation) {
-          this.watchBox()
+          if (!this.docked) this.watchBox()
           AbsSpeechInput.available()
             .then((r) => {
               this.canDictate = !!r?.available

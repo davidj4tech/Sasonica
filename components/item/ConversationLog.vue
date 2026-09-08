@@ -12,7 +12,40 @@
     Upstream's ChaptersTable is untouched; the item page hides it while this is
     showing, because two lists of the same turns is worse than either.
   -->
-  <div v-if="lines.length" class="w-full my-4">
+  <!--
+    Two shapes. `chat` is the conversation page: this IS the scrolling area,
+    always open, opening at the newest turn and following the one being spoken.
+    Without it, the section on a book-shaped page it started as: a collapsible
+    block under the play bar.
+  -->
+  <div v-if="chat" ref="scroller" class="w-full overflow-y-auto overflow-x-hidden px-3 py-3" @scroll="onScroll">
+    <p v-if="!lines.length && !thinking" class="text-sm text-fg-muted text-center py-8">Nothing said yet.</p>
+    <div v-for="(line, index) in lines" :key="index" :ref="`line-${index}`" class="w-full flex mb-2" :class="line.who === 'you' ? 'justify-end' : 'justify-start'">
+      <!-- The line being spoken carries a visible border; the others carry a
+           transparent one of the same width so nothing shifts as it moves. -->
+      <div class="max-w-[85%] rounded-lg px-3 py-2 border" :class="[line.who === 'you' ? 'bg-info/20' : 'bg-primary/60', index === activeIndex ? 'border-fg/60' : 'border-transparent']" @click="play(line)">
+        <div class="flex items-center pb-0.5">
+          <p class="text-xs text-fg-muted">{{ line.who === 'you' ? 'You' : 'Claude' }}</p>
+          <p v-if="line.start != null" class="text-xs font-mono text-fg-muted underline pl-2">{{ $secondsToTimestamp(line.start) }}</p>
+        </div>
+        <p class="text-sm whitespace-pre-line">{{ line.text }}</p>
+      </div>
+    </div>
+    <div v-if="thinking" class="w-full flex mb-2 justify-start">
+      <div class="max-w-[85%] rounded-lg px-3 py-2 bg-primary/60 border border-transparent">
+        <div class="flex items-center pb-0.5">
+          <p class="text-xs text-fg-muted">Claude</p>
+        </div>
+        <p class="text-sm flex items-center">
+          <span class="thinking-dot" />
+          <span class="thinking-dot" />
+          <span class="thinking-dot" />
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div v-else-if="lines.length" class="w-full my-4">
     <div class="w-full bg-primary px-4 py-2 flex items-center" :class="expanded ? 'rounded-t-md' : 'rounded-md'" @click.stop="expanded = !expanded">
       <p class="pr-2">Transcript</p>
       <div class="h-6 w-6 rounded-full bg-fg/10 flex items-center justify-center">
@@ -78,10 +111,23 @@ const FAST_LINGER_MS = 20 * 1000
 // changing), so a reply that never comes drops back to idle rather than
 // polling fast forever.
 const FAST_WINDOW_MS = 3 * 60 * 1000
+// Chat mode: how long a scroll by the reader holds off the automatic ones —
+// following the spoken line, jumping to a new turn. Long enough to read back
+// through something; short enough that the page catches up on its own.
+const USER_SCROLL_HOLD_MS = 8000
+// How close to the bottom counts as "at the bottom", so a new turn landing
+// keeps the view pinned there rather than growing off-screen.
+const NEAR_BOTTOM_PX = 80
 
 export default {
   props: {
-    libraryItemId: String
+    libraryItemId: String,
+    // The conversation page's shape: see the template.
+    chat: Boolean,
+    // The player's clock and whether it is this conversation in the player
+    // (playing or paused), for the highlight. Only read in chat mode.
+    currentTime: { type: Number, default: 0 },
+    following: Boolean
   },
   data() {
     return {
@@ -89,6 +135,12 @@ export default {
       lines: [],
       expanded: true,
       timer: null,
+      // Chat mode scrolling. The reader's last scroll, and whether they were
+      // at the bottom when they stopped; a scroll this component started is
+      // ignored until this stamp passes, or it would count as the reader's.
+      lastUserScrollAt: 0,
+      stickToBottom: true,
+      ignoreScrollUntil: 0,
       // From the server: the last thing said was the listener's, so an answer
       // is still to come.
       pending: false,
@@ -108,6 +160,23 @@ export default {
   computed: {
     thinking() {
       return this.awaiting || this.pending
+    },
+    // The line being spoken: the last one that starts at or before the clock.
+    // Lines still on the live tail have no start and are never it.
+    activeIndex() {
+      if (!this.chat || !this.following) return -1
+      const t = Number(this.currentTime) + 0.05
+      let found = -1
+      this.lines.forEach((line, i) => {
+        if (line.start != null && line.start <= t) found = i
+      })
+      return found
+    }
+  },
+  watch: {
+    activeIndex(index) {
+      if (index < 0 || !this.readerIsAway()) return
+      this.scrollToLine(index)
     }
   },
   methods: {
@@ -143,7 +212,15 @@ export default {
           this.lastSig = sig
           this.lastChangeAt = Date.now()
         }
+        const first = !this.lines.length
+        const grew = lines.length > this.lines.length
         this.lines = lines
+        // A conversation opens at its newest turn, and stays there as turns
+        // land — unless the reader has scrolled up to read something, in
+        // which case the new turn waits below and the page holds still.
+        if (this.chat && (first || grew) && this.stickToBottom && this.readerIsAway()) {
+          this.$nextTick(this.scrollToBottom)
+        }
         this.pending = !!res?.pending
         // The page hides upstream's chapters table while this is up.
         this.$emit('has-log', this.lines.length > 0)
@@ -155,6 +232,32 @@ export default {
     },
     refresh() {
       this.fetchLog({ quiet: true })
+    },
+    // Chat mode. "Away" means the reader has not scrolled for a while, so a
+    // scroll the page makes will not fight one they are making.
+    readerIsAway() {
+      return Date.now() - this.lastUserScrollAt > USER_SCROLL_HOLD_MS
+    },
+    onScroll() {
+      const el = this.$refs.scroller
+      if (!el) return
+      if (Date.now() < this.ignoreScrollUntil) return
+      this.lastUserScrollAt = Date.now()
+      this.stickToBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX
+    },
+    scrollToBottom() {
+      const el = this.$refs.scroller
+      if (!el) return
+      this.ignoreScrollUntil = Date.now() + 800
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      this.stickToBottom = true
+    },
+    scrollToLine(index) {
+      const ref = this.$refs[`line-${index}`]
+      const el = Array.isArray(ref) ? ref[0] : ref
+      if (!el) return
+      this.ignoreScrollUntil = Date.now() + 800
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
     },
     // Called by the page when a reply has been accepted. Show the indicator at
     // once and drop into the fast cadence until the answer lands.
@@ -183,7 +286,10 @@ export default {
     // backgrounded app they would queue up and all fire at once on resume.
     // setTimeout, not setInterval, so the cadence can change between ticks.
     startPolling() {
-      if (this.timer || !this.lines.length) return
+      // A book-shaped page with no transcript has nothing to poll for. A chat
+      // page is the transcript, so it keeps asking — the first turn may be
+      // the one being spoken right now.
+      if (this.timer || (!this.lines.length && !this.chat)) return
       const tick = async () => {
         this.timer = null
         await this.refresh()

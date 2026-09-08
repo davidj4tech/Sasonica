@@ -2,7 +2,30 @@
   <div v-if="!libraryItem" class="w-full h-full relative flex items-center justify-center bg-bg">
     <ui-loading-indicator />
   </div>
-  <div v-else id="item-page" class="w-full h-full overflow-y-auto overflow-x-hidden relative bg-bg">
+  <div v-else id="item-page" class="w-full h-full relative bg-bg" :class="isConversation ? 'flex flex-col' : 'overflow-y-auto overflow-x-hidden'">
+    <!-- Sasonica: a conversation is a chat, and gets a chat's page — a title
+         row, the transcript filling the screen, the composer at the foot.
+         The book chrome (cover, author, duration, download, progress) is
+         about a finished thing and says nothing about an exchange that is
+         still going; play/pause and the menu are kept, small, in the title
+         row. Everything below the template is upstream's page, untouched. -->
+    <template v-if="isConversation">
+      <div class="flex items-center px-3 py-2 border-b border-border flex-shrink-0">
+        <h1 class="text-base font-semibold flex-grow truncate">{{ title }}</h1>
+        <ui-btn v-if="showPlay" color="success" small :padding-x="2" :padding-y="1" class="flex items-center justify-center ml-2" :loading="playerIsStartingForThisMedia" @click="playClick">
+          <span class="material-symbols text-xl fill">{{ playerIsPlaying ? 'pause' : 'play_arrow' }}</span>
+        </ui-btn>
+        <ui-btn color="primary" small :padding-x="2" :padding-y="1" class="flex items-center justify-center ml-2" @click="moreButtonPress">
+          <span class="material-symbols text-xl">more_vert</span>
+        </ui-btn>
+      </div>
+
+      <item-conversation-log ref="conversationLog" chat class="flex-grow min-h-0" :library-item-id="serverLibraryItemId" :current-time="playerTime" :following="isPlaying" @playAtTimestamp="playAtTimestamp" />
+
+      <item-reply-box docked class="flex-shrink-0" :library-item-id="serverLibraryItemId" @replied="onReplied" />
+    </template>
+
+    <template v-else>
     <!-- cover -->
     <div class="w-full flex justify-center relative">
       <div style="width: 0; transform: translateX(-50vw); overflow: visible">
@@ -169,9 +192,10 @@
         <!-- Sasonica: reply into the session behind a recorded conversation.
              Below the chapters, because a reply comes after the thing it
              answers. Draws nothing unless the server says this item is one. -->
-        <item-reply-box :library-item-id="serverLibraryItemId" @replied="onReplied" />
+        <item-reply-box :library-item-id="serverLibraryItemId" @replied="onReplied" @is-conversation="isConversation = $event" />
       </div>
     </div>
+    </template>
 
     <!-- modals -->
     <modals-item-more-menu-modal v-model="showMoreMenu" :library-item="libraryItem" :rss-feed="rssFeed" :processing.sync="processing" />
@@ -233,6 +257,11 @@ export default {
       showMoreMenu: false,
       showFullscreenCover: false,
       hasConversationLog: false,
+      // Sasonica: the chat layout. Known from the item when agent-media
+      // served it; otherwise the reply box says so once it has asked.
+      isConversation: false,
+      // The player's clock, for the transcript to follow along.
+      playerTime: 0,
       coverRgb: null,
       coverBgIsLight: false,
       windowWidth: 0,
@@ -552,6 +581,10 @@ export default {
     onReplied() {
       this.$refs.conversationLog?.replied()
     },
+    onPlayerTime(t) {
+      // Only this item's clock is this page's business.
+      if (this.isPlaying) this.playerTime = t
+    },
     playAtTimestamp(seconds) {
       this.play(seconds)
     },
@@ -788,6 +821,7 @@ export default {
 
       this.windowWidth = window.innerWidth
       window.addEventListener('resize', this.windowResized)
+      this.$eventBus.$on('player-time', this.onPlayerTime)
       this.$eventBus.$on('library-changed', this.libraryChanged)
       this.$eventBus.$on('new-local-library-item', this.newLocalLibraryItem)
       this.$socket.$on('item_updated', this.itemUpdated)
@@ -845,6 +879,9 @@ export default {
           console.log('Library item has local library item also', localLibraryItem.id)
           libraryItem.localLibraryItem = localLibraryItem
         }
+        // Sasonica: agent-media flags a conversation on the item itself, so
+        // the page can open as a chat instead of rearranging a book page.
+        if (libraryItem.conversation) this.isConversation = true
         this.libraryItem = libraryItem
       } else if (this.$route.query.localLibraryItemId) {
         // Failed to get server library item but is local library item so redirect
@@ -863,6 +900,7 @@ export default {
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.windowResized)
+    this.$eventBus.$off('player-time', this.onPlayerTime)
     this.$eventBus.$off('library-changed', this.libraryChanged)
     this.$eventBus.$off('new-local-library-item', this.newLocalLibraryItem)
     this.$socket.$off('item_updated', this.itemUpdated)
