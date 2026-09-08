@@ -46,7 +46,8 @@ class SasonicaControl(private val service: PlayerNotificationService) {
 
   private fun serve() {
     val ss = try {
-      ServerSocket(PORT, 4, InetAddress.getLoopbackAddress())
+      // Not getLoopbackAddress(): on p8a that is ::1, which Termux cannot reach.
+      ServerSocket(PORT, 4, InetAddress.getByName("127.0.0.1"))
     } catch (e: Exception) {
       // Another process (or a previous instance not yet gone) holds the port.
       // The service works without us; red5 falls back to mpv.
