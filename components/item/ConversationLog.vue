@@ -18,6 +18,8 @@
       <div class="h-6 w-6 rounded-full bg-fg/10 flex items-center justify-center">
         <span class="text-xs font-mono">{{ lines.length }}</span>
       </div>
+      <!-- A collapsed transcript still says when a reply is being worked on. -->
+      <span v-if="thinking" class="thinking-dot ml-2" title="Claude is replying" />
       <div class="flex-grow" />
       <div class="h-10 w-10 rounded-full flex justify-center items-center duration-500" :class="expanded ? 'transform rotate-180' : ''">
         <span class="material-symbols text-3xl">arrow_drop_down</span>
@@ -34,19 +36,43 @@
           <p class="text-sm whitespace-pre-line">{{ line.text }}</p>
         </div>
       </div>
+
+      <!--
+        The thinking line. Shown while the last thing said was the listener's
+        (server `pending`) or a reply has just been accepted and no turn has
+        rendered yet (local `awaiting`). It is not a real line — it carries no
+        position and cannot be tapped — so it is kept out of the `lines` list
+        and drawn on its own.
+      -->
+      <div v-if="thinking" class="w-full flex mb-2 justify-start">
+        <div class="max-w-[85%] rounded-lg px-3 py-2 bg-bg">
+          <div class="flex items-center pb-0.5">
+            <p class="text-xs text-fg-muted">Claude</p>
+          </div>
+          <p class="text-sm flex items-center">
+            <span class="thinking-dot" />
+            <span class="thinking-dot" />
+            <span class="thinking-dot" />
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-// How often the log re-asks while the page is up. A turn takes longer than
-// this to render and publish, so anything faster would mostly ask the same
-// question twice.
-const POLL_MS = 15000
-// After a reply is sent, the turn appears once record_listener_turn has
-// rendered it — a second or two, on a background thread. These are the
-// catch-up asks, so it lands without waiting out a whole poll.
-const AFTER_REPLY_MS = [1500, 4000, 9000]
+// The idle cadence, when nothing is in flight: a turn takes longer than this
+// to render and publish, so anything faster would mostly ask the same question
+// twice.
+const POLL_IDLE_MS = 15000
+// The cadence while a reply is being worked on. Fast enough that the answer
+// lands a second or two after it is said instead of waiting out an idle poll —
+// which was the whole complaint. Cheap: the log is derived on demand and the
+// payload is small.
+const POLL_FAST_MS = 2000
+// A ceiling on the fast cadence, so a reply that never comes (a session that
+// did not answer) drops back to idle rather than polling fast forever.
+const FAST_WINDOW_MS = 3 * 60 * 1000
 
 export default {
   props: {
@@ -58,7 +84,21 @@ export default {
       lines: [],
       expanded: true,
       timer: null,
-      catchUp: []
+      // From the server: the last thing said was the listener's, so an answer
+      // is still to come.
+      pending: false,
+      // Local: a reply was just accepted. record_listener_turn renders it on a
+      // background thread a beat later, so for that beat neither the listener's
+      // line nor `pending` is here yet — this bridges the gap so the indicator
+      // shows the instant Send is pressed.
+      awaiting: false,
+      // When the fast window ends (0 = not fast).
+      fastUntil: 0
+    }
+  },
+  computed: {
+    thinking() {
+      return this.awaiting || this.pending
     }
   },
   methods: {
@@ -78,7 +118,14 @@ export default {
         const res = await this.$nativeHttp.request('GET', `${this.baseUrl}/conversation/log?item=${this.libraryItemId}`, null, {
           headers: { Authorization: `Bearer ${token}` }
         })
-        this.lines = res?.lines || []
+        const lines = res?.lines || []
+        // A reply we were waiting for has landed once Claude has the last word
+        // again. Clear the local bridge; `pending` then carries any real wait.
+        if (this.awaiting && lines.length && lines[lines.length - 1].who !== 'you') {
+          this.awaiting = false
+        }
+        this.lines = lines
+        this.pending = !!res?.pending
         // The page hides upstream's chapters table while this is up.
         this.$emit('has-log', this.lines.length > 0)
       } catch (error) {
@@ -87,28 +134,45 @@ export default {
         this.lines = []
       }
     },
-    // Called by the page when a reply has been accepted, and used by the poll.
     refresh() {
       this.fetchLog({ quiet: true })
     },
+    // Called by the page when a reply has been accepted. Show the indicator at
+    // once and drop into the fast cadence until the answer lands.
     replied() {
-      this.clearCatchUp()
-      this.catchUp = AFTER_REPLY_MS.map((ms) => window.setTimeout(this.refresh, ms))
+      this.awaiting = true
+      this.fastUntil = Date.now() + FAST_WINDOW_MS
+      this.refresh()
+      this.reschedule()
     },
-    clearCatchUp() {
-      this.catchUp.forEach((id) => window.clearTimeout(id))
-      this.catchUp = []
+    // The next poll's delay, chosen each tick: fast while a reply is in flight
+    // and inside the fast window, idle otherwise.
+    nextDelay() {
+      if (this.thinking && Date.now() < this.fastUntil) return POLL_FAST_MS
+      return POLL_IDLE_MS
+    },
+    reschedule() {
+      this.stopPolling()
+      this.startPolling()
     },
     // Only while the page is actually being looked at. A conversation the
     // reader has left is not worth a request every fifteen seconds, and on a
     // backgrounded app they would queue up and all fire at once on resume.
+    // setTimeout, not setInterval, so the cadence can change between ticks.
     startPolling() {
       if (this.timer || !this.lines.length) return
-      this.timer = window.setInterval(this.refresh, POLL_MS)
+      const tick = async () => {
+        this.timer = null
+        await this.refresh()
+        // Keep the fast window honest: once it lapses, thinking stays true only
+        // if the server still says pending, and the delay stretches back out.
+        this.timer = window.setTimeout(tick, this.nextDelay())
+      }
+      this.timer = window.setTimeout(tick, this.nextDelay())
     },
     stopPolling() {
       if (!this.timer) return
-      window.clearInterval(this.timer)
+      window.clearTimeout(this.timer)
       this.timer = null
     },
     onVisibilityChange() {
@@ -132,8 +196,39 @@ export default {
   },
   beforeDestroy() {
     this.stopPolling()
-    this.clearCatchUp()
     document.removeEventListener('visibilitychange', this.onVisibilityChange)
   }
 }
 </script>
+
+<style scoped>
+/* A small pulsing dot: one beside the title when collapsed, three in a row for
+   the thinking line. Reuses the app's foreground colour so it works in any
+   theme. */
+.thinking-dot {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-right: 0.25rem;
+  border-radius: 9999px;
+  background-color: currentColor;
+  opacity: 0.35;
+  animation: thinking-pulse 1.2s ease-in-out infinite;
+}
+.thinking-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.thinking-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes thinking-pulse {
+  0%, 80%, 100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+}
+</style>
