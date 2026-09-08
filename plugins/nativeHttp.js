@@ -18,7 +18,22 @@ export default function ({ store, $db, $socket }, inject) {
       // answers 401 truthfully and about a completely different question.
       // Refreshing on that is at best pointless, and at worst ends the
       // session: a refresh that fails logs the user out.
-      const isServerRequest = !_url.startsWith('http') || (serverConnectionConfig?.address && _url.startsWith(serverConnectionConfig.address))
+      let isServerRequest = !_url.startsWith('http') || (serverConnectionConfig?.address && _url.startsWith(serverConnectionConfig.address))
+      // agent-media's canvas runs on the SAME host as this server's
+      // Audiobookshelf, on port 8781, and asks that very server "who is this?"
+      // with the app's bearer (among any others it is configured for). So its
+      // 401 does mean this session is stale — unlike an unrelated service's,
+      // it is worth a refresh. Match only the canvas derived from THIS server,
+      // nothing the caller named, so the safety above still holds.
+      if (!isServerRequest && serverConnectionConfig?.address) {
+        try {
+          const canvas = new URL(serverConnectionConfig.address)
+          canvas.port = '8781'
+          if (_url.startsWith(canvas.origin)) isServerRequest = true
+        } catch (e) {
+          // A server address that will not parse cannot be matched; leave it.
+        }
+      }
       if (!url.startsWith('http') && !url.startsWith('capacitor')) {
         const bearerToken = store.getters['user/getToken']
         if (bearerToken) {
