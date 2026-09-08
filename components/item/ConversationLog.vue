@@ -29,6 +29,12 @@
           <p v-if="line.start != null" class="text-xs font-mono text-fg-muted underline pl-2">{{ $secondsToTimestamp(line.start) }}</p>
         </div>
         <p class="text-sm whitespace-pre-line">{{ line.text }}</p>
+        <!-- The picture the canvas drew for this reply, when it still has it.
+             A figure was drawn to be read and gets the width; ambient artwork
+             is kept small so it decorates rather than interrupts. -->
+        <div v-if="line.images && line.images.length" class="flex flex-wrap gap-1 pt-1.5">
+          <img v-for="src in line.images" :key="src" :src="pictureUrl(src)" :class="line.figure ? 'w-full max-h-72 object-contain rounded bg-black/40' : 'h-20 w-20 object-cover rounded'" loading="lazy" @click.stop="openPicture(pictureUrl(src))" />
+        </div>
       </div>
     </div>
     <div v-if="thinking" class="w-full flex mb-2 justify-start">
@@ -94,6 +100,8 @@
 </template>
 
 <script>
+import { Browser } from '@capacitor/browser'
+
 // The idle cadence, when nothing is in flight: a turn takes longer than this
 // to render and publish, so anything faster would mostly ask the same question
 // twice.
@@ -180,6 +188,15 @@ export default {
     }
   },
   methods: {
+    // Canvas-relative (/img/...) or absolute, as the server chose to send it.
+    pictureUrl(src) {
+      return src.startsWith('/') ? `${this.baseUrl}${src}` : src
+    },
+    openPicture(url) {
+      // Full size, in the system browser: a figure's labels are small on a
+      // phone, and the browser knows how to pinch.
+      Browser.open({ url }).catch((error) => console.error('[ConversationLog] open picture failed', error))
+    },
     play(line) {
       // Tapping a line plays from it, the same move the chapters table makes.
       if (line.start == null) return

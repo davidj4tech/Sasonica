@@ -20,6 +20,8 @@
         </ui-btn>
       </div>
 
+      <item-canvas-panel />
+
       <item-conversation-log ref="conversationLog" chat class="flex-grow min-h-0" :library-item-id="serverLibraryItemId" :current-time="playerTime" :following="isPlaying" @playAtTimestamp="playAtTimestamp" />
 
       <item-reply-box docked class="flex-shrink-0" :library-item-id="serverLibraryItemId" @replied="onReplied" />
