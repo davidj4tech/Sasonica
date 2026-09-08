@@ -48,6 +48,10 @@ export default {
     currentLibraryMediaType() {
       return this.$store.getters['libraries/getCurrentLibraryMediaType']
     },
+    isConversations() {
+      // Sasonica: a conversation's series is its project
+      return this.$store.getters['libraries/getCurrentLibraryIsConversations']
+    },
     isBookLibrary() {
       return this.currentLibraryMediaType === 'book'
     },
@@ -70,7 +74,7 @@ export default {
       } else if (this.page === 'playlists') {
         return this.$strings.ButtonPlaylists
       } else if (this.page === 'series') {
-        return this.$strings.LabelSeries
+        return this.isConversations ? this.$strings.LabelProjects : this.$strings.LabelSeries // Sasonica
       } else if (this.page === 'collections') {
         return this.$strings.ButtonCollections
       } else if (this.page === 'authors') {

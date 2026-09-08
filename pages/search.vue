@@ -37,7 +37,7 @@
         </div>
       </template>
 
-      <p v-if="seriesResults.length" class="font-semibold text-sm mb-1 mt-2">{{ $strings.LabelSeries }}</p>
+      <p v-if="seriesResults.length" class="font-semibold text-sm mb-1 mt-2">{{ isConversations ? $strings.LabelProjects : $strings.LabelSeries }}</p>
       <template v-for="seriesResult in seriesResults">
         <div :key="seriesResult.series.id" class="w-full h-16 py-1">
           <nuxt-link :to="`/bookshelf/series/${seriesResult.series.id}`">
@@ -96,6 +96,10 @@ export default {
   computed: {
     currentLibraryId() {
       return this.$store.state.libraries.currentLibraryId
+    },
+    isConversations() {
+      // Sasonica: a conversation's series is its project
+      return this.$store.getters['libraries/getCurrentLibraryIsConversations']
     },
     bookCoverAspectRatio() {
       return this.$store.getters['libraries/getBookCoverAspectRatio']

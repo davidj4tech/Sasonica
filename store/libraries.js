@@ -30,6 +30,11 @@ export const getters = {
   },
   getLibraryIsAudiobooksOnly: (state, getters) => {
     return !!getters.getCurrentLibrarySettings?.audiobooksOnly
+  },
+  // Sasonica: the library agent-media fills with conversations. Its "series"
+  // are project workspaces, numbered by date, and the shelves say so.
+  getCurrentLibraryIsConversations: (state, getters) => {
+    return (getters.getCurrentLibraryName || '').trim().toLowerCase() === 'conversations'
   }
 }
 

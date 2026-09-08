@@ -22,6 +22,10 @@ export default {
     currentLibraryIcon() {
       return this.currentLibrary?.icon || 'database'
     },
+    isConversations() {
+      // Sasonica: a conversation's series is its project
+      return this.$store.getters['libraries/getCurrentLibraryIsConversations']
+    },
     userHasPlaylists() {
       return this.$store.state.libraries.numUserPlaylists
     },
@@ -92,7 +96,7 @@ export default {
             iconPack: 'abs-icons',
             icon: 'columns',
             iconClass: 'text-lg pt-px',
-            text: this.$strings.ButtonSeries
+            text: this.isConversations ? this.$strings.ButtonProjects : this.$strings.ButtonSeries // Sasonica
           },
           {
             to: '/bookshelf/collections',

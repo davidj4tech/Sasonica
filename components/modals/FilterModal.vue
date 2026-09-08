@@ -66,6 +66,10 @@ export default {
     }
   },
   computed: {
+    isConversations() {
+      // Sasonica: a conversation's series is its project
+      return this.$store.getters['libraries/getCurrentLibraryIsConversations']
+    },
     show: {
       get() {
         return this.value
@@ -102,7 +106,7 @@ export default {
           sublist: true
         },
         {
-          text: this.$strings.LabelSeries,
+          text: this.isConversations ? this.$strings.LabelProjects : this.$strings.LabelSeries, // Sasonica
           value: 'series',
           sublist: true
         },
