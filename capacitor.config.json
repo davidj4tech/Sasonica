@@ -1,5 +1,5 @@
 {
-  "appId": "com.audiobookshelf.app",
+  "appId": "org.ryer.sasonica",
   "appName": "audiobookshelf-app",
   "webDir": "dist",
   "plugins": {

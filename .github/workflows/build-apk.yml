@@ -36,18 +36,46 @@ jobs:
       - name: copy to Android project
         run: npx cap sync
 
-      - name: build Android app
+      - name: build debug Android app
         run: ./android/gradlew assembleDebug -p android --no-daemon
 
-      - name: rename apk
-        working-directory: android/app/build/outputs/apk/debug/
+      # The release key comes from repo secrets (see android/app/build.gradle).
+      # Pull requests from forks get no secrets, so the release build is skipped.
+      - name: restore release keystore
+        if: ${{ secrets.SASONICA_KEYSTORE_B64 != '' }}
+        env:
+          SASONICA_KEYSTORE_B64: ${{ secrets.SASONICA_KEYSTORE_B64 }}
+        run: |
+          echo "$SASONICA_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/sasonica-release.jks"
+          echo "SASONICA_KEYSTORE_FILE=$RUNNER_TEMP/sasonica-release.jks" >> "$GITHUB_ENV"
+
+      - name: build release Android app
+        if: ${{ env.SASONICA_KEYSTORE_FILE != '' }}
+        env:
+          SASONICA_KEYSTORE_PASSWORD: ${{ secrets.SASONICA_KEYSTORE_PASSWORD }}
+          SASONICA_KEY_PASSWORD: ${{ secrets.SASONICA_KEY_PASSWORD }}
+          SASONICA_KEY_ALIAS: ${{ secrets.SASONICA_KEY_ALIAS }}
+        run: ./android/gradlew assembleRelease -p android --no-daemon
+
+      - name: rename apks
         run: |
           build="$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
-          name="audiobookshelf-${build}.apk"
-          mv -v app-debug.apk "${name}"
+          mv -v android/app/build/outputs/apk/debug/app-debug.apk \
+                "android/app/build/outputs/apk/debug/sasonica-debug-${build}.apk"
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            mv -v android/app/build/outputs/apk/release/app-release.apk \
+                  "android/app/build/outputs/apk/release/sasonica-${build}.apk"
+          fi
 
-      - name: upload app
+      - name: upload debug app
         uses: actions/upload-artifact@v4
         with:
-          name: audiobookshelf-apk
+          name: sasonica-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
+
+      - name: upload release app
+        if: ${{ env.SASONICA_KEYSTORE_FILE != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sasonica-apk
+          path: android/app/build/outputs/apk/release/*.apk
