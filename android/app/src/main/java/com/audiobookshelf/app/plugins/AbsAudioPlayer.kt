@@ -117,6 +117,16 @@ class AbsAudioPlayer : Plugin() {
       })
 
       MediaEventManager.clientEventEmitter = playerNotificationService.clientEventEmitter
+
+      // Sasonica: the service can outlive the web view — remote control keeps
+      // it up, and red5 may have started a book while nothing was on screen —
+      // and the web view only ever asks for a session on the cast button. So a
+      // fresh web view is told what is already playing, retained until the
+      // player mounts its listener, and the mini player appears as it would
+      // for a session it started itself.
+      playerNotificationService.currentPlaybackSession?.let {
+        notifyListeners("onPlaybackSession", sessionForWebView(it), true)
+      }
     }
     mainActivity.pluginCallback = foregroundServiceReady
   }
