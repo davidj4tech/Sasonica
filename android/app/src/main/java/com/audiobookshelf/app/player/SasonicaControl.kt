@@ -205,7 +205,8 @@ class SasonicaControl(private val service: PlayerNotificationService) {
         }
       }
     }
-    latch.await(20, TimeUnit.SECONDS)
+    // 45 s, not 20: on a flapping tailnet the app's own play request has taken 19 s.
+    latch.await(45, TimeUnit.SECONDS)
     return result
   }
 
