@@ -114,6 +114,7 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
   private var channelName = "Audiobookshelf Channel"
 
   var currentPlaybackSession: PlaybackSession? = null
+  private var sasonicaControl: SasonicaControl? = null // Sasonica
   private var initialPlaybackRate: Float? = null
 
   private var isAndroidAuto = false
@@ -197,6 +198,7 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
     mPlayer.release()
     castPlayer?.release()
     mediaSession.release()
+    sasonicaControl?.stop() // Sasonica
     mediaProgressSyncer.reset()
 
     super.onDestroy()
@@ -249,6 +251,7 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
 
     // Initialize media manager
     mediaManager = MediaManager(apiHandler, ctx)
+    sasonicaControl = SasonicaControl(this).also { it.start() } // Sasonica: loopback control endpoint (:8772)
 
     channelId =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
