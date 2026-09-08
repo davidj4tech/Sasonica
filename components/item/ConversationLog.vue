@@ -98,11 +98,11 @@
 // to render and publish, so anything faster would mostly ask the same question
 // twice.
 const POLL_IDLE_MS = 15000
-// The cadence while a reply is being worked on. Fast enough that the answer
-// lands a second or two after it is said instead of waiting out an idle poll —
-// which was the whole complaint. Cheap: the log is derived on demand and the
-// payload is small.
-const POLL_FAST_MS = 2000
+// The cadence while a reply is being worked on. The turn being spoken is in
+// the log while it is still audible, so this is how closely the words on
+// screen track the words in the air; a second keeps them within a sentence.
+// Cheap: the log is derived on demand and the payload is small.
+const POLL_FAST_MS = 1000
 // Keep the fast cadence for a short while after the transcript last CHANGED,
 // so a reply that is still growing (and the moment right after it settles)
 // stays snappy no matter who started the turn or how it arrived.
