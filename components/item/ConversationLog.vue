@@ -19,7 +19,11 @@
     block under the play bar.
   -->
   <div v-if="chat" ref="scroller" class="w-full overflow-y-auto overflow-x-hidden px-3 py-3" @scroll="onScroll">
-    <p v-if="!lines.length && !thinking" class="text-sm text-fg-muted text-center py-8">Nothing said yet.</p>
+    <!-- An empty transcript and a failed fetch are different things: the
+         first says nothing was said, the second says why nothing is shown
+         (the server's own words, which name the actual fault). -->
+    <p v-if="error && !lines.length" class="text-sm text-error text-center py-8">Couldn't load the conversation: {{ error }}</p>
+    <p v-else-if="!lines.length && !thinking" class="text-sm text-fg-muted text-center py-8">Nothing said yet.</p>
     <div v-for="(line, index) in lines" :key="index" :ref="`line-${index}`" class="w-full flex mb-2" :class="line.who === 'you' ? 'justify-end' : 'justify-start'">
       <!-- The line being spoken carries a visible border; the others carry a
            transparent one of the same width so nothing shifts as it moves. -->
@@ -166,6 +170,9 @@ export default {
       // line nor `pending` is here yet — this bridges the gap so the indicator
       // shows the instant Send is pressed.
       awaiting: false,
+      // Why the last fetch failed, if it did; cleared by the next one that
+      // works. Shown in place of the transcript while there is none.
+      error: '',
       // When the transcript last changed, and a cheap signature to detect it.
       // Any change re-arms the fast cadence, so a turn arriving by ANY route —
       // a reply from the app, a message typed elsewhere, a turn spoken on the
@@ -256,6 +263,7 @@ export default {
           headers: { Authorization: `Bearer ${token}` }
         })
         const lines = res?.lines || []
+        this.error = ''
         // A reply we were waiting for has landed once Claude has the last word
         // again. Clear the local bridge; `pending` then carries any real wait.
         if (this.awaiting && lines.length && lines[lines.length - 1].who !== 'you') {
@@ -298,8 +306,13 @@ export default {
         // The page hides upstream's chapters table while this is up.
         this.$emit('has-log', this.lines.length > 0)
       } catch (error) {
+        // Not a conversation, not allowed, no canvas, or the server fell
+        // over: the message is the server's when it sent one. Kept even on a
+        // quiet refresh so a failure that persists is seen once the lines
+        // it was hiding behind are gone — but the lines stay.
+        this.error = error?.message || String(error)
+        console.error('[ConversationLog] fetch failed', this.error)
         if (quiet) return
-        // Not a conversation, not allowed, or no canvas: show nothing.
         this.lines = []
       }
     },
