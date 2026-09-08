@@ -25,6 +25,8 @@ import com.audiobookshelf.app.plugins.AbsDownloader
 import com.audiobookshelf.app.plugins.AbsFileSystem
 import com.audiobookshelf.app.plugins.AbsLogger
 import com.audiobookshelf.app.plugins.AbsSpeechInput
+import com.audiobookshelf.app.plugins.AbsSasonica // Sasonica
+import com.audiobookshelf.app.player.SasonicaRemoteService // Sasonica
 import com.getcapacitor.BridgeActivity
 
 
@@ -54,6 +56,8 @@ class MainActivity : BridgeActivity() {
     registerPlugin(AbsDatabase::class.java)
     registerPlugin(AbsLogger::class.java)
     registerPlugin(AbsSpeechInput::class.java)
+    registerPlugin(AbsSasonica::class.java) // Sasonica
+    SasonicaRemoteService.ensure(this) // Sasonica: remote control, if switched on
 
     super.onCreate(savedInstanceState)
     Log.d(tag, "onCreate")

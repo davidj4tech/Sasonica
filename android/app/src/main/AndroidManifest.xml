@@ -7,6 +7,7 @@
     <!-- Permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" /> <!-- Sasonica: remote control survives a reboot -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
@@ -130,6 +131,19 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+
+        <!-- Sasonica: remote control — an always-on foreground service that keeps
+             the app thawed and listens on :8773 for a tokened agent-media. -->
+        <service
+            android:name=".player.SasonicaRemoteService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+        <receiver android:name=".player.SasonicaBootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <provider
           android:name="androidx.core.content.FileProvider"

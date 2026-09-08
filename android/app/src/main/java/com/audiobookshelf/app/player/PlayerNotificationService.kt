@@ -251,7 +251,7 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
 
     // Initialize media manager
     mediaManager = MediaManager(apiHandler, ctx)
-    sasonicaControl = SasonicaControl(this).also { it.start() } // Sasonica: loopback control endpoint (:8772)
+    sasonicaControl = SasonicaControl.loopback(this).also { it.start() } // Sasonica: loopback control endpoint (:8772)
 
     channelId =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

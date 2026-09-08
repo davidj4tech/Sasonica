@@ -182,6 +182,22 @@
       <ui-text-input v-model="agentMediaUrl" :autofocus="false" :placeholder="defaultAgentMediaUrl || 'http://host:8781'" @input="saveAgentMediaUrl" />
       <p class="text-xs text-fg-muted pt-1">Where to send replies typed under a conversation. Blank uses this server on port 8781.</p>
     </div>
+    <div v-if="$platform === 'android'" class="py-3">
+      <div class="flex items-center">
+        <div class="flex-grow">
+          <p>Remote control</p>
+          <p class="text-xs text-fg-muted pt-1">Keeps Sasonica awake and lets agent-media play, pause and seek here over the tailnet. Shows one quiet notification.</p>
+        </div>
+        <ui-toggle-switch v-model="remote.enabled" @input="saveRemote" />
+      </div>
+      <div v-if="remote.enabled" class="pt-3">
+        <p class="text-xs text-fg-muted">Address<span v-if="!remote.running"> (starting…)</span></p>
+        <p class="font-mono text-sm break-all">{{ remoteAddress }}</p>
+        <p class="text-xs text-fg-muted pt-2">Token</p>
+        <p class="font-mono text-sm break-all">{{ remote.token }}</p>
+        <p class="text-xs text-fg-muted pt-2">On red5: <span class="font-mono">MEDIA_PHONE_PLAYER_URL_APP={{ remoteAddress }}</span> and <span class="font-mono">MEDIA_PHONE_PLAYER_TOKEN=…</span></p>
+      </div>
+    </div>
 
     <div v-show="loading" class="w-full h-full absolute top-0 left-0 flex items-center justify-center z-10">
       <ui-loading-indicator />
@@ -196,6 +212,7 @@
 <script>
 import { Dialog } from '@capacitor/dialog'
 import jumpLabelMixin from '@/mixins/jumpLabel'
+import { AbsSasonica } from '@/plugins/capacitor' // Sasonica
 
 export default {
   mixins: [jumpLabelMixin],
@@ -204,6 +221,7 @@ export default {
       loading: false,
       deviceData: null,
       agentMediaUrl: '',
+      remote: { enabled: false, running: false, token: '', port: 8773, addresses: [] }, // Sasonica
       showMoreMenuDialog: false,
       showSleepTimerLengthModal: false,
       showAutoSleepTimerRewindLengthModal: false,
@@ -351,6 +369,11 @@ export default {
     }
   },
   computed: {
+    remoteAddress() {
+      // Sasonica: the tailnet address first, the way addresses() sorts them.
+      const host = (this.remote.addresses || [])[0] || 'phone'
+      return `http://${host}:${this.remote.port}`
+    },
     defaultAgentMediaUrl() {
       // Same derivation the reply box uses when the field is left blank.
       const address = this.$store.state.user.serverConnectionConfig?.address || ''
@@ -648,6 +671,10 @@ export default {
       this.$setOrientationLock(this.settings.lockOrientation)
       this.saveSettings()
     },
+    async saveRemote() {
+      // Sasonica: the service starts or stops at once; the token is minted natively.
+      this.remote = await AbsSasonica.setRemote({ enabled: this.remote.enabled, token: this.remote.token })
+    },
     saveAgentMediaUrl() {
       // Not a DeviceSetting: it lives in Preferences so the fork does not have
       // to change the Kotlin data class to carry one string.
@@ -701,6 +728,7 @@ export default {
       this.loading = true
       this.theme = (await this.$localStore.getTheme()) || 'dark'
       this.agentMediaUrl = await this.$localStore.getAgentMediaUrl()
+      if (this.$platform === 'android') this.remote = await AbsSasonica.getRemote() // Sasonica
       this.deviceData = await this.$db.getDeviceData()
       this.$store.commit('setDeviceData', this.deviceData)
       this.setDeviceSettings()
