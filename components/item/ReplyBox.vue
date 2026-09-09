@@ -108,9 +108,11 @@ export default {
     playerIsOpen() {
       return this.$store.getters['getIsPlayerOpen']
     },
-    // Only a live session has a ghost; and only an empty box shows one.
+    // Only an empty box shows the ghost, as on the terminal. An ended session
+    // has no screen to read, but the server keeps a follow-up of its own for
+    // the last reply, so the ghost is not tied to `live`.
     ghost() {
-      return this.live && !this.text && !this.sending ? (this.suggestion || '').trim() : ''
+      return !this.text && !this.sending ? (this.suggestion || '').trim() : ''
     }
   },
   methods: {
