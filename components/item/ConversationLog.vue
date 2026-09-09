@@ -41,7 +41,24 @@
             <span :key="i" :class="i === liveSentence ? 'font-semibold text-fg' : i < liveSentence ? 'text-fg' : 'text-fg-muted'">{{ sentence }} </span>
           </template>
         </p>
-        <p v-else class="text-sm whitespace-pre-line">{{ line.text }}</p>
+        <p v-else-if="!(line.ask && line.ask.length)" class="text-sm whitespace-pre-line">{{ line.text }}</p>
+        <!-- A multiple-choice question. Spoken it is one long sentence with
+             the options run together, because a voice has no other way to
+             offer them; on a screen it is a question and a list, with the
+             option that was taken marked. The answer is the listener's own
+             bubble underneath, so this only has to show what was on offer. -->
+        <div v-if="line.ask && line.ask.length" class="space-y-2">
+          <div v-for="(q, qi) in line.ask" :key="`ask-${qi}`">
+            <p class="text-sm whitespace-pre-line pb-1.5">{{ q.question }}</p>
+            <div v-for="(opt, oi) in q.options" :key="`opt-${qi}-${oi}`" class="flex items-start rounded px-2 py-1 mb-1 border" :class="isChosen(index, opt) ? 'bg-fg/10 border-fg/40' : 'bg-black/20 border-transparent'">
+              <span class="material-symbols text-sm leading-snug pr-1.5 flex-shrink-0" :class="isChosen(index, opt) ? 'text-success' : 'text-fg-muted'">{{ isChosen(index, opt) ? 'check_circle' : 'radio_button_unchecked' }}</span>
+              <span class="text-xs leading-snug">
+                <span class="font-semibold">{{ opt.label }}</span>
+                <span v-if="opt.description" class="text-fg-muted"> — {{ opt.description }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
         <!-- The picture the canvas drew for this reply, when it still has it.
              A figure was drawn to be read and gets the width; ambient artwork
              is kept small so it decorates rather than interrupts. -->
@@ -237,6 +254,21 @@ export default {
     }
   },
   methods: {
+    // Which option was taken. The answer is not stored on the question — it
+    // is the listener's own turn, recorded when the choice was made — so the
+    // line below is the answer, and a multi-select one lists its labels.
+    answerFor(index) {
+      const next = this.lines[index + 1]
+      if (!next || next.who !== 'you') return []
+      return String(next.text || '')
+        .split(',')
+        .map((part) => part.trim().toLowerCase())
+        .filter(Boolean)
+    },
+    isChosen(index, opt) {
+      const label = String(opt?.label || '').trim().toLowerCase()
+      return !!label && this.answerFor(index).includes(label)
+    },
     // Canvas-relative (/img/...) or absolute, as the server chose to send it.
     pictureUrl(src) {
       return src.startsWith('/') ? `${this.baseUrl}${src}` : src

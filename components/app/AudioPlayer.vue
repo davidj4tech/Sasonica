@@ -49,7 +49,15 @@
       <div ref="titlewrapper" class="overflow-hidden relative">
         <p class="title-text whitespace-nowrap"></p>
       </div>
-      <p class="author-text text-fg text-opacity-75 truncate">{{ authorName }}</p>
+      <div class="flex items-center">
+        <p class="author-text text-fg text-opacity-75 truncate">{{ authorName }}</p>
+        <!-- Sasonica: the mini player says what is playing but gives no way to
+             reach it. Tapping the bar expands the player; this goes to the
+             item's own page — for a conversation, the chat — without
+             disturbing playback. Mini player only: full screen has the room
+             for its own navigation. -->
+        <span v-if="!showFullscreen && itemPageRoute" class="material-symbols text-fg-muted cursor-pointer pl-1.5 flex-shrink-0" style="font-size: 1.05rem" @click.stop="goToItemPage">open_in_new</span>
+      </div>
     </div>
 
     <div id="playerContent" class="playerContainer w-full z-20 absolute bottom-0 left-0 right-0 p-2 pointer-events-auto transition-all" :style="{ backgroundColor: showFullscreen ? '' : coverRgb }" @click="clickContainer">
@@ -322,6 +330,20 @@ export default {
     localLibraryItem() {
       return this.playbackSession?.localLibraryItem || null
     },
+    // Sasonica: where what is playing lives. A server item keeps its episode
+    // and, when the copy on the device is the one being heard, says so — the
+    // same shape the bookshelf cards push.
+    itemPageRoute() {
+      const session = this.playbackSession
+      if (!session) return ''
+      const localId = session.localLibraryItem?.id || session.localLibraryItemId || ''
+      const serverId = session.libraryItemId || ''
+      if (serverId && !String(serverId).startsWith('local')) {
+        const episode = session.episodeId ? `/${session.episodeId}` : ''
+        return `/item/${serverId}${episode}${localId ? `?localLibraryItemId=${localId}` : ''}`
+      }
+      return localId ? `/localMedia/item/${localId}` : ''
+    },
     localLibraryItemCoverSrc() {
       var localItemCover = this.localLibraryItem?.coverContentUrl || null
       if (localItemCover) return Capacitor.convertFileSrc(localItemCover)
@@ -452,6 +474,14 @@ export default {
         this.$router.push(`/item/${llid}`)
         this.showFullscreen = false
       }
+    },
+    async goToItemPage() {
+      const route = this.itemPageRoute
+      if (!route || route === this.$route.fullPath) return
+      await this.$hapticsImpact()
+      // Nothing is asked of the player: this is a jump to a page, and the
+      // book keeps playing behind it.
+      this.$router.push(route).catch(() => {})
     },
     async selectChapter(chapter) {
       await this.$hapticsImpact()
