@@ -42,6 +42,14 @@
         </div>
         <p v-if="!pickerRows.length" class="text-sm text-fg-muted py-2">Nothing to pick from yet.</p>
       </template>
+      <template v-else-if="confirm">
+        <p class="text-sm">{{ confirm.text }}</p>
+        <p class="text-sm text-fg-muted pt-3">Sending to <span class="text-fg">{{ confirm.title }}</span> in {{ countdown }}…</p>
+        <div class="flex items-center pt-3">
+          <ui-btn color="primary" small @click="changeDestination">Change</ui-btn>
+          <ui-btn color="success" small class="ml-2" @click="commitConfirmed">Send now</ui-btn>
+        </div>
+      </template>
       <template v-else-if="!session">
         <p class="text-sm text-fg-muted">Say or type what you want to talk about. Start with a conversation's name to continue it — "reply to drones, …" — or "new chat" to force a fresh one.</p>
       </template>
@@ -57,7 +65,7 @@
       <p v-if="failed" class="text-sm text-error pt-3">{{ status }}</p>
     </div>
 
-    <div v-if="baseUrl && !session" class="flex-shrink-0 px-3 pt-2 pb-3 border-t border-border bg-bg">
+    <div v-if="baseUrl && !session && !confirm" class="flex-shrink-0 px-3 pt-2 pb-3 border-t border-border bg-bg">
       <div class="flex items-end">
         <textarea ref="input" v-model="text" rows="1" :disabled="sending" placeholder="What shall we talk about?" class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto" @input="grow" @keydown.enter.exact.prevent="send()" />
         <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate()">
@@ -104,7 +112,12 @@ export default {
       pickerRows: [],
       ambiguous: false,
       continued: false,
-      settled: false
+      settled: false,
+      // A guessed destination waiting for a nod: `{session, title, text}`,
+      // sent when the countdown runs out unless changed.
+      confirm: null,
+      countdown: 0,
+      countdownTimer: null
     }
   },
   methods: {
@@ -157,6 +170,36 @@ export default {
         parse: !this.target && !forceNew
       }
       try {
+        // When the server would be guessing — nothing picked, no forced new
+        // chat — ask where the words would go first. A new chat needs no
+        // nod; a guessed thread gets a countdown the listener can stop.
+        if (body.parse) {
+          const dry = await this.request('POST', '/ask', { ...body, dry: true })
+          if (dry.ambiguous) {
+            this.text = dry.text || text
+            this.pickerRows = dry.ambiguous
+            this.ambiguous = true
+            this.pickerOpen = true
+            this.status = ''
+            this.sending = false
+            return
+          }
+          if (dry.mode === 'switched') {
+            this.onSent(dry, text)
+            this.sending = false
+            return
+          }
+          if (dry.mode === 'continued' && dry.session) {
+            this.sending = false
+            this.status = ''
+            this.startConfirm({ session: dry.session, title: dry.title || 'that conversation', text: dry.text || text })
+            return
+          }
+          // A fresh session: commit as asked, with the trimmed words.
+          body.text = dry.text || text
+          body.target = 'new'
+          body.parse = false
+        }
         const res = await this.request('POST', '/ask', body)
         if (res.ambiguous) {
           // 300: the spoken name fits more than one conversation. Nothing
@@ -169,11 +212,34 @@ export default {
           this.sending = false
           return
         }
+        this.onSent(res, text)
+      } catch (error) {
+        this.failed = true
+        this.status = error.message || 'Could not send that.'
+      }
+      this.sending = false
+    },
+    onSent(res, text) {
+      {
         this.sentText = res.text || text
         this.text = ''
         this.pane = res.pane || null
         this.session = res.session || '?'
         this.continued = res.mode === 'continued'
+        if (res.mode === 'switched') {
+          // A name and nothing else: go there, and make it the thread the
+          // next press continues.
+          this.$localStore.setAskLast({ session: res.session, title: res.title || '' })
+          this.sticky = { session: res.session, title: res.title || '' }
+          if (res.item) {
+            this.$router.replace(`/item/${res.item}`)
+            return
+          }
+          this.session = null
+          this.target = { session: res.session, title: res.title || '' }
+          this.status = `Switched to ${res.title || 'that conversation'}.`
+          return
+        }
         if (this.continued) {
           // Remember the thread for the next press, and go to it.
           this.$localStore.setAskLast({ session: res.session, title: res.title || '' })
@@ -194,11 +260,36 @@ export default {
           this.settled = true
           this.status = `Sent to ${this.pane || 'the host'}.`
         }
-      } catch (error) {
-        this.failed = true
-        this.status = error.message || 'Could not send that.'
       }
-      this.sending = false
+    },
+    startConfirm(confirm) {
+      this.confirm = confirm
+      this.countdown = 4
+      this.countdownTimer = setInterval(() => {
+        this.countdown -= 1
+        if (this.countdown <= 0) this.commitConfirmed()
+      }, 1000)
+    },
+    stopConfirm() {
+      if (this.countdownTimer) clearInterval(this.countdownTimer)
+      this.countdownTimer = null
+    },
+    async commitConfirmed() {
+      const c = this.confirm
+      this.stopConfirm()
+      if (!c) return
+      this.confirm = null
+      this.target = { session: c.session, title: c.title }
+      this.text = c.text
+      await this.$nextTick()
+      this.send()
+    },
+    changeDestination() {
+      const c = this.confirm
+      this.stopConfirm()
+      this.confirm = null
+      this.text = c ? c.text : this.text
+      this.openPicker()
     },
     // The server routed the words to an existing thread and that was wrong:
     // send the same words to a fresh session. The first copy stays where it
@@ -291,6 +382,7 @@ export default {
     this.init()
   },
   beforeDestroy() {
+    this.stopConfirm()
     this.$eventBus.$off('assist', this.onAssist)
     if (this.pollTimer) clearTimeout(this.pollTimer)
   }
