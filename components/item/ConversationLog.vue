@@ -38,7 +38,7 @@
              says which sentence, refreshed every poll. -->
         <p v-if="line.live && line.sentences && line.sentences.length" class="text-sm whitespace-pre-line">
           <template v-for="(sentence, i) in line.sentences">
-            <span :key="i" :class="i === liveSentence ? 'font-semibold text-fg' : i < liveSentence ? 'text-fg' : 'text-fg-muted'">{{ sentence }} </span>
+            <span :key="i" ref="liveSentences" :class="i === liveSentence ? 'font-semibold text-fg' : i < liveSentence ? 'text-fg' : 'text-fg-muted'">{{ sentence }} </span>
           </template>
         </p>
         <!-- A slash command is an instruction, not a sentence: it reads as
@@ -230,7 +230,12 @@ export default {
       if (!line) return -1
       const offsets = line.offsets || []
       if (!offsets.length) return line.sentence == null ? -1 : line.sentence
-      const elapsed = this.livePaused ? this.liveElapsed : this.liveElapsed + (this.liveClock - this.liveElapsedAt) / 1000
+      // Less the playout delay: the clock starts when the clip is sent, the
+      // voice is heard a beat later (the bridge hop, the player's start), and
+      // the bold was running that beat ahead of it. The server says how long
+      // for this target, the same figure the terminal highlight waits.
+      const raw = this.livePaused ? this.liveElapsed : this.liveElapsed + (this.liveClock - this.liveElapsedAt) / 1000
+      const elapsed = raw - (Number(line.delay) || 0)
       let idx = 0
       offsets.forEach((off, i) => {
         if (elapsed + 0.001 >= off) idx = i
@@ -257,6 +262,13 @@ export default {
     activeIndex(index) {
       if (index < 0 || !this.readerIsAway()) return
       this.scrollToLine(index)
+    },
+    // The bold moves down a long reply as it is read; keep it on screen. Only
+    // when it has left the visible part of the scroller, and never while the
+    // reader has just scrolled somewhere themselves.
+    liveSentence(i) {
+      if (i < 0 || !this.readerIsAway()) return
+      this.$nextTick(() => this.scrollToSentence(i))
     }
   },
   methods: {
@@ -388,6 +400,18 @@ export default {
       this.ignoreScrollUntil = Date.now() + 800
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
       this.stickToBottom = true
+    },
+    scrollToSentence(i) {
+      const spans = this.$refs.liveSentences
+      const el = Array.isArray(spans) ? spans[i] : null
+      const scroller = this.$refs.scroller
+      if (!el || !scroller) return
+      const box = scroller.getBoundingClientRect()
+      const r = el.getBoundingClientRect()
+      // Inside the middle band already: leave the page still.
+      if (r.top >= box.top + box.height * 0.15 && r.bottom <= box.bottom - box.height * 0.25) return
+      this.ignoreScrollUntil = Date.now() + 800
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
     },
     scrollToLine(index) {
       const ref = this.$refs[`line-${index}`]
