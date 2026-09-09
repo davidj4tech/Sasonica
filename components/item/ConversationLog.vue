@@ -41,6 +41,12 @@
             <span :key="i" :class="i === liveSentence ? 'font-semibold text-fg' : i < liveSentence ? 'text-fg' : 'text-fg-muted'">{{ sentence }} </span>
           </template>
         </p>
+        <!-- A slash command is an instruction, not a sentence: it reads as
+             the command it is, so the reply underneath has a visible cause. -->
+        <p v-else-if="line.command" class="text-sm font-mono flex items-center">
+          <span class="material-symbols text-base leading-none pr-1 text-fg-muted">terminal</span>
+          <span>{{ line.command.text }}</span>
+        </p>
         <p v-else-if="!(line.ask && line.ask.length)" class="text-sm whitespace-pre-line">{{ line.text }}</p>
         <!-- A multiple-choice question. Spoken it is one long sentence with
              the options run together, because a voice has no other way to
