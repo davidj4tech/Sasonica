@@ -99,11 +99,6 @@ class LocalStorage {
     }
   }
 
-  // The canvas address to use, setting first and otherwise a guess: agent-media
-  // runs alongside Audiobookshelf, so the server you are signed in to is almost
-  // always the right host and only the port differs. That makes the setting
-  // something to override rather than something to fill in, and a wrong guess
-  // fails closed — the probe does not resolve and nothing appears.
   // Sasonica: the conversation the assistant button last spoke to, so the
   // next press continues it. `{session, title, at}`; stale after six hours.
   async getAskLast() {
@@ -115,7 +110,7 @@ class LocalStorage {
     } catch (error) {
       return null
     }
-  },
+  }
   async setAskLast(last) {
     try {
       if (!last) await Preferences.remove({ key: 'askLast' })
@@ -123,8 +118,13 @@ class LocalStorage {
     } catch (error) {
       console.error('[LocalStore] setAskLast', error)
     }
-  },
+  }
 
+  // The canvas address to use, setting first and otherwise a guess: agent-media
+  // runs alongside Audiobookshelf, so the server you are signed in to is almost
+  // always the right host and only the port differs. That makes the setting
+  // something to override rather than something to fill in, and a wrong guess
+  // fails closed — the probe does not resolve and nothing appears.
   async agentMediaBaseUrl(serverAddress) {
     const set = await this.getAgentMediaUrl()
     if (set) return set
