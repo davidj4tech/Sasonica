@@ -340,7 +340,7 @@ export default ({ store, app }, inject) => {
     if (app.router.currentRoute?.path === '/ask') {
       eventBus.$emit('assist')
     } else {
-      app.router.push('/ask')
+      app.router.push('/ask?assist=1')
     }
   })
 }

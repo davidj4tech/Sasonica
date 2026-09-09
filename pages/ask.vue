@@ -3,7 +3,10 @@
     Sasonica: a new conversation.
 
     Where the assistant button lands, and where "New chat" in the drawer
-    goes. The words typed (or dictated) here become the first message of a
+    goes. From the button the words are sent the moment dictation returns
+    them — a button pressed to say something should not then want a tap;
+    from the drawer the box waits for send, so a typed message can be read
+    over first. The words typed (or dictated) here become the first message of a
     FRESH Claude Code session on the host — agent-media opens it in the
     scratch tmux session — and the page then waits for the library to grow
     an item for that session, which happens once its first turn is shelved,
@@ -84,12 +87,13 @@ export default {
       el.style.height = 'auto'
       el.style.height = `${Math.min(el.scrollHeight, 6 * 24 + 16)}px`
     },
-    async dictate() {
+    async dictate({ submit = false } = {}) {
       if (this.listening || this.session) return
       this.listening = true
+      let heard = ''
       try {
         const res = await AbsSpeechInput.listen({ prompt: 'New chat' })
-        const heard = (res?.text || '').trim()
+        heard = (res?.text || '').trim()
         if (heard) {
           this.text = this.text.trim() ? `${this.text.trim()} ${heard}` : heard
           this.$nextTick(this.grow)
@@ -98,6 +102,7 @@ export default {
         console.error('[Ask] dictation failed', error)
       }
       this.listening = false
+      if (submit && heard) this.send()
     },
     async send() {
       // The field's own value: v-model lags the keyboard's composing word
@@ -158,7 +163,7 @@ export default {
     },
     // The assistant button pressed again while this page is up: listen again.
     onAssist() {
-      if (this.canDictate) this.dictate()
+      if (this.canDictate) this.dictate({ submit: true })
     },
     async init() {
       this.baseUrl = await this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address)
@@ -172,7 +177,7 @@ export default {
       // Opened by the assistant button, the page listens straight away: that
       // button was pressed to say something, not to look at a box.
       if (this.canDictate && this.$route.query.dictate !== '0') {
-        this.dictate()
+        this.dictate({ submit: this.$route.query.assist === '1' })
       } else {
         this.$nextTick(() => this.$refs.input?.focus())
       }
