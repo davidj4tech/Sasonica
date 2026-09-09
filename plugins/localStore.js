@@ -89,6 +89,24 @@ class LocalStorage {
     }
   }
 
+  // Sasonica: the follow-along timing readout under a live reply.
+  async setFollowDebug(on) {
+    try {
+      await Preferences.set({ key: 'followDebug', value: on ? '1' : '0' })
+    } catch (error) {
+      console.error('[LocalStorage] setFollowDebug', error)
+    }
+  }
+
+  async getFollowDebug() {
+    try {
+      const obj = (await Preferences.get({ key: 'followDebug' })) || {}
+      return obj.value === '1'
+    } catch (error) {
+      return false
+    }
+  }
+
   async getAgentMediaUrl() {
     try {
       const obj = (await Preferences.get({ key: 'agentMediaUrl' })) || {}

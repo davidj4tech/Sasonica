@@ -41,6 +41,10 @@
             <span :key="i" ref="liveSentences" :class="i === liveSentence ? 'font-semibold text-fg' : i < liveSentence ? 'text-fg' : 'text-fg-muted'">{{ sentence }} </span>
           </template>
         </p>
+        <!-- The timing readout (Settings → Follow-along timing readout): what
+             the server's sentence loop says versus what this page's clock says,
+             and the gap in seconds. Positive lead = the bold is ahead. -->
+        <p v-if="line.live && debug" class="font-mono text-xs text-fg-muted pt-1 whitespace-pre-line">{{ timingReadout }}</p>
         <!-- A slash command is an instruction, not a sentence: it reads as
              the command it is, so the reply underneath has a visible cause. -->
         <p v-else-if="line.command" class="text-sm font-mono flex items-center">
@@ -211,7 +215,9 @@ export default {
       liveElapsedAt: 0,
       livePaused: false,
       liveClock: 0,
-      clockTimer: null
+      clockTimer: null,
+      // Settings → Follow-along timing readout.
+      debug: false
     }
   },
   computed: {
@@ -241,6 +247,28 @@ export default {
         if (elapsed + 0.001 >= off) idx = i
       })
       return idx
+    },
+    timingReadout() {
+      const line = this.liveIndex >= 0 ? this.lines[this.liveIndex] : null
+      if (!line) return ''
+      const offsets = line.offsets || []
+      const raw = this.livePaused ? this.liveElapsed : this.liveElapsed + (this.liveClock - this.liveElapsedAt) / 1000
+      const delay = Number(line.delay) || 0
+      const heard = raw - delay
+      const srv = line.sentence == null ? -1 : line.sentence
+      const tl = this.liveSentence
+      // Where the server's sentence starts on the timeline, and how far past
+      // it the corrected clock is: the bold's lead over the voice, if the
+      // server's index is the truth.
+      const srvStart = srv >= 0 && offsets[srv] != null ? offsets[srv] : null
+      const lead = srvStart == null ? null : heard - srvStart
+      const nextStart = tl + 1 < offsets.length ? offsets[tl + 1] : null
+      return [
+        `server #${srv}  timeline #${tl}  ${srv === tl ? 'agree' : tl > srv ? 'bold AHEAD by ' + (tl - srv) : 'bold behind by ' + (srv - tl)}`,
+        `elapsed ${raw.toFixed(2)}s  −delay ${delay.toFixed(2)}s  = ${heard.toFixed(2)}s   poll age ${((this.liveClock - this.liveElapsedAt) / 1000).toFixed(1)}s`,
+        `server sentence starts ${srvStart == null ? '?' : srvStart.toFixed(2) + 's'}  → clock is ${lead == null ? '?' : (lead >= 0 ? '+' : '') + lead.toFixed(2) + 's'} into it${nextStart == null ? '' : '; next at ' + nextStart.toFixed(2) + 's'}`,
+        `offsets ${line.measured ? 'measured' : 'apportioned by characters'}  target ${line.target || '?'}  ${this.livePaused ? 'paused' : ''}`
+      ].join('\n')
     },
     // The line being spoken. A turn the host is speaking right now wins; it
     // is not in the audio item yet, so the player cannot be on it. Otherwise
@@ -337,6 +365,7 @@ export default {
           this.liveElapsed = Number(live.elapsed) || 0
           this.liveElapsedAt = Date.now()
           this.livePaused = !!live.paused
+          if (this.debug) console.log('[follow] poll', { server: live.sentence, elapsed: live.elapsed, delay: live.delay, measured: live.measured, target: live.target, timeline: this.liveSentence })
           this.liveClock = this.liveElapsedAt
           this.startClock()
         } else {
@@ -484,6 +513,7 @@ export default {
     }
   },
   mounted() {
+    this.$localStore.getFollowDebug().then((on) => (this.debug = !!on)) // Settings toggle
     this.init()
     document.addEventListener('visibilitychange', this.onVisibilityChange)
   },
