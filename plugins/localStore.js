@@ -104,6 +104,27 @@ class LocalStorage {
   // always the right host and only the port differs. That makes the setting
   // something to override rather than something to fill in, and a wrong guess
   // fails closed — the probe does not resolve and nothing appears.
+  // Sasonica: the conversation the assistant button last spoke to, so the
+  // next press continues it. `{session, title, at}`; stale after six hours.
+  async getAskLast() {
+    try {
+      const obj = await Preferences.get({ key: 'askLast' })
+      const last = obj?.value ? JSON.parse(obj.value) : null
+      if (!last?.session || Date.now() - (last.at || 0) > 6 * 60 * 60 * 1000) return null
+      return last
+    } catch (error) {
+      return null
+    }
+  },
+  async setAskLast(last) {
+    try {
+      if (!last) await Preferences.remove({ key: 'askLast' })
+      else await Preferences.set({ key: 'askLast', value: JSON.stringify({ ...last, at: Date.now() }) })
+    } catch (error) {
+      console.error('[LocalStore] setAskLast', error)
+    }
+  },
+
   async agentMediaBaseUrl(serverAddress) {
     const set = await this.getAgentMediaUrl()
     if (set) return set
