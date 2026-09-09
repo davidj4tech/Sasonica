@@ -144,7 +144,9 @@ export default {
           return
         }
         if (res.pane) this.pane = res.pane
-        this.status = res.live ? 'Session open — waiting for the first reply…' : 'The session ended before it was shelved.'
+        // `scanning`: the library has the folder and is still building the
+        // item; opening it now fails, so this keeps waiting.
+        this.status = res.scanning ? 'Reply shelved — the library is scanning it…' : res.live ? 'Session open — waiting for the first reply…' : 'The session ended before it was shelved.'
       } catch (error) {
         console.error('[Ask] poll failed', error)
       }
