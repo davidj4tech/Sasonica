@@ -81,6 +81,11 @@
       <p :style="{ fontSize: sizeMultiplier * 0.8 + 'rem' }">#{{ seriesSequence }}</p>
     </div>
 
+    <!-- Sasonica: a conversation whose session is running carries agent-media's
+         `live` tag; the same green dot as the chat page's title row, so a live
+         one can be told apart on a series page or a shelf. -->
+    <div v-if="isLiveConversation" class="absolute z-20 rounded-full bg-success box-shadow-md" :style="{ top: 0.5 * sizeMultiplier + 'rem', left: 0.5 * sizeMultiplier + 'rem', width: 0.65 * sizeMultiplier + 'rem', height: 0.65 * sizeMultiplier + 'rem' }" title="session running" />
+
     <!-- Podcast Episode # -->
     <div v-if="recentEpisodeNumber !== null && !isSelectionMode" class="absolute rounded-lg bg-black/90 box-shadow-md z-10" :style="{ top: 0.375 * sizeMultiplier + 'rem', right: 0.375 * sizeMultiplier + 'rem', padding: `${0.1 * sizeMultiplier}rem ${0.25 * sizeMultiplier}rem` }">
       <p class="text-white" :style="{ fontSize: sizeMultiplier * 0.8 + 'rem' }">
@@ -152,6 +157,11 @@ export default {
     },
     isLocal() {
       return !!this._libraryItem.isLocal
+    },
+    // Sasonica
+    isLiveConversation() {
+      const tags = this.media?.tags || []
+      return Array.isArray(tags) && tags.includes('live')
     },
     media() {
       return this._libraryItem.media || {}
