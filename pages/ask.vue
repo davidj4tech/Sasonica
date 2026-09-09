@@ -164,7 +164,8 @@ export default {
       }
     },
     // The assistant button pressed again while this page is up: listen again.
-    onAssist() {
+    onAssist(taken) {
+      if (taken) taken.push(true)
       if (this.canDictate) this.dictate({ submit: true })
     },
     async init() {

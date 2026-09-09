@@ -333,15 +333,19 @@ export default ({ store, app }, inject) => {
     eventBus.$emit('url-open', data.url)
   })
 
-  // Sasonica: the phone's assistant button opens a new chat. Replace, not
-  // push: pressing it twice should not stack two empty ask pages.
+  // Sasonica: the phone's assistant button. On a conversation's page (or the
+  // ask page) the press goes to that page, which replies into the open
+  // thread; anywhere else it opens a new chat. A page that turns out not to
+  // be a conversation answers `false` and the new chat opens after all.
   AbsSasonica.addListener('assist', () => {
     if (!app.router) return
-    if (app.router.currentRoute?.path === '/ask') {
-      eventBus.$emit('assist')
-    } else {
-      app.router.push('/ask?assist=1')
+    const path = app.router.currentRoute?.path || ''
+    if (path === '/ask' || path.startsWith('/item/')) {
+      const taken = []
+      eventBus.$emit('assist', taken)
+      if (taken.includes(true)) return
     }
+    app.router.push('/ask?assist=1')
   })
 }
 

@@ -182,12 +182,15 @@ export default {
     // The remote's assistant button cannot be borrowed — it belongs to the
     // system's voice interaction service and never reaches an app — so on a
     // television this button is the only way to put words in the box.
-    async dictate() {
+    // `submit`: send as soon as the words are heard — the assistant button
+    // pressed on this page, which should not then want a tap.
+    async dictate({ submit = false } = {}) {
       if (this.listening) return
       this.listening = true
+      let heard = ''
       try {
         const res = await AbsSpeechInput.listen({ prompt: 'Reply to this conversation' })
-        const heard = (res?.text || '').trim()
+        heard = (res?.text || '').trim()
         // Cancelled or heard nothing: leave what was already typed alone.
         if (heard) {
           this.text = this.text.trim() ? `${this.text.trim()} ${heard}` : heard
@@ -197,6 +200,15 @@ export default {
         console.error('[ReplyBox] dictation failed', error)
       }
       this.listening = false
+      if (submit && heard) this.send()
+    },
+    // The assistant button, pressed while this conversation is open: a reply
+    // into it. Answers whether the press was taken, so a page that is not a
+    // conversation (or cannot dictate) lets it fall through to a new chat.
+    assist() {
+      if (!this.isConversation || !this.canDictate) return false
+      this.dictate({ submit: true })
+      return true
     },
     acceptGhost() {
       if (!this.ghost) return

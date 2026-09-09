@@ -36,7 +36,7 @@
         <span class="material-symbols text-xl text-fg-muted duration-300" :class="$store.state.playerIsHidden ? '' : 'transform rotate-180'">arrow_drop_down</span>
       </div>
 
-      <item-reply-box docked class="flex-shrink-0" :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" />
+      <item-reply-box ref="replyBox" docked class="flex-shrink-0" :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" />
     </template>
 
     <template v-else>
@@ -206,7 +206,7 @@
         <!-- Sasonica: reply into the session behind a recorded conversation.
              Below the chapters, because a reply comes after the thing it
              answers. Draws nothing unless the server says this item is one. -->
-        <item-reply-box :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" @is-conversation="isConversation = $event" />
+        <item-reply-box ref="replyBox" :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" @is-conversation="isConversation = $event" />
       </div>
     </div>
     </template>
@@ -601,6 +601,10 @@ export default {
     onReplied() {
       this.$refs.conversationLog?.replied()
     },
+    // Sasonica: the assistant button pressed with this page open replies here.
+    onAssist(taken) {
+      if (this.$refs.replyBox?.assist()) taken?.push(true)
+    },
     togglePlayerHidden() {
       const hidden = !this.$store.state.playerIsHidden
       this.$store.commit('setPlayerHidden', hidden)
@@ -851,6 +855,7 @@ export default {
       this.windowWidth = window.innerWidth
       window.addEventListener('resize', this.windowResized)
       this.$eventBus.$on('player-time', this.onPlayerTime)
+      this.$eventBus.$on('assist', this.onAssist) // Sasonica
       this.$eventBus.$on('library-changed', this.libraryChanged)
       this.$eventBus.$on('new-local-library-item', this.newLocalLibraryItem)
       this.$socket.$on('item_updated', this.itemUpdated)
@@ -938,6 +943,7 @@ export default {
   beforeDestroy() {
     window.removeEventListener('resize', this.windowResized)
     this.$eventBus.$off('player-time', this.onPlayerTime)
+    this.$eventBus.$off('assist', this.onAssist) // Sasonica
     this.$store.commit('setPlayerHidden', false)
     this.$eventBus.$off('library-changed', this.libraryChanged)
     this.$eventBus.$off('new-local-library-item', this.newLocalLibraryItem)
