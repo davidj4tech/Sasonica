@@ -11,6 +11,7 @@
          row. Everything below the template is upstream's page, untouched. -->
     <template v-if="isConversation">
       <div class="flex items-center px-3 py-2 border-b border-border flex-shrink-0">
+        <span v-if="conversationState?.live" class="w-2 h-2 rounded-full bg-success mr-2 flex-shrink-0" title="session running" />
         <h1 class="text-base font-semibold flex-grow truncate">{{ title }}</h1>
         <ui-btn v-if="showPlay" color="success" small :padding-x="2" :padding-y="1" class="flex items-center justify-center ml-2" :loading="playerIsStartingForThisMedia" @click="playClick">
           <span class="material-symbols text-xl fill">{{ playerIsPlaying ? 'pause' : 'play_arrow' }}</span>
@@ -36,7 +37,7 @@
         <span class="material-symbols text-xl text-fg-muted duration-300" :class="$store.state.playerIsHidden ? '' : 'transform rotate-180'">arrow_drop_down</span>
       </div>
 
-      <item-reply-box ref="replyBox" docked class="flex-shrink-0" :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" />
+      <item-reply-box ref="replyBox" docked class="flex-shrink-0" :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" @session-state="conversationState = $event" />
     </template>
 
     <template v-else>
@@ -206,13 +207,13 @@
         <!-- Sasonica: reply into the session behind a recorded conversation.
              Below the chapters, because a reply comes after the thing it
              answers. Draws nothing unless the server says this item is one. -->
-        <item-reply-box ref="replyBox" :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" @is-conversation="isConversation = $event" />
+        <item-reply-box ref="replyBox" :library-item-id="serverLibraryItemId" :suggestion="suggestion" @replied="onReplied" @is-conversation="isConversation = $event" @session-state="conversationState = $event" />
       </div>
     </div>
     </template>
 
     <!-- modals -->
-    <modals-item-more-menu-modal v-model="showMoreMenu" :library-item="libraryItem" :rss-feed="rssFeed" :processing.sync="processing" />
+    <modals-item-more-menu-modal v-model="showMoreMenu" :library-item="libraryItem" :rss-feed="rssFeed" :processing.sync="processing" :conversation="conversationState" @session="onSessionAction" />
 
     <modals-select-local-folder-modal v-model="showSelectLocalFolder" :media-type="mediaType" @select="selectedLocalFolder" />
 
@@ -269,6 +270,7 @@ export default {
       processing: false,
       showSelectLocalFolder: false,
       showMoreMenu: false,
+      conversationState: null, // Sasonica: the session behind a conversation
       showFullscreenCover: false,
       hasConversationLog: false,
       // Sasonica: the chat layout. Known from the item when agent-media
@@ -600,6 +602,10 @@ export default {
     // log goes looking for it rather than being told what it says.
     onReplied() {
       this.$refs.conversationLog?.replied()
+    },
+    // Sasonica: resume / close / go to terminal, from the more menu.
+    onSessionAction(action) {
+      this.$refs.replyBox?.manage(action)
     },
     // Sasonica: the assistant button pressed with this page open replies here.
     onAssist(taken) {

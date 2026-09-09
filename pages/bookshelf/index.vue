@@ -275,10 +275,31 @@ export default {
         // Only add the local shelf with the same media type
         const localShelves = localCategories.filter((cat) => cat.type === this.currentLibraryMediaType && !cat.localOnly)
         this.shelves.push(...localShelves)
+        // Sasonica: conversations whose session is running right now, first.
+        // agent-media keeps a `live` tag on them; a closed one stays in its
+        // series and just drops off this shelf.
+        const live = await this.fetchLiveShelf()
+        if (live) this.shelves.unshift(live)
         console.log('[categories] Server shelves set', this.shelves.length, this.lastServerFetch)
       }
 
       this.isLoading = false
+    },
+    // Sasonica: the Live shelf — items tagged `live` by agent-media, newest
+    // first. Null when there are none or the library is not books, so the
+    // home page is as upstream left it.
+    async fetchLiveShelf() {
+      if (this.currentLibraryMediaType !== 'book') return null
+      try {
+        const filter = encodeURIComponent(`tags.${btoa('live')}`)
+        const res = await this.$nativeHttp.get(`/api/libraries/${this.currentLibraryId}/items?filter=${filter}&sort=updatedAt&desc=1&limit=20&minified=1`, { connectTimeout: 10000 })
+        const entities = res?.results || []
+        if (!entities.length) return null
+        return { id: 'sasonica-live', label: 'Live', type: 'book', entities }
+      } catch (error) {
+        console.error('[categories] live shelf failed', error)
+        return null
+      }
     },
     libraryChanged() {
       if (this.currentLibraryId) {

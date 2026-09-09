@@ -101,7 +101,9 @@ export default {
       boxInView: true,
       observer: null,
       canDictate: false,
-      listening: false
+      listening: false,
+      session: null,
+      resumable: false
     }
   },
   computed: {
@@ -250,6 +252,31 @@ export default {
         console.error('[ReplyBox] focus failed', error)
       }
     },
+    // The page's "more" menu manages the session behind this conversation
+    // through here, because this is the component that holds the canvas
+    // address and the session. `resume` brings it back in a tmux window,
+    // `close` ends it, `terminal` pulls the desk's tmux client to it.
+    emitState() {
+      this.$emit('session-state', { session: this.session, live: this.live, pane: this.pane, resumable: this.resumable, isConversation: this.isConversation })
+    },
+    async manage(action) {
+      if (!this.session) return
+      this.failed = false
+      try {
+        if (action === 'terminal') {
+          await this.goToPane()
+          return
+        }
+        const res = await this.request('POST', action === 'resume' ? '/session/resume' : '/session/close', { session: this.session })
+        this.live = !!res.live
+        this.pane = res.live ? res.pane : null
+        this.status = action === 'resume' ? (res.opened ? 'Session reopened.' : 'Session is already running.') : res.closed ? 'Session closed.' : 'Session was not running.'
+        this.emitState()
+      } catch (error) {
+        this.failed = true
+        this.status = error.message || `Could not ${action} the session.`
+      }
+    },
     async init() {
       this.baseUrl = await this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address)
       if (!this.baseUrl || !this.libraryItemId) return
@@ -258,6 +285,9 @@ export default {
         this.isConversation = !!res.ok
         this.live = !!res.live
         this.pane = res.live ? res.pane : null
+        this.session = res.session || null
+        this.resumable = !!res.resumable
+        this.emitState()
         // The page normally knows already (the item carries the flag); this
         // is for when the item came from Audiobookshelf instead.
         this.$emit('is-conversation', this.isConversation)

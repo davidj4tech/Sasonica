@@ -30,7 +30,13 @@ export default {
       type: Object,
       default: () => null
     },
-    hideRssFeedOption: Boolean
+    hideRssFeedOption: Boolean,
+    // Sasonica: `{session, live, pane, resumable}` when the item is a
+    // conversation with a Claude Code session behind it; null otherwise.
+    conversation: {
+      type: Object,
+      default: () => null
+    }
   },
   data() {
     return {
@@ -52,6 +58,16 @@ export default {
     },
     moreMenuItems() {
       const items = []
+      // Sasonica: the session behind a conversation, first — it is what the
+      // page is about.
+      if (this.conversation?.session) {
+        if (this.conversation.live) {
+          items.push({ text: 'Go to terminal', value: 'session:terminal', icon: 'terminal' })
+          items.push({ text: 'Close session', value: 'session:close', icon: 'stop_circle' })
+        } else if (this.conversation.resumable) {
+          items.push({ text: 'Resume session', value: 'session:resume', icon: 'play_circle' })
+        }
+      }
 
       // TODO: Implement on iOS
       if (this.$platform !== 'ios' && !this.isPodcast) {
@@ -267,6 +283,10 @@ export default {
   methods: {
     moreMenuAction(action) {
       this.show = false
+      if (action.startsWith('session:')) {
+        this.$emit('session', action.slice('session:'.length)) // Sasonica
+        return
+      }
       if (action === 'manageLocal') {
         this.$nextTick(() => {
           this.$router.push(`/localMedia/item/${this.localLibraryItemId}`)
