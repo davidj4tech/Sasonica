@@ -34,13 +34,17 @@
 </template>
 
 <script>
+import { AbsSasonica } from '@/plugins/capacitor' // Sasonica
+
 const OPEN_KEY = 'sasonica-canvas-open'
 
 export default {
   data() {
     return {
       src: '',
-      open: true
+      open: true,
+      onFrameMessage: null,
+      turned: false
     }
   },
   methods: {
@@ -50,6 +54,20 @@ export default {
         localStorage.setItem(OPEN_KEY, this.open ? '1' : '0')
       } catch (error) {
         // Storage refused: the choice just does not survive the page.
+      }
+    },
+    // The canvas page asks the browser for a landscape lock when it fills the
+    // screen, and inside a WebView there is no browser to ask — `lock()` is the
+    // embedder's call, and the embedder is our activity. So the page tells us
+    // instead (a postMessage, since it is cross-origin and that is the only
+    // channel), and we turn the activity for it.
+    async setTurned(on) {
+      if (this.turned === on) return
+      this.turned = on
+      try {
+        await AbsSasonica.setOrientation({ landscape: on })
+      } catch (error) {
+        console.error('[CanvasPanel] orientation failed', error)
       }
     }
   },
@@ -65,6 +83,24 @@ export default {
     // Captions off: the transcript under the frame has the words, and the
     // canvas drawing them too would be the same sentence twice on one screen.
     this.src = base ? `${base}/?subs=0` : ''
+
+    // Only this frame's own origin is heard, and only this one message. The
+    // panel is on a chat page anyone's server could be behind, so a window
+    // message is not a thing to act on because it arrived.
+    const origin = this.src ? new URL(this.src).origin : ''
+    this.onFrameMessage = (event) => {
+      if (!origin || event.origin !== origin) return
+      const data = event.data
+      if (!data || data.source !== 'agent-media-canvas') return
+      if (data.type === 'fullscreen') this.setTurned(!!data.on)
+    }
+    window.addEventListener('message', this.onFrameMessage)
+  },
+  beforeDestroy() {
+    if (this.onFrameMessage) window.removeEventListener('message', this.onFrameMessage)
+    // Leaving the page while turned would strand the whole app sideways — the
+    // activity keeps a requested orientation until something takes it back.
+    this.setTurned(false)
   }
 }
 </script>

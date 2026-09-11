@@ -10,6 +10,12 @@ class AbsSasonicaWeb extends WebPlugin {
   async setRemote() {
     return this.getRemote()
   }
+
+  // On the web the canvas's own landscape lock is the browser's to grant, and
+  // it does — there is no activity in the way, so there is nothing to do here.
+  async setOrientation() {
+    return { landscape: false, unsupported: true }
+  }
 }
 
 const AbsSasonica = registerPlugin('AbsSasonica', {

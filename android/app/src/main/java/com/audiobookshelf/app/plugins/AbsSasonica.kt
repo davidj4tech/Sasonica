@@ -5,6 +5,7 @@ package com.audiobookshelf.app.plugins
 // in one line.
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import com.audiobookshelf.app.player.SasonicaControl
 import com.audiobookshelf.app.player.SasonicaRemoteService
 import com.getcapacitor.JSArray
@@ -58,5 +59,38 @@ class AbsSasonica : Plugin() {
   fun setRemote(call: PluginCall) {
     SasonicaRemoteService.configure(context, call.getBoolean("enabled") == true, call.getString("token"))
     call.resolve(remote())
+  }
+
+  /**
+   * `{landscape}` — turn the activity, and give it back.
+   *
+   * The canvas frames a page that has its own fullscreen button, and that page
+   * asks the browser for a landscape lock when it fills the screen. In Chrome
+   * that works. In a WebView there is no browser to ask: the Screen Orientation
+   * API's `lock()` is the embedder's decision, and the embedder is this
+   * activity — so the page goes fullscreen and stays resolutely upright, which
+   * is the half of the feature that is worth having on a picture drawn wide.
+   *
+   * So the page says when it is fullscreen (a postMessage to its parent, since
+   * it is cross-origin and that is the only channel there is), the panel passes
+   * it here, and this turns the activity. UNSPECIFIED rather than PORTRAIT on
+   * the way back: the manifest declares no orientation, so the right resting
+   * state is whatever the device and the user's rotation lock say, not a
+   * portrait this code invented.
+   */
+  @PluginMethod
+  fun setOrientation(call: PluginCall) {
+    val landscape = call.getBoolean("landscape") == true
+    val act = activity
+    if (act == null) {
+      call.reject("no activity")
+      return
+    }
+    act.runOnUiThread {
+      act.requestedOrientation =
+        if (landscape) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+    call.resolve(JSObject().put("landscape", landscape))
   }
 }
