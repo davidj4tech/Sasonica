@@ -20,8 +20,15 @@
     </div>
     <!-- Kept mounted while collapsed (v-show), so reopening does not reconnect
          the stream and replay whatever the canvas last showed. -->
+    <!-- `fullscreen` in the allow list, and the legacy attribute beside it for
+         the WebView: the canvas has its own fullscreen button, and inside a
+         frame that does not delegate the permission the page is told fullscreen
+         is unavailable and correctly takes the button off itself. So the panel
+         has to say yes here, or the control simply is not there — which is how
+         it was reported: "I don't see the full screen features". A third of a
+         phone screen is where wanting the whole of it starts. -->
     <div v-show="open" class="w-full canvas-frame">
-      <iframe :src="src" class="w-full h-full border-0" allow="autoplay" referrerpolicy="no-referrer" title="agent-media canvas" />
+      <iframe :src="src" class="w-full h-full border-0" allow="autoplay; fullscreen" allowfullscreen referrerpolicy="no-referrer" title="agent-media canvas" />
     </div>
   </div>
 </template>
