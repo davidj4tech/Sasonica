@@ -3,8 +3,9 @@
     Sasonica: a new conversation.
 
     Where the assistant button lands, and where "New chat" in the drawer
-    goes. From the button the words are sent the moment dictation returns
-    them — a button pressed to say something should not then want a tap;
+    goes. From the button the words are sent a few seconds after dictation
+    returns them, unless the box is tapped to edit them first — a button
+    pressed to say something should not then want a tap;
     from the drawer the box waits for send, so a typed message can be read
     over first. The words typed (or dictated) here become the first message of a
     FRESH Claude Code session on the host — agent-media opens it in the
@@ -70,7 +71,7 @@
 
     <div v-if="baseUrl && !session && !confirm" class="flex-shrink-0 px-3 pt-2 pb-3 border-t border-border bg-bg">
       <div class="flex items-end">
-        <textarea ref="input" v-model="text" rows="1" :disabled="sending" placeholder="What shall we talk about?" class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto" enterkeyhint="enter" @input="grow" @keydown.enter.ctrl.exact.prevent="send()" @keydown.enter.meta.exact.prevent="send()" />
+        <textarea ref="input" v-model="text" rows="1" :disabled="sending" placeholder="What shall we talk about?" class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto" enterkeyhint="enter" @input="onInput" @click="stopAutoSend" @keydown.enter.ctrl.exact.prevent="send()" @keydown.enter.meta.exact.prevent="send()" />
         <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate()">
           <span class="material-symbols text-xl" :class="listening ? 'animate-pulse' : ''">mic</span>
         </ui-btn>
@@ -78,12 +79,14 @@
           <span class="material-symbols text-xl">send</span>
         </ui-btn>
       </div>
+      <p v-if="autoSendIn" class="text-xs text-fg-muted pt-1.5">Sending in {{ autoSendIn }}… tap the text to edit it</p>
     </div>
   </div>
 </template>
 
 <script>
 import { AbsSpeechInput } from '@/plugins/capacitor'
+import autoSend from '@/mixins/autoSend'
 
 // How long to wait for the library to show the new conversation. The first
 // turn is exported a minute after it is spoken, then Audiobookshelf has to
@@ -92,6 +95,7 @@ const ITEM_WAIT_MS = 5 * 60 * 1000
 const ITEM_POLL_MS = 3000
 
 export default {
+  mixins: [autoSend],
   data() {
     return {
       baseUrl: '',
@@ -139,6 +143,10 @@ export default {
         headers: { Authorization: `Bearer ${token}` }
       })
     },
+    onInput() {
+      this.stopAutoSend()
+      this.grow()
+    },
     grow() {
       const el = this.$refs.input
       if (!el) return
@@ -160,9 +168,10 @@ export default {
         console.error('[Ask] dictation failed', error)
       }
       this.listening = false
-      if (submit && heard) this.send()
+      if (submit && heard) this.startAutoSend()
     },
     async send({ forceNew = false } = {}) {
+      this.stopAutoSend()
       // The field's own value: v-model lags the keyboard's composing word
       // (see ReplyBox).
       const el = this.$refs.input

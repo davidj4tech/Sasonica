@@ -46,7 +46,8 @@
         :disabled="sending"
         :placeholder="ghost || 'Say something back…'"
         class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto"
-        @input="grow"
+        @input="onInput"
+        @click="stopAutoSend"
         enterkeyhint="enter"
         @keydown.enter.ctrl.exact.prevent="send"
         @keydown.enter.meta.exact.prevent="send"
@@ -59,6 +60,8 @@
         <span class="material-symbols text-xl">send</span>
       </ui-btn>
     </div>
+
+    <p v-if="autoSendIn" class="text-xs text-fg-muted pt-1.5">Sending in {{ autoSendIn }}… tap the text to edit it</p>
 
     <div v-if="status" class="mt-1.5 flex items-center">
       <p class="text-xs" :class="failed ? 'text-error' : 'text-fg-muted'">{{ status }}</p>
@@ -78,6 +81,7 @@
 
 <script>
 import { AbsSpeechInput } from '@/plugins/capacitor'
+import autoSend from '@/mixins/autoSend'
 
 export default {
   props: {
@@ -91,6 +95,7 @@ export default {
     // on screen right now. Comes from the log's poll, via the page.
     suggestion: String
   },
+  mixins: [autoSend],
   data() {
     return {
       baseUrl: '',
@@ -132,6 +137,7 @@ export default {
       })
     },
     async send() {
+      this.stopAutoSend()
       // The field's own value, not the bound one. Vue's v-model holds off
       // updating while the soft keyboard is still composing the current word,
       // and Gboard keeps the last word in composition until a space follows
@@ -189,8 +195,9 @@ export default {
     // The remote's assistant button cannot be borrowed — it belongs to the
     // system's voice interaction service and never reaches an app — so on a
     // television this button is the only way to put words in the box.
-    // `submit`: send as soon as the words are heard — the assistant button
-    // pressed on this page, which should not then want a tap.
+    // `submit`: send once the words are heard — the assistant button pressed
+    // on this page, which should not then want a tap — after a short
+    // countdown that a tap on the box stops (see mixins/autoSend).
     async dictate({ submit = false } = {}) {
       if (this.listening) return
       this.listening = true
@@ -207,7 +214,11 @@ export default {
         console.error('[ReplyBox] dictation failed', error)
       }
       this.listening = false
-      if (submit && heard) this.send()
+      if (submit && heard) this.startAutoSend()
+    },
+    onInput() {
+      this.stopAutoSend()
+      this.grow()
     },
     // The assistant button, pressed while this conversation is open: a reply
     // into it. Answers whether the press was taken, so a page that is not a
