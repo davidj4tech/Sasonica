@@ -111,7 +111,9 @@ export default {
       canDictate: false,
       listening: false,
       session: null,
-      resumable: false
+      resumable: false,
+      draftTimer: null,
+      draftSaved: ''
     }
   },
   computed: {
@@ -161,6 +163,7 @@ export default {
       try {
         const res = await this.request('POST', '/reply', { item: this.libraryItemId, text })
         this.text = ''
+        this.clearDraft()
         this.$nextTick(this.grow)
         this.live = true
         this.pane = res.pane || null
@@ -216,6 +219,7 @@ export default {
         if (heard) {
           this.text = this.text.trim() ? `${this.text.trim()} ${heard}` : heard
           this.$nextTick(this.grow)
+          this.saveDraftSoon()
         }
       } catch (error) {
         console.error('[ReplyBox] dictation failed', error)
@@ -226,6 +230,98 @@ export default {
     onInput() {
       this.stopAutoSend()
       this.grow()
+      this.saveDraftSoon()
+    },
+    // Half a reply, kept per session. It lives on the canvas rather than in
+    // this app, so leaving a conversation half-answered for another one —
+    // or reinstalling — does not lose the sentence you were in the middle
+    // of. The copy in localStorage is not the store: it is what paints the
+    // box before the canvas has answered, and what holds the words when it
+    // cannot be reached at all.
+    draftKey() {
+      return this.session ? `sasonica-draft-${this.session}` : ''
+    },
+    localDraft() {
+      const key = this.draftKey()
+      if (!key) return null
+      try {
+        const raw = localStorage.getItem(key)
+        return raw ? JSON.parse(raw) : null
+      } catch (error) {
+        return null
+      }
+    },
+    putLocalDraft(text, at) {
+      const key = this.draftKey()
+      if (!key) return
+      try {
+        if (text) localStorage.setItem(key, JSON.stringify({ text, at }))
+        else localStorage.removeItem(key)
+      } catch (error) {
+        // Storage refused: the canvas is still holding it.
+      }
+    },
+    // The box is only ever filled from a draft while it is empty — a restore
+    // must never land on top of words being typed, and dictation and the
+    // ghost both get there first sometimes.
+    async loadDraft() {
+      if (!this.session || this.text) return
+      const local = this.localDraft()
+      if (local?.text) {
+        this.text = local.text
+        this.draftSaved = local.text
+        this.$nextTick(this.grow)
+      }
+      try {
+        const res = await this.request('GET', `/draft?session=${this.session}`)
+        const held = (res?.text || '').trim()
+        // Newer wins, and both stamps come from a phone: the canvas keeps the
+        // one it was given rather than stamping its own.
+        if (held && (!local?.text || (res.at || 0) > (local.at || 0)) && this.text === (local?.text || '')) {
+          this.text = res.text
+          this.draftSaved = res.text
+          this.$nextTick(this.grow)
+        }
+      } catch (error) {
+        // No canvas, or not allowed: the local copy is what there is.
+      }
+    },
+    // Sent is not a draft any more, here or anywhere else this conversation
+    // is open. Not saveDraft(): that reads the textarea, which still holds
+    // the sent words until Vue has flushed the empty value into it.
+    async clearDraft() {
+      window.clearTimeout(this.draftTimer)
+      this.draftTimer = null
+      this.draftSaved = ''
+      this.putLocalDraft('', Date.now() / 1000)
+      if (!this.session) return
+      try {
+        await this.request('POST', '/draft', { session: this.session, text: '', at: Date.now() / 1000 })
+      } catch (error) {
+        // It will be overwritten by the next thing typed here anyway.
+      }
+    },
+    saveDraftSoon() {
+      if (!this.session) return
+      window.clearTimeout(this.draftTimer)
+      this.draftTimer = window.setTimeout(this.saveDraft, 800)
+    },
+    async saveDraft() {
+      window.clearTimeout(this.draftTimer)
+      this.draftTimer = null
+      if (!this.session) return
+      const el = this.$refs.input
+      const text = (el && el.value) || this.text || ''
+      if (text === this.draftSaved) return
+      const at = Date.now() / 1000
+      this.draftSaved = text
+      this.putLocalDraft(text, at)
+      try {
+        await this.request('POST', '/draft', { session: this.session, text, at })
+      } catch (error) {
+        // Held locally anyway; the next keystroke tries again.
+        this.draftSaved = ''
+      }
     },
     // The assistant button, pressed while this conversation is open: a reply
     // into it. Answers whether the press was taken, so a page that is not a
@@ -313,6 +409,7 @@ export default {
         this.session = res.session || null
         this.resumable = !!res.resumable
         this.emitState()
+        this.loadDraft()
         // The page normally knows already (the item carries the flag); this
         // is for when the item came from Audiobookshelf instead.
         this.$emit('is-conversation', this.isConversation)
@@ -337,6 +434,7 @@ export default {
     this.init()
   },
   beforeDestroy() {
+    if (this.draftTimer) this.saveDraft()
     if (this.observer) this.observer.disconnect()
     window.visualViewport?.removeEventListener('resize', this.onViewportResize)
   }
