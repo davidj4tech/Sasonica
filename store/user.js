@@ -12,7 +12,13 @@ export const state = () => ({
     mobileFilterBy: 'all',
     playbackRate: 1,
     collapseSeries: false,
-    collapseBookSeries: false
+    collapseBookSeries: false,
+    // Sasonica: the bookshelf's Show menu (mixins/sasonicaArchive.js)
+    sasonicaShowArchived: false,
+    sasonicaOnlyLive: false,
+    sasonicaOnlyWorking: false,
+    sasonicaOnlyWaiting: false,
+    sasonicaOnlyApproval: false
   }
 })
 

@@ -12,7 +12,7 @@
         </div>
 
         <!-- Sasonica: a conversation whose session is running, as on the grid card. -->
-        <div v-if="isLiveConversation" class="absolute z-20 top-1 left-1 w-2.5 h-2.5 rounded-full bg-success box-shadow-md" title="session running" />
+        <div v-if="isLiveConversation" class="absolute z-20 top-1 left-1 w-2.5 h-2.5 rounded-full box-shadow-md" :class="liveDotClass" :title="liveDotTitle" />
 
         <!-- No progress shown for collapsed series or podcasts in library -->
         <div v-if="!isPodcast && !collapsedSeries" class="absolute bottom-0 left-0 h-1 shadow-sm max-w-full z-10 rounded-b" :class="itemIsFinished ? 'bg-success' : 'bg-yellow-400'" :style="{ width: coverWidth * userProgressPercent + 'px' }"></div>
@@ -109,7 +109,19 @@ export default {
     // Sasonica
     isLiveConversation() {
       const tags = this.media?.tags || []
-      return Array.isArray(tags) && tags.includes('live')
+      return !!this.sessionState || (Array.isArray(tags) && tags.includes('live'))
+    },
+    // What the session is doing, while a Conversations shelf polls for it
+    sessionState() {
+      return this.store.getters['sasonica/getSessionState'](this._libraryItem.path)
+    },
+    liveDotClass() {
+      if (this.sessionState === 'approval') return 'bg-error'
+      if (this.sessionState === 'working') return 'bg-warning animate-pulse'
+      return 'bg-success'
+    },
+    liveDotTitle() {
+      return { working: 'working', waiting: 'waiting on you', approval: 'needs approval' }[this.sessionState] || 'session running'
     },
     media() {
       return this._libraryItem.media || {}

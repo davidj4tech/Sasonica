@@ -84,7 +84,7 @@
     <!-- Sasonica: a conversation whose session is running carries agent-media's
          `live` tag; the same green dot as the chat page's title row, so a live
          one can be told apart on a series page or a shelf. -->
-    <div v-if="isLiveConversation" class="absolute z-20 rounded-full bg-success box-shadow-md" :style="{ top: 0.5 * sizeMultiplier + 'rem', left: 0.5 * sizeMultiplier + 'rem', width: 0.65 * sizeMultiplier + 'rem', height: 0.65 * sizeMultiplier + 'rem' }" title="session running" />
+    <div v-if="isLiveConversation" class="absolute z-20 rounded-full box-shadow-md" :class="liveDotClass" :style="{ top: 0.5 * sizeMultiplier + 'rem', left: 0.5 * sizeMultiplier + 'rem', width: 0.65 * sizeMultiplier + 'rem', height: 0.65 * sizeMultiplier + 'rem' }" :title="liveDotTitle" />
 
     <!-- Podcast Episode # -->
     <div v-if="recentEpisodeNumber !== null && !isSelectionMode" class="absolute rounded-lg bg-black/90 box-shadow-md z-10" :style="{ top: 0.375 * sizeMultiplier + 'rem', right: 0.375 * sizeMultiplier + 'rem', padding: `${0.1 * sizeMultiplier}rem ${0.25 * sizeMultiplier}rem` }">
@@ -161,7 +161,19 @@ export default {
     // Sasonica
     isLiveConversation() {
       const tags = this.media?.tags || []
-      return Array.isArray(tags) && tags.includes('live')
+      return !!this.sessionState || (Array.isArray(tags) && tags.includes('live'))
+    },
+    // What the session is doing, while a Conversations shelf polls for it
+    sessionState() {
+      return this.store.getters['sasonica/getSessionState'](this._libraryItem.path)
+    },
+    liveDotClass() {
+      if (this.sessionState === 'approval') return 'bg-error'
+      if (this.sessionState === 'working') return 'bg-warning animate-pulse'
+      return 'bg-success'
+    },
+    liveDotTitle() {
+      return { working: 'working', waiting: 'waiting on you', approval: 'needs approval' }[this.sessionState] || 'session running'
     },
     media() {
       return this._libraryItem.media || {}

@@ -26,6 +26,8 @@
 </template>
 
 <script>
+import { showMenuItems, libraryArchives } from '@/mixins/sasonicaArchive' // Sasonica
+
 export default {
   data() {
     return {
@@ -95,8 +97,10 @@ export default {
     menuItems() {
       if (!this.isBookLibrary) return []
 
+      const show = this.isConversations ? showMenuItems(this.settings, libraryArchives(this.$store)) : [] // Sasonica
       if (this.seriesBookPage) {
         return [
+          ...show,
           {
             text: this.$strings.LabelCollapseSeries,
             value: 'collapse_subseries',
@@ -105,6 +109,7 @@ export default {
         ]
       } else {
         return [
+          ...show,
           {
             text: this.$strings.LabelCollapseSeries,
             value: 'collapse_series',
@@ -116,6 +121,12 @@ export default {
   },
   methods: {
     clickMenuAction(action) {
+      // Sasonica: a Show toggle leaves the menu open, to tick several
+      if (action.startsWith('sasonica:')) {
+        const key = action.slice('sasonica:'.length)
+        this.settings = { ...this.settings, [key]: !this.settings[key] }
+        return this.saveSettings()
+      }
       this.showMoreMenuDialog = false
       if (action === 'collapse_series') {
         this.settings.collapseSeries = !this.settings.collapseSeries
