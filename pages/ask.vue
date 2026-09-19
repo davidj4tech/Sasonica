@@ -3,11 +3,11 @@
     Sasonica: a new conversation.
 
     Where the assistant button lands, and where "New chat" in the drawer
-    goes. From the button the words are sent a few seconds after dictation
-    returns them, unless the box is tapped to edit them first — a button
-    pressed to say something should not then want a tap;
-    from the drawer the box waits for send, so a typed message can be read
-    over first. The words typed (or dictated) here become the first message of a
+    goes. From the button the page listens at once, and the words are sent a
+    few seconds after dictation returns them, unless the box is tapped to
+    edit them first — a button pressed to say something should not then want
+    a tap; from the drawer (or a project's page) it opens on the text box, and
+    the box waits for send, so a typed message can be read over first. The words typed (or dictated) here become the first message of a
     FRESH Claude Code session on the host — agent-media opens it in the
     scratch tmux session — and the page then waits for the library to grow
     an item for that session, which happens once its first turn is shelved,
@@ -392,9 +392,10 @@ export default {
         this.canDictate = false
       }
       // Opened by the assistant button, the page listens straight away: that
-      // button was pressed to say something, not to look at a box.
-      if (this.canDictate && this.$route.query.dictate !== '0') {
-        this.dictate({ submit: this.$route.query.assist === '1' })
+      // button was pressed to say something, not to look at a box. A tap on
+      // "New chat" opens the box with the keyboard; the mic is beside it.
+      if (this.canDictate && this.$route.query.assist === '1') {
+        this.dictate({ submit: true })
       } else {
         this.$nextTick(() => this.$refs.input?.focus())
       }
