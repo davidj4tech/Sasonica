@@ -7,7 +7,7 @@
        (/speech/ctl). Collapsed it sits in the mini player's place; a tap opens
        the full set. Fork-only file. -->
   <div>
-    <div v-if="visible" id="speechBar" class="fixed left-0 right-0 z-50 pointer-events-none" :style="{ bottom: bottomPx + 'px', height: barHeightPx + 'px' }">
+    <div v-if="ownsSlot" id="speechBar" class="fixed left-0 right-0 z-50 pointer-events-none" :style="{ bottom: bottomPx + 'px', height: barHeightPx + 'px' }">
       <!-- Its own touches: the mini player listens on the whole body and
            reads a swipe up anywhere near the bottom as "open me full screen",
            which with no book loaded opened an empty player and hid this bar
@@ -21,8 +21,17 @@
         <button class="material-symbols text-2xl text-fg px-2" aria-label="Back a sentence" @click.stop="ctl('skip-')">fast_rewind</button>
         <button class="material-symbols text-3xl text-fg px-1" :aria-label="now.paused ? 'Resume' : 'Pause'" @click.stop="toggle">{{ now.paused ? 'play_arrow' : 'pause' }}</button>
         <button class="material-symbols text-2xl text-fg px-2" aria-label="Next sentence" @click.stop="ctl('skip+')">fast_forward</button>
+        <!-- The popup's Tab: hand the slot back to the book or music. -->
+        <button v-if="otherLoaded" class="material-symbols text-xl text-fg-muted pl-2" aria-label="Show the book player" @click.stop="preferOther = true">swap_vert</button>
       </div>
     </div>
+
+    <!-- The slot handed back while a reply plays: speech waits as a chip
+         above the mini player, and a tap takes the slot again. -->
+    <button v-if="visible && !ownsSlot" class="speech-chip fixed right-3 z-50 rounded-full bg-primary border border-fg/10 flex items-center px-3 h-9" :style="{ bottom: MINI_PLAYER_PX + 8 + 'px' }" aria-label="Show the speech player" @click="preferOther = false">
+      <span class="material-symbols text-lg mr-1" :class="{ 'speech-pulse': now.speaking }">graphic_eq</span>
+      <span class="text-xs">{{ now.paused ? 'Paused' : 'Speaking' }}</span>
+    </button>
 
     <!-- The full player: every key the popup has for a listener. It stays
          open when the reply ends, so replay and the older turns are still to
@@ -92,12 +101,23 @@ export default {
       // Which reply the turn keys are on, as the popup's hist_idx: 1 is the
       // latest. red5 answers `prev` with where it landed.
       histIdx: 1,
-      swipeY: null
+      swipeY: null,
+      // The listener swapped back to the book or music for this reply.
+      preferOther: false,
+      MINI_PLAYER_PX
     }
   },
   computed: {
     miniPlayerShowing() {
-      return this.$store.getters['getIsPlayerOpen'] && !this.$store.state.playerIsHidden
+      return this.$store.getters['getIsPlayerOpen'] && !this.$store.getters['getMiniPlayerHidden']
+    },
+    otherLoaded() {
+      return this.$store.getters['getIsPlayerOpen']
+    },
+    // One player in the slot at a time, as the popup shows one channel: a
+    // reply takes the mini player's place unless the listener swapped back.
+    ownsSlot() {
+      return this.visible && !(this.preferOther && this.otherLoaded)
     },
     bottomPx() {
       return this.miniPlayerShowing ? MINI_PLAYER_PX : 0
@@ -117,14 +137,19 @@ export default {
     }
   },
   watch: {
-    // Room for the bar: pages size themselves to #content, so the bar takes
-    // its height out of #content rather than covering the page's last row.
-    visible: {
+    ownsSlot: {
       immediate: true,
       handler(on) {
+        this.$store.commit('setSpeechHasSlot', on)
+        // Room for the bar: pages size themselves to #content, so the bar
+        // takes its height out of #content rather than covering the last row.
         document.documentElement.style.setProperty('--speech-bar-height', on ? BAR_HEIGHT_PX + 'px' : '0px')
       }
-    }
+    },
+    // A swap back lasts for the reply it was made in.
+    'now.live'(live) {
+      if (!live) this.preferOther = false
+    },
   },
   methods: {
     request(method, path, data) {
@@ -241,6 +266,7 @@ export default {
     this.stopPolling()
     document.removeEventListener('visibilitychange', this.onVisibilityChange)
     document.documentElement.style.setProperty('--speech-bar-height', '0px')
+    this.$store.commit('setSpeechHasSlot', false)
   }
 }
 </script>

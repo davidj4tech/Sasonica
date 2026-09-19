@@ -35,6 +35,73 @@ public final class SasonicaSpeech {
     /** How often to ask whether the tailnet address has changed. */
     private static final long REBIND_CHECK_S = 30;
 
+    /**
+     * Told when a reply starts and ends, for the book and music player in the
+     * same app: speech never asks for audio focus (that would make ExoPlayer
+     * pause as if another app had interrupted), so the channels settle it in
+     * process instead. Called on a background thread.
+     */
+    public interface Replies {
+        void replyChanged(boolean speaking);
+    }
+
+    /**
+     * How long "not speaking" has to last before it counts. red5 sets the
+     * speaking flag for a whole reply, but a reply is sent in parts and the
+     * flag can blink between them; restoring the music or the book in that
+     * blink would put it back for a second and take it away again.
+     */
+    private static final long END_GRACE_MS = 1500;
+
+    private static volatile Replies replies;
+    private static final MpvState state = new MpvState();
+    private static boolean speaking;
+    private static final ScheduledExecutorService notifier =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "speech-replies");
+                t.setDaemon(true);
+                return t;
+            });
+    private static java.util.concurrent.ScheduledFuture<?> pendingEnd;
+
+    public static void onReplies(Replies r) { replies = r; }
+
+    /** Is a reply being spoken (red5's flag, held for the whole reply)? */
+    public static synchronized boolean speaking() { return speaking; }
+
+    private static synchronized void stateChanged() {
+        boolean now = state.speaking;
+        if (now) {
+            if (pendingEnd != null) { pendingEnd.cancel(false); pendingEnd = null; }
+            if (!speaking) {
+                speaking = true;
+                tell(true);
+            }
+        } else if (speaking && pendingEnd == null) {
+            pendingEnd = notifier.schedule(SasonicaSpeech::endIfStillQuiet,
+                    END_GRACE_MS, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private static synchronized void endIfStillQuiet() {
+        pendingEnd = null;
+        if (state.speaking || !speaking) return;
+        speaking = false;
+        tell(false);
+    }
+
+    private static void tell(boolean on) {
+        Replies r = replies;
+        if (r == null) return;
+        notifier.execute(() -> {
+            try {
+                r.replyChanged(on);
+            } catch (Throwable t) {
+                Log.w(TAG, "reply listener failed: " + t);
+            }
+        });
+    }
+
     private static BuiltinSpeech player;
     private static MpvServer server;
     private static String boundTo;
@@ -47,6 +114,7 @@ public final class SasonicaSpeech {
         try {
             player = new BuiltinSpeech(context, line -> Log.i(TAG, line));
             bind();
+            player.mirrorInto(state, SasonicaSpeech::stateChanged);
             rebinder = Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "speech-rebind");
                 t.setDaemon(true);

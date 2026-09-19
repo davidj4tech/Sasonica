@@ -117,6 +117,7 @@ class SasonicaRemoteService : Service() {
     Log.i(tag, "up on :${SasonicaControl.REMOTE_PORT} at ${addresses()}")
     // agent-media's speech, answered in this app on :6613 (speech/SasonicaSpeech.java).
     SasonicaSpeech.start(applicationContext)
+    SasonicaSpeech.onReplies(SasonicaSpeechHold { player })
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -124,6 +125,7 @@ class SasonicaRemoteService : Service() {
   override fun onDestroy() {
     running = false
     control?.stop(); control = null
+    SasonicaSpeech.onReplies(null)
     SasonicaSpeech.stop()
     try { unbindService(connection) } catch (_: Exception) {}
     super.onDestroy()

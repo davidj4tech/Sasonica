@@ -8,6 +8,7 @@ export const state = () => ({
   playerIsPlaying: false,
   playerIsFullscreen: false,
   playerIsHidden: false, // Sasonica: the chat page can tuck the mini player away
+  speechHasSlot: false, // Sasonica: a reply is playing and the speech player has the mini player's place
   conversationItemIds: [], // Sasonica: items the chat page has seen are conversations
   playerIsStartingPlayback: false, // When pressing play before native play response
   playerStartingPlaybackMediaId: null,
@@ -39,6 +40,8 @@ export const getters = {
   getIsPlayerOpen: (state) => {
     return !!state.currentPlaybackSession
   },
+  // Sasonica: tucked away on the chat page, or making room for speech
+  getMiniPlayerHidden: (state) => state.playerIsHidden || state.speechHasSlot,
   getIsCurrentSessionLocal: (state) => {
     return state.currentPlaybackSession?.playMethod == PlayMethod.LOCAL
   },
@@ -156,6 +159,9 @@ export const mutations = {
   },
   setPlayerHidden(state, val) {
     state.playerIsHidden = val
+  },
+  setSpeechHasSlot(state, val) {
+    state.speechHasSlot = !!val // Sasonica
   },
   markConversation(state, id) {
     if (id && !state.conversationItemIds.includes(id)) state.conversationItemIds.push(id)
