@@ -202,6 +202,9 @@ export default {
       // host — is picked up promptly, not only ones this page sent itself.
       lastChangeAt: 0,
       lastSig: '',
+      // The reply that was just being spoken, held on screen until the server
+      // hands it back as an ended turn. See carryEndedLive.
+      endedLive: null,
       // The live turn's clock, run here between polls. `liveElapsed` is what
       // the server said, `liveElapsedAt` when it said it; the sentence is
       // found on the timeline at elapsed-plus-however-long-ago, so the bold
@@ -259,6 +262,12 @@ export default {
     }
   },
   watch: {
+    // The voice finished a reply this page was following: the reader is at its
+    // end, which is the bottom. Stay there — and keep there as the reply's
+    // pictures and the next turn arrive — unless they have scrolled away.
+    liveIndex(now, before) {
+      if (before >= 0 && now < 0 && this.readerIsAway()) this.stickToBottom = true
+    },
     activeIndex(index) {
       if (index < 0 || !this.readerIsAway()) return
       this.scrollToLine(index)
@@ -301,6 +310,26 @@ export default {
       if (line.start == null) return
       this.$emit('playAtTimestamp', line.start)
     },
+    // A reply stops being live a moment before it lands in history: the host
+    // clears the speaking row, then writes the ended turn. A poll in between
+    // got the conversation without it, the page shrank by a whole reply, the
+    // scroller was pulled up to where the text had begun, and it stayed there
+    // when the reply came back a second later. So the reply that was live is
+    // kept, as an ended line, until the server returns the same turn (same
+    // `at`) — or for half a minute, if it never does.
+    carryEndedLive(lines) {
+      const wasLive = this.lines.find((line) => line.live)
+      if (wasLive && !lines.some((line) => line.at === wasLive.at)) {
+        this.endedLive = { line: { ...wasLive, live: false }, until: Date.now() + 30000 }
+      }
+      const held = this.endedLive
+      if (!held) return lines
+      if (lines.some((line) => line.at === held.line.at) || Date.now() > held.until) {
+        this.endedLive = null
+        return lines
+      }
+      return [...lines, held.line]
+    },
     // One ask. `quiet` is a refresh rather than the first look: a transient
     // failure then means the network blinked, not that this stopped being a
     // conversation, and blanking a transcript the reader is part-way through
@@ -312,7 +341,7 @@ export default {
         const res = await this.$nativeHttp.request('GET', `${this.baseUrl}/conversation/log?item=${this.libraryItemId}`, null, {
           headers: { Authorization: `Bearer ${token}` }
         })
-        const lines = res?.lines || []
+        const lines = this.carryEndedLive(res?.lines || [])
         this.error = ''
         // A reply we were waiting for has landed once Claude has the last word
         // again. Clear the local bridge; `pending` then carries any real wait.
