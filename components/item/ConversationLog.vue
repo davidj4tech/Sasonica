@@ -327,8 +327,12 @@ export default {
     // The voice finished a reply this page was following: the reader is at its
     // end, which is the bottom. Stay there — and keep there as the reply's
     // pictures and the next turn arrive — unless they have scrolled away.
+    // Whatever landed below while the voice held the page is caught up now.
     liveIndex(now, before) {
-      if (before >= 0 && now < 0 && this.readerIsAway()) this.stickToBottom = true
+      if (before >= 0 && now < 0 && this.readerIsAway()) {
+        this.stickToBottom = true
+        this.$nextTick(this.scrollToBottom)
+      }
     },
     activeIndex(index) {
       if (index < 0 || !this.readerIsAway()) return
@@ -512,7 +516,14 @@ export default {
         this.working = res?.working || null
         const stepsNow = this.stepCount(this.working)
         const tailGrew = stepsNow > stepsBefore || (this.thinking && !thinkingBefore)
-        if (this.chat && (first || grew || tailGrew) && this.stickToBottom && this.readerIsAway()) {
+        // The voice wins over the bottom. Speech trails the work, so while a
+        // reply is read out the session is often already on its next turn,
+        // and every new step pulled the page down only for the bold to pull
+        // it back up — back and forth on each poll. While a line is spoken
+        // the page stays with it; the bottom is caught up when the voice
+        // stops (the liveIndex watcher).
+        const speaking = this.activeIndex >= 0
+        if (this.chat && (first || ((grew || tailGrew) && !speaking)) && this.stickToBottom && this.readerIsAway()) {
           this.$nextTick(this.scrollToBottom)
         }
         this.workingFetchedAt = Date.now()
