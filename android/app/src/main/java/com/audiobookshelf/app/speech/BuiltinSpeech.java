@@ -1,4 +1,4 @@
-package com.sasonica.speech;
+package com.audiobookshelf.app.speech;
 
 import android.content.Context;
 import android.media.AudioAttributes;

@@ -28,6 +28,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.audiobookshelf.app.speech.SasonicaSpeech
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.security.SecureRandom
@@ -114,8 +115,8 @@ class SasonicaRemoteService : Service() {
     control = SasonicaControl(InetAddress.getByName("0.0.0.0"), SasonicaControl.REMOTE_PORT,
                               { token }) { player }.also { it.appContext = applicationContext; it.start() }
     Log.i(tag, "up on :${SasonicaControl.REMOTE_PORT} at ${addresses()}")
-    // agent-media's speech, answered in this app on :6613 (com.sasonica.speech).
-    com.sasonica.speech.SasonicaSpeech.start(applicationContext)
+    // agent-media's speech, answered in this app on :6613 (speech/SasonicaSpeech.java).
+    SasonicaSpeech.start(applicationContext)
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -123,7 +124,7 @@ class SasonicaRemoteService : Service() {
   override fun onDestroy() {
     running = false
     control?.stop(); control = null
-    com.sasonica.speech.SasonicaSpeech.stop()
+    SasonicaSpeech.stop()
     try { unbindService(connection) } catch (_: Exception) {}
     super.onDestroy()
   }

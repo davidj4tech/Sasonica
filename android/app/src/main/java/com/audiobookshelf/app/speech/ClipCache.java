@@ -1,4 +1,4 @@
-package com.sasonica.speech;
+package com.audiobookshelf.app.speech;
 
 import java.io.File;
 import java.io.FileOutputStream;

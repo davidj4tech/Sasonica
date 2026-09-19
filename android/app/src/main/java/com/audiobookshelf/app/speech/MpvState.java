@@ -1,4 +1,4 @@
-package com.sasonica.speech;
+package com.audiobookshelf.app.speech;
 
 /**
  * The mpv properties this app mirrors, kept as one snapshot.
