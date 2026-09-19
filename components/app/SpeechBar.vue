@@ -8,7 +8,11 @@
        the full set. Fork-only file. -->
   <div>
     <div v-if="visible" id="speechBar" class="fixed left-0 right-0 z-50 pointer-events-none" :style="{ bottom: bottomPx + 'px', height: barHeightPx + 'px' }">
-      <div class="speech-bar w-full h-full flex items-center px-3 pointer-events-auto bg-primary border-t border-fg/10" @click="expand">
+      <!-- Its own touches: the mini player listens on the whole body and
+           reads a swipe up anywhere near the bottom as "open me full screen",
+           which with no book loaded opened an empty player and hid this bar
+           behind it. Here a swipe up opens the speech player instead. -->
+      <div class="speech-bar w-full h-full flex items-center px-3 pointer-events-auto bg-primary border-t border-fg/10" @click="expand" @touchstart.stop="swipeStart" @touchend.stop="swipeEnd">
         <span class="material-symbols text-xl text-fg-muted mr-2" :class="{ 'speech-pulse': now.speaking }">graphic_eq</span>
         <div class="flex-grow min-w-0">
           <p class="text-sm font-semibold text-fg truncate">{{ now.title || 'Speaking' }}</p>
@@ -87,7 +91,8 @@ export default {
       expanded: false,
       // Which reply the turn keys are on, as the popup's hist_idx: 1 is the
       // latest. red5 answers `prev` with where it landed.
-      histIdx: 1
+      histIdx: 1,
+      swipeY: null
     }
   },
   computed: {
@@ -182,6 +187,14 @@ export default {
       this.stopPolling()
       window.setTimeout(() => this.startPolling(), 300)
       return res
+    },
+    swipeStart(e) {
+      this.swipeY = e.changedTouches?.[0]?.pageY ?? null
+    },
+    swipeEnd(e) {
+      const y = e.changedTouches?.[0]?.pageY
+      if (this.swipeY != null && y != null && this.swipeY - y > 40) this.expand()
+      this.swipeY = null
     },
     expand() {
       this.histIdx = 1

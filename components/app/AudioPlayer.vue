@@ -500,6 +500,7 @@ export default {
       this.expandToFullscreen()
     },
     expandToFullscreen() {
+      if (!this.$store.getters['getIsPlayerOpen']) return // Sasonica: nothing loaded, nothing to show
       this.showFullscreen = true
       if (this.titleMarquee) this.titleMarquee.reset()
 
