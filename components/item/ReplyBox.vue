@@ -44,7 +44,7 @@
         v-model="text"
         rows="1"
         :disabled="sending"
-        :placeholder="ghost || 'Say something back…'"
+        :placeholder="placeholder"
         class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto"
         @input="onInput"
         @click="stopAutoSend"
@@ -123,6 +123,13 @@ export default {
     // the last reply, so the ghost is not tied to `live`.
     ghost() {
       return !this.text && !this.sending ? (this.suggestion || '').trim() : ''
+    },
+    // Sending to an ended session still works — the server resumes it first —
+    // so the box says so rather than going grey. The ghost keeps its own
+    // line above the box, so it is not lost here.
+    placeholder() {
+      if (this.session && !this.live) return 'Session closed. Sending resumes it'
+      return this.ghost || 'Say something back…'
     }
   },
   methods: {
