@@ -72,7 +72,14 @@ export default {
       })
     },
     async poll() {
-      if (!this.baseUrl || !this.$store.getters['user/getToken']) return
+      if (!this.$store.getters['user/getToken']) return
+      // Asked here, not once at mount: the layout mounts before the server
+      // connection is restored, and the address is derived from it, so a
+      // mount-time answer is '' and stays '' for the life of the app.
+      if (!this.baseUrl) {
+        this.baseUrl = await this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address)
+        if (!this.baseUrl) return
+      }
       try {
         const res = await this.request('GET', '/speech/now')
         this.now = res && res.ok ? res : { live: false }
@@ -125,8 +132,7 @@ export default {
       if (this.now.item) this.$router.push(`/item/${this.now.item}`)
     }
   },
-  async mounted() {
-    this.baseUrl = await this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address)
+  mounted() {
     document.addEventListener('visibilitychange', this.onVisibilityChange)
     this.startPolling()
   },
