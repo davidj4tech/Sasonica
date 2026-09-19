@@ -584,6 +584,12 @@ export default {
     // Called by the page when a reply has been accepted. Show the indicator at
     // once and drop into the fast cadence until the answer lands.
     replied() {
+      // What was just sent is what the reader wants to see answered: go to
+      // the bottom and stay there, even if they had scrolled up to read.
+      if (this.chat) {
+        this.lastUserScrollAt = 0
+        this.$nextTick(this.scrollToBottom)
+      }
       this.awaiting = true
       this.lastChangeAt = Date.now()   // treat the send as activity
       this.refresh()
