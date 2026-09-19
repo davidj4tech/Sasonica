@@ -465,12 +465,20 @@ export default {
         // A conversation opens at its newest turn, and stays there as turns
         // land — unless the reader has scrolled up to read something, in
         // which case the new turn waits below and the page holds still.
-        if (this.chat && (first || grew) && this.stickToBottom && this.readerIsAway()) {
-          this.$nextTick(this.scrollToBottom)
-        }
+        // The running turn's steps and the thinking line sit below the last
+        // turn, so a new step is the bottom growing too: it follows the same
+        // rule, for a reader who is already there.
+        // `count`, not the list: the server keeps only the last MAX_STEPS.
+        const stepsBefore = this.stepCount(this.working)
+        const thinkingBefore = this.thinking
         this.pending = !!res?.pending
         if (!res?.working) this.workingOpen = false
         this.working = res?.working || null
+        const stepsNow = this.stepCount(this.working)
+        const tailGrew = stepsNow > stepsBefore || (this.thinking && !thinkingBefore)
+        if (this.chat && (first || grew || tailGrew) && this.stickToBottom && this.readerIsAway()) {
+          this.$nextTick(this.scrollToBottom)
+        }
         this.workingFetchedAt = Date.now()
         this.workClock = this.workingFetchedAt
         if (this.working) this.startWorkClock()
@@ -494,6 +502,10 @@ export default {
     },
     refresh() {
       this.fetchLog({ quiet: true })
+    },
+    stepCount(working) {
+      if (!working) return 0
+      return working.count != null ? Number(working.count) || 0 : (working.steps || []).length
     },
     // Chat mode. "Away" means the reader has not scrolled for a while, so a
     // scroll the page makes will not fight one they are making.
