@@ -12,6 +12,15 @@ package com.audiobookshelf.app.speech;
  * android.*-free so it can be unit-tested on the build host.
  */
 final class MpvState {
+    // The companion's MpvIpc named these; it did not come across.
+    static final String ARTIST_PROPERTY = "metadata/by-key/Artist";
+    static final String PLAYLIST_POS_PROPERTY = "playlist-pos";
+    static final String SPEAKING_PROPERTY = "user-data/agent-media/speaking";
+    static final String PRIORITY_PROPERTY = "user-data/agent-media/priority";
+    static final String QUEUE_PROPERTY = "playlist-count";
+    static final String TEXT_PROPERTY = "user-data/agent-media/text";
+    static final String POSITION_PROPERTY = "time-pos";
+
 
     volatile boolean connected = false;
     /** True when mpv has no file open. Assume idle until told otherwise. */
@@ -23,20 +32,20 @@ final class MpvState {
     volatile double duration = Double.NaN;
     volatile double speed = 1.0;
     volatile double volume = 100.0;
-    /** Seconds; NaN when unknown. Polled, not observed — see MpvIpc. */
+    /** Seconds; NaN when unknown. Polled, not observed — see  */
     volatile double position = Double.NaN;
     /**
      * Speech mirror only: the coordinator says a response is in flight. See
-     * MpvIpc.SPEAKING_PROPERTY.
+     * SPEAKING_PROPERTY.
      */
     volatile boolean speaking = false;
     /**
      * Speech mirror only: what this reply is worth interrupting for. See
-     * MpvIpc.PRIORITY_PROPERTY. Absent reads as "normal" — a coordinator too
+     * PRIORITY_PROPERTY. Absent reads as "normal" — a coordinator too
      * old to say, and an ordinary answer, deserve the same treatment.
      */
     volatile String priority = "normal";
-    /** Clips on the broker's playlist, the open one included. See MpvIpc. */
+    /** Clips on the broker's playlist, the open one included. See  */
     volatile int queued = 0;
     /** The reply's own words, when the coordinator sent them. */
     volatile String replyText = null;
@@ -94,7 +103,7 @@ final class MpvState {
                 volume = v;
                 return true;
             }
-            case MpvIpc.SPEAKING_PROPERTY: {
+            case SPEAKING_PROPERTY: {
                 // Absent (null) reads as false: an mpv that has never been told
                 // is one whose coordinator does not speak this, and the caller
                 // falls back to its own heuristics.
@@ -103,27 +112,27 @@ final class MpvState {
                 speaking = v;
                 return true;
             }
-            case MpvIpc.PRIORITY_PROPERTY: {
+            case PRIORITY_PROPERTY: {
                 String v = Json.asString(value);
                 if (v == null || v.trim().isEmpty()) v = "normal";
                 if (v.equals(priority)) return false;
                 priority = v;
                 return true;
             }
-            case MpvIpc.TEXT_PROPERTY: {
+            case TEXT_PROPERTY: {
                 String v = Json.asString(value);
                 if (v != null && v.trim().isEmpty()) v = null;
                 if (eq(v, replyText)) return false;
                 replyText = v;
                 return true;
             }
-            case MpvIpc.QUEUE_PROPERTY: {
+            case QUEUE_PROPERTY: {
                 int v = (int) Json.asDouble(value, 0);
                 if (v == queued) return false;
                 queued = v;
                 return true;
             }
-            case MpvIpc.ARTIST_PROPERTY: {
+            case ARTIST_PROPERTY: {
                 // Absent is the ordinary case, not a failure: a stream, a
                 // podcast and an untagged file all report null here.
                 String v = Json.asString(value);
@@ -132,13 +141,13 @@ final class MpvState {
                 artist = v;
                 return true;
             }
-            case MpvIpc.PLAYLIST_POS_PROPERTY: {
+            case PLAYLIST_POS_PROPERTY: {
                 int v = (int) Json.asDouble(value, -1);
                 if (v == playlistPos) return false;
                 playlistPos = v;
                 return true;
             }
-            case MpvIpc.POSITION_PROPERTY: {
+            case POSITION_PROPERTY: {
                 position = Json.asDouble(value, Double.NaN);
                 // Position never counts as a state change on its own: it moves
                 // constantly and the session extrapolates between updates.
