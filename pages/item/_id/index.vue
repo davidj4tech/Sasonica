@@ -22,11 +22,6 @@
         <ui-btn color="primary" small :padding-x="2" :padding-y="1" class="flex items-center justify-center ml-2" @click="moreButtonPress">
           <span class="material-symbols text-xl">more_vert</span>
         </ui-btn>
-        <!-- Ends the session behind a live conversation: /exit, without
-             typing it. Asks first — it sits beside the menu button. -->
-        <button v-if="conversationState?.live" class="flex items-center justify-center ml-2 w-8 h-8 rounded-sm text-fg-muted" title="Close session" @click="closeSessionClick">
-          <span class="material-symbols text-xl">close</span>
-        </button>
       </div>
 
       <item-canvas-panel />
@@ -618,10 +613,6 @@ export default {
     // Sasonica: resume / close / go to terminal, from the more menu.
     onSessionAction(action) {
       this.$refs.replyBox?.manage(action)
-    },
-    async closeSessionClick() {
-      const { value } = await Dialog.confirm({ title: 'Close session', message: 'End the Claude session behind this conversation? It can be resumed from the menu.' })
-      if (value) this.onSessionAction('close')
     },
     // Sasonica: the assistant button pressed with this page open replies here.
     onAssist(taken) {
