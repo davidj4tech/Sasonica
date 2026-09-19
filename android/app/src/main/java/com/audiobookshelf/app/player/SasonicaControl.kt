@@ -15,11 +15,18 @@ package com.audiobookshelf.app.player
 //
 // /state is the clock the canvas reads; /play?item=… starts an
 // Audiobookshelf item here with this app's own focus, notification and
-// lock-screen controls. Fork-only file.
+// lock-screen controls; /play?url=… plays one http(s) URL (music from red5)
+// as a single-track session that belongs to no library and syncs nowhere.
+// Fork-only file.
 
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.webkit.MimeTypeMap
+import com.audiobookshelf.app.data.AudioTrack
+import com.audiobookshelf.app.data.BookMetadata
+import com.audiobookshelf.app.data.DeviceInfo
 import com.audiobookshelf.app.data.PlaybackSession
 import com.audiobookshelf.app.device.DeviceManager
 import org.json.JSONArray
@@ -28,6 +35,7 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
+import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -48,6 +56,68 @@ class SasonicaControl(
     fun loopback(service: PlayerNotificationService) =
       SasonicaControl(InetAddress.getByName("127.0.0.1"), LOOPBACK_PORT, { null }) { service }
         .also { it.appContext = service.applicationContext }
+
+    /**
+     * The mark of a `/play?url=` session: its id. The id survives clone() and
+     * a round trip through the database, and no Audiobookshelf session id
+     * (a UUID from the server or LocalLibraryItem) starts with it. The hooks in
+     * upstream files ask this, so that a URL session never writes progress,
+     * history or a server sync, never rewinds on resume, never arms the book's
+     * auto sleep timer, and never takes the web view's (book) speed.
+     */
+    private const val URL_SESSION_PREFIX = "sasonica-url-"
+
+    fun isUrlSession(s: PlaybackSession?): Boolean = s?.id?.startsWith(URL_SESSION_PREFIX) == true
+
+    /** The URL a URL session is playing, else null. */
+    fun urlOf(s: PlaybackSession?): String? =
+      if (isUrlSession(s)) s?.audioTracks?.firstOrNull()?.contentUrl else null
+
+    /**
+     * A URL session starts with no length. Called from PlayerListener on
+     * STATE_READY, before the web view is sent its metadata: the player's own
+     * duration becomes the track's and the session's, so getDuration(), the
+     * seek clamp, the sleep timer and the web seekbar all see it.
+     */
+    fun learnUrlDuration(svc: PlayerNotificationService) {
+      val s = svc.currentPlaybackSession ?: return
+      if (!isUrlSession(s)) return
+      val track = s.audioTracks.firstOrNull() ?: return
+      if (track.duration > 0.0) return
+      val ms = try { svc.currentPlayer.duration } catch (_: Exception) { return }
+      if (ms <= 0L) return // C.TIME_UNSET is negative: a stream of unknown length stays 0
+      track.duration = ms / 1000.0
+      s.duration = track.duration
+    }
+
+    /**
+     * One URL as a local-method session: getContentUri hands a PLAYMETHOD_LOCAL
+     * track's contentUrl to ExoPlayer verbatim, and preparePlayer's local branch
+     * uses DefaultDataSource, which reads http(s) too. No library item, no
+     * server, no chapters, no cover (getCoverUri falls back to the app icon).
+     * "book", not "podcast": podcast sessions pull in Android Auto's
+     * next-episode logic when they end.
+     */
+    private fun urlSession(url: String, title: String, artist: String, startTime: Double?,
+                           deviceInfo: DeviceInfo): PlaybackSession {
+      val ext = MimeTypeMap.getFileExtensionFromUrl(url)?.lowercase() ?: ""
+      val mime = (if (ext.isEmpty()) null else MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext))
+        ?.takeIf { it.startsWith("audio/") } ?: "audio/mpeg"
+      val now = System.currentTimeMillis()
+      val metadata = BookMetadata(
+        title = title, subtitle = null, authors = null, narrators = null,
+        genres = mutableListOf(), publishedYear = null, publishedDate = null,
+        publisher = null, description = null, isbn = null, asin = null,
+        language = null, explicit = false, authorName = artist, authorNameLF = null,
+        narratorName = null, seriesName = null, series = null,
+      )
+      val track = AudioTrack(0, 0.0, 0.0, title, url, mime, null, true, null, null)
+      return PlaybackSession(
+        "$URL_SESSION_PREFIX${UUID.randomUUID()}", null, null, null, "book", metadata,
+        deviceInfo, mutableListOf(), title, artist, null, 0.0, PLAYMETHOD_LOCAL, now, now, 0L,
+        mutableListOf(track), startTime ?: 0.0, null, null, null, null, null, PLAYER_EXO,
+      )
+    }
   }
 
   @Volatile private var server: ServerSocket? = null
@@ -171,19 +241,38 @@ class SasonicaControl(
       "/seek" -> {
         val t = q["t"]?.toDoubleOrNull()
         if (t == null) 400 to err("seek needs t=<seconds>")
-        else 200 to onMain { svc.seekPlayer((t * 1000).toLong()); state(svc) }
+        else 200 to onMain { seek(svc, (t * 1000).toLong()); state(svc) }
       }
       "/jump" -> {
         val by = q["by"]?.toDoubleOrNull()
         if (by == null) 400 to err("jump needs by=<seconds> (negative to go back)")
-        else 200 to onMain { svc.seekForward((by * 1000).toLong()); state(svc) }
+        else 200 to onMain { seek(svc, svc.getCurrentTime() + (by * 1000).toLong()); state(svc) }
       }
       "/speed" -> {
         val rate = q["rate"]?.toFloatOrNull()
         if (rate == null || rate <= 0f) 400 to err("speed needs rate=<float>")
-        else 200 to onMain { svc.setPlaybackSpeed(rate); state(svc) }
+        else 200 to onMain {
+          // Music's speed is its own: setPlaybackSpeed would also save it as
+          // the book speed the next book starts at.
+          if (isUrlSession(svc.currentPlaybackSession)) svc.currentPlayer.setPlaybackSpeed(rate)
+          else svc.setPlaybackSpeed(rate)
+          state(svc)
+        }
       }
       else -> 404 to err("no such route")
+    }
+  }
+
+  /**
+   * seekPlayer clamps to getDuration(), which a URL session only knows once
+   * the player is ready; until then it would clamp every seek to -2 s. So
+   * seek the player directly while the length is unknown. On main.
+   */
+  private fun seek(svc: PlayerNotificationService, ms: Long) {
+    if (isUrlSession(svc.currentPlaybackSession) && svc.getDuration() <= 0L) {
+      svc.currentPlayer.seekTo(ms.coerceAtLeast(0L))
+    } else {
+      svc.seekPlayer(ms)
     }
   }
 
@@ -212,7 +301,8 @@ class SasonicaControl(
       put("source", "sasonica")
       put("player", try { svc.getMediaPlayer() } catch (_: Exception) { "?" })
       put("closed", PlayerNotificationService.isClosed)
-      put("item", s?.libraryItemId ?: JSONObject.NULL)
+      put("item", s?.libraryItemId ?: JSONObject.NULL) // null for a URL session: music is not a book
+      put("url", urlOf(s) ?: JSONObject.NULL)
       put("episode", s?.episodeId ?: JSONObject.NULL)
       put("title", s?.displayTitle ?: JSONObject.NULL)
       put("t", if (s == null) 0.0 else svc.getCurrentTimeSeconds())
@@ -229,6 +319,7 @@ class SasonicaControl(
    * hears about it through onPlaybackSession like any other start.
    */
   private fun play(svc: PlayerNotificationService, q: Map<String, String>): Pair<Int, JSONObject> {
+    if (q.containsKey("url")) return playUrl(svc, q)
     val itemId = q["item"] ?: return 400 to err("play needs item=<libraryItemId>")
     val episodeId = q["episode"] ?: ""
     val startTime = q["t"]?.toDoubleOrNull()
@@ -282,6 +373,70 @@ class SasonicaControl(
       }
     }
     // 45 s, not 20: on a flapping tailnet the app's own play request has taken 19 s.
+    latch.await(45, TimeUnit.SECONDS)
+    return result
+  }
+
+  /**
+   * `/play?url=<http(s)>&title=&artist=&t=&rate=`: one URL, one track, played
+   * here. `item` is ignored. The rate is 1.0 unless given — never the saved
+   * book speed. Whatever was playing is stopped first the way the app stops
+   * it (a book syncs its last position), then the URL session is prepared;
+   * MediaProgressSyncer refuses to start for it, so it writes no local
+   * progress, no history and no server sync.
+   */
+  private fun playUrl(svc: PlayerNotificationService, q: Map<String, String>): Pair<Int, JSONObject> {
+    val url = q["url"]?.trim() ?: ""
+    val uri = if (url.isEmpty()) null else try { Uri.parse(url) } catch (_: Exception) { null }
+    val scheme = uri?.scheme?.lowercase()
+    if (uri == null || (scheme != "http" && scheme != "https") || uri.host.isNullOrEmpty()) {
+      return 400 to err("play needs url=<http(s) URL>")
+    }
+    val title = q["title"]?.takeIf { it.isNotBlank() }
+      ?: uri.lastPathSegment?.takeIf { it.isNotBlank() } ?: url
+    // "" not null: the notification prints a null subtitle as "null".
+    val artist = q["artist"]?.takeIf { it.isNotBlank() } ?: ""
+    val startTime = q["t"]?.toDoubleOrNull()?.takeIf { it > 0.0 }
+    val rate = q["rate"]?.toFloatOrNull()?.takeIf { it > 0f } ?: 1f
+
+    val latch = CountDownLatch(1)
+    var result: Pair<Int, JSONObject> = 504 to err("the player did not start in time")
+    main.post {
+      try {
+        // Like AbsAudioPlayer.prepareLibraryItem's server path: let the syncer
+        // finish with the old session (it calls back at once when idle, or
+        // after the book's last sync, maybe off the main thread).
+        svc.mediaProgressSyncer.stop {
+          main.post {
+            try {
+              val session = urlSession(url, title, artist, startTime, svc.getDeviceInfo())
+              PlayerListener.lazyIsPlaying = false
+              svc.preparePlayer(session, true, rate)
+              // preparePlayer restarts any session within 5 s of its duration,
+              // and a URL session's duration is 0 until the player is ready,
+              // so it always rewinds to 0. Put the start back: one track, and
+              // a local session always ends on ExoPlayer, so this is the
+              // same seekTo preparePlayer would have made.
+              if (startTime != null && svc.currentPlaybackSession === session) {
+                session.currentTime = startTime
+                svc.currentPlayer.seekTo((startTime * 1000).toLong())
+              }
+              result = 200 to state(svc)
+            } catch (e: Exception) {
+              Log.w(tag, "play url: preparePlayer threw: $e")
+              result = 500 to err("preparePlayer threw: $e").put("state", state(svc))
+            } finally {
+              latch.countDown()
+            }
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(tag, "play url: stopping the syncer threw: $e")
+        result = 500 to err("stopping the previous session threw: $e").put("state", state(svc))
+        latch.countDown()
+      }
+    }
+    // The old book's last sync may go to the server first: same budget as /play?item.
     latch.await(45, TimeUnit.SECONDS)
     return result
   }

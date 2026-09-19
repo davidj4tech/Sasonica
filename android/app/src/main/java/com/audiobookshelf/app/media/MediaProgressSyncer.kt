@@ -51,6 +51,7 @@ class MediaProgressSyncer(
     get() = currentPlaybackSession?.duration ?: 0.0
 
   fun start(playbackSession: PlaybackSession) {
+    if (com.audiobookshelf.app.player.SasonicaControl.isUrlSession(playbackSession)) return // Sasonica: a /play?url= session syncs nowhere
     if (listeningTimerRunning) {
       Log.d(tag, "start: Timer already running for $currentDisplayTitle")
       if (playbackSession.id != currentSessionId) {
@@ -105,6 +106,7 @@ class MediaProgressSyncer(
   }
 
   fun play(playbackSession: PlaybackSession) {
+    if (com.audiobookshelf.app.player.SasonicaControl.isUrlSession(playbackSession)) return // Sasonica: no play event, no timer, for a /play?url= session
     Log.d(tag, "play ${playbackSession.displayTitle}")
     MediaEventManager.playEvent(playbackSession)
 

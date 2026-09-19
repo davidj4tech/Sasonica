@@ -130,6 +130,7 @@ class PlayerListener(var playerNotificationService:PlayerNotificationService) : 
 
       if (playerNotificationService.currentPlayer.playbackState == Player.STATE_READY) {
         Log.d(tag, "STATE_READY : " + playerNotificationService.currentPlayer.duration)
+        SasonicaControl.learnUrlDuration(playerNotificationService) // Sasonica: a /play?url= session learns its length here, before the metadata below
 
         if (lastPauseTime == 0L) {
           lastPauseTime = -1
@@ -161,6 +162,7 @@ class PlayerListener(var playerNotificationService:PlayerNotificationService) : 
   }
 
   private fun calcPauseSeekBackTime() : Long {
+    if (SasonicaControl.isUrlSession(playerNotificationService.currentPlaybackSession)) return 0 // Sasonica: music never rewinds on resume
     if (lastPauseTime <= 0) return 0
     val time: Long = System.currentTimeMillis() - lastPauseTime
     val seekback: Long

@@ -412,6 +412,8 @@ class AbsAudioPlayer : Plugin() {
     val playbackSpeed:Float = call.getFloat("value", 1.0f) ?: 1.0f
 
     Handler(Looper.getMainLooper()).post {
+      // Sasonica: the web view only knows the book speed (it re-applies it when its settings load); music played by /play?url= keeps its own.
+      if (com.audiobookshelf.app.player.SasonicaControl.isUrlSession(playerNotificationService.currentPlaybackSession)) { call.resolve(); return@post }
       playerNotificationService.setPlaybackSpeed(playbackSpeed)
       call.resolve()
     }

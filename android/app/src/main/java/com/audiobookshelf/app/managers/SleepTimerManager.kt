@@ -447,6 +447,7 @@ constructor(private val playerNotificationService: PlayerNotificationService) {
 
   /** Checks whether the auto sleep timer should be set, and set up auto sleep timer if so. */
   fun checkAutoSleepTimer() {
+    if (com.audiobookshelf.app.player.SasonicaControl.isUrlSession(playerNotificationService.currentPlaybackSession)) return // Sasonica: music never arms (or rewinds for) the book's auto sleep timer
     if (sleepTimerRunning) { // Sleep timer already running
       return
     }
