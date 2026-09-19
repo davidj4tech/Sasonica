@@ -39,7 +39,7 @@ export default {
       if (!this.initialized) this.currentSFQueryString = this.buildSearchParams()
       const sf = this.currentSFQueryString ? this.currentSFQueryString + '&' : ''
       const path = this.entityName === 'series' ? 'series' : 'items'
-      const payload = await this.$nativeHttp.get(`/api/libraries/${this.currentLibraryId}/${path}?${sf}limit=0&minified=1&include=rssfeed,numEpisodesIncomplete`).catch((error) => {
+      const payload = await this.$nativeHttp.get(`/api/libraries/${this.currentLibraryId}/${path}?${sf}limit=1000&page=0&minified=1&include=rssfeed,numEpisodesIncomplete`).catch((error) => {
         console.error('[sasonica] failed to fetch unarchived', error)
         return null
       })
