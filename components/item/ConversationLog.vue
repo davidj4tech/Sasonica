@@ -92,9 +92,9 @@
           <p class="text-xs text-fg-muted">Claude</p>
           <p v-if="working" class="text-xs font-mono text-fg-muted pl-2">{{ duration(workingSeconds) }}<template v-if="working.count"> · {{ working.count }} {{ working.count === 1 ? 'step' : 'steps' }}</template></p>
         </div>
-        <!-- What it is doing, as the terminal shows it: the last few steps,
-             the one in progress marked and bright, older ones dimmed. A tap
-             opens the whole list. The dots until there is a step. -->
+        <!-- What it is doing, as the terminal shows it: every step, the one
+             in progress marked and bright, older ones dimmed. A tap folds it
+             to the last few. The dots until there is a step. -->
         <div v-if="working && working.steps && working.steps.length" class="space-y-0.5">
           <p v-if="!workingOpen && working.steps.length > WORKING_SHOWN" class="text-xs text-fg-muted">⋯ {{ working.steps.length - WORKING_SHOWN }} earlier</p>
           <p v-for="(step, si) in shownSteps" :key="si" class="text-sm flex items-start" :class="si === shownSteps.length - 1 ? 'text-fg' : 'text-fg-muted'">
@@ -246,8 +246,9 @@ export default {
       workTimer: null,
       // Which replies have their step list open, by `at`.
       openWork: {},
-      // The running turn's list, opened to all its steps by a tap.
-      workingOpen: false,
+      // The running turn's list: every step, open by default; a tap folds it
+      // to the last few, for this turn only.
+      workingOpen: true,
       WORKING_SHOWN: 4,
       // The live turn's clock, run here between polls. `liveElapsed` is what
       // the server said, `liveElapsedAt` when it said it; the sentence is
@@ -478,7 +479,7 @@ export default {
         const stepsBefore = this.stepCount(this.working)
         const thinkingBefore = this.thinking
         this.pending = !!res?.pending
-        if (!res?.working) this.workingOpen = false
+        if (!res?.working) this.workingOpen = true
         this.working = res?.working || null
         const stepsNow = this.stepCount(this.working)
         const tailGrew = stepsNow > stepsBefore || (this.thinking && !thinkingBefore)
