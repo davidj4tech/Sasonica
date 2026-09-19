@@ -9,8 +9,10 @@
 <script>
 import { Dialog } from '@capacitor/dialog'
 import { AbsFileSystem } from '@/plugins/capacitor'
+import { archiveMenu } from '@/mixins/sasonicaArchive' // Sasonica
 
 export default {
+  mixins: [archiveMenu], // Sasonica
   props: {
     value: Boolean,
     processing: Boolean,
@@ -68,6 +70,7 @@ export default {
           items.push({ text: 'Resume session', value: 'session:resume', icon: 'play_circle' })
         }
       }
+      if (this.archiveMenuItem) items.push(this.archiveMenuItem) // Sasonica
 
       // TODO: Implement on iOS
       if (this.$platform !== 'ios' && !this.isPodcast) {
@@ -283,6 +286,7 @@ export default {
   methods: {
     moreMenuAction(action) {
       this.show = false
+      if (action.startsWith('sasonica:')) return this.setArchived(action === 'sasonica:archive') // Sasonica
       if (action.startsWith('session:')) {
         this.$emit('session', action.slice('session:'.length)) // Sasonica
         return

@@ -17,13 +17,14 @@
 
 <script>
 import bookshelfCardsHelpers from '@/mixins/bookshelfCardsHelpers'
+import sasonicaArchive from '@/mixins/sasonicaArchive' // Sasonica
 
 export default {
   props: {
     page: String,
     seriesId: String
   },
-  mixins: [bookshelfCardsHelpers],
+  mixins: [bookshelfCardsHelpers, sasonicaArchive],
   data() {
     return {
       routeFullPath: null,
@@ -168,6 +169,7 @@ export default {
       })
     },
     async fetchEntities(page) {
+      if (this.hidesArchived) return this.fetchUnarchived() // Sasonica
       const startIndex = page * this.booksPerFetch
 
       this.isFetchingEntities = true

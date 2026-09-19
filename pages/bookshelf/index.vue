@@ -38,6 +38,7 @@
 </template>
 
 <script>
+import { hideArchivedOnShelves } from '@/mixins/sasonicaArchive' // Sasonica
 export default {
   props: {},
   data() {
@@ -278,6 +279,7 @@ export default {
         // Sasonica: conversations whose session is running right now, first.
         // agent-media keeps a `live` tag on them; a closed one stays in its
         // series and just drops off this shelf.
+        this.shelves = hideArchivedOnShelves(this.shelves) // Sasonica
         const live = await this.fetchLiveShelf()
         if (live) this.shelves.unshift(live)
         console.log('[categories] Server shelves set', this.shelves.length, this.lastServerFetch)
