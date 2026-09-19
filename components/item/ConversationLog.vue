@@ -47,11 +47,11 @@
         <!-- A turn being spoken right now is shown sentence by sentence: what
              has been said in the usual colour, the sentence in the air bold,
              what is still to come dimmed. The server marks the line live and
-             says which sentence, refreshed every poll. -->
+             says which sentence, refreshed every poll. The gaps between
+             sentences come from the reply's own text, so its line breaks
+             (a list, a new paragraph) hold while it is spoken. -->
         <p v-if="line.live && line.sentences && line.sentences.length" class="text-sm whitespace-pre-line">
-          <template v-for="(sentence, i) in line.sentences">
-            <span :key="i" ref="liveSentences" :class="i === liveSentence ? 'font-semibold text-fg' : i < liveSentence ? 'text-fg' : 'text-fg-muted'">{{ sentence }} </span>
-          </template>
+          <template v-for="(part, i) in liveParts(line)">{{ part.lead }}<span :key="i" ref="liveSentences" :class="i === liveSentence ? 'font-semibold text-fg' : i < liveSentence ? 'text-fg' : 'text-fg-muted'">{{ part.text }}</span></template>
         </p>
         <!-- A slash command is an instruction, not a sentence: it reads as
              the command it is, so the reply underneath has a visible cause. -->
@@ -330,6 +330,48 @@ export default {
     }
   },
   methods: {
+    // The live turn's sentences with the whitespace the reply really had
+    // between and inside them. The speech splitter cuts sentences out of
+    // this very text but joins and trims on any whitespace, so a newline
+    // between list items came back as a space until the turn ended and the
+    // plain text took over. Walked character by character: a run of
+    // whitespace in a sentence matches any run in the text and is replaced
+    // by that run's newlines (or a space). Anything that does not line up
+    // falls back to the sentences joined by spaces, as before.
+    liveParts(line) {
+      const text = line.text || ''
+      const plain = line.sentences.map((t, i) => ({ lead: i ? ' ' : '', text: t }))
+      const gap = (from) => {
+        let p = from
+        while (p < text.length && /\s/.test(text[p])) p++
+        const breaks = text.slice(from, p).replace(/[^\n]/g, '')
+        return { end: p, ws: breaks || ' ' }
+      }
+      const parts = []
+      let p = 0
+      for (let i = 0; i < line.sentences.length; i++) {
+        const lead = gap(p)
+        p = lead.end
+        const sentence = line.sentences[i]
+        let out = ''
+        for (let k = 0; k < sentence.length; ) {
+          if (/\s/.test(sentence[k])) {
+            while (k < sentence.length && /\s/.test(sentence[k])) k++
+            if (!/\s/.test(text[p] || '')) return plain
+            const run = gap(p)
+            p = run.end
+            out += run.ws
+          } else if (sentence[k] === text[p]) {
+            out += sentence[k++]
+            p++
+          } else {
+            return plain
+          }
+        }
+        parts.push({ lead: i ? lead.ws : '', text: out })
+      }
+      return parts
+    },
     // Which option was taken. The answer is not stored on the question — it
     // is the listener's own turn, recorded when the choice was made — so the
     // line below is the answer, and a multi-select one lists its labels.
