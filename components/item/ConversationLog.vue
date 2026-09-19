@@ -36,11 +36,11 @@
              way the terminal ends a turn ("Worked for 3m 38s"). Tap for the
              steps. -->
         <div v-if="line.work" class="pb-1">
-          <button class="text-xs text-fg-muted flex items-center" @click.stop="toggleWork(line)">
-            <span class="material-symbols text-sm leading-none pr-0.5">{{ openWork[line.at] ? 'expand_less' : 'expand_more' }}</span>
+          <button class="text-xs text-fg-muted flex items-center" @click.stop.prevent="toggleWork(line)">
+            <span class="material-symbols text-sm leading-none pr-0.5">{{ openWork['w' + line.at] ? 'expand_less' : 'expand_more' }}</span>
             Worked for {{ duration(line.work.seconds) }} · {{ line.work.count }} {{ line.work.count === 1 ? 'step' : 'steps' }}
           </button>
-          <ol v-if="openWork[line.at]" class="text-xs text-fg-muted pl-5 pt-1 list-decimal space-y-0.5">
+          <ol v-if="openWork['w' + line.at]" class="text-xs text-fg-muted pl-5 pt-1 list-decimal space-y-0.5">
             <li v-for="(step, si) in line.work.steps" :key="si">{{ step }}</li>
           </ol>
         </div>
@@ -86,17 +86,22 @@
       </div>
     </div>
     <div v-if="thinking" class="w-full flex mb-2 justify-start">
-      <div class="max-w-[85%] rounded-lg px-3 py-2 bg-primary/60 border border-transparent">
+      <div class="max-w-[85%] rounded-lg px-3 py-2 bg-primary/60 border border-transparent" @click="workingOpen = !workingOpen">
         <div class="flex items-center pb-0.5">
           <p class="text-xs text-fg-muted">Claude</p>
           <p v-if="working" class="text-xs font-mono text-fg-muted pl-2">{{ duration(workingSeconds) }}<template v-if="working.count"> · {{ working.count }} {{ working.count === 1 ? 'step' : 'steps' }}</template></p>
         </div>
-        <!-- What it is doing, as the terminal shows it: the step in progress,
-             replaced as the next one starts. The dots until there is one. -->
-        <p v-if="working && working.current" class="text-sm flex items-center">
-          <span class="thinking-dot mr-2 flex-shrink-0" />
-          <span class="truncate">{{ working.current }}</span>
-        </p>
+        <!-- What it is doing, as the terminal shows it: the last few steps,
+             the one in progress marked and bright, older ones dimmed. A tap
+             opens the whole list. The dots until there is a step. -->
+        <div v-if="working && working.steps && working.steps.length" class="space-y-0.5">
+          <p v-if="!workingOpen && working.steps.length > WORKING_SHOWN" class="text-xs text-fg-muted">⋯ {{ working.steps.length - WORKING_SHOWN }} earlier</p>
+          <p v-for="(step, si) in shownSteps" :key="si" class="text-sm flex items-start" :class="si === shownSteps.length - 1 ? 'text-fg' : 'text-fg-muted'">
+            <span v-if="si === shownSteps.length - 1" class="thinking-dot mr-2 mt-1.5 flex-shrink-0" />
+            <span v-else class="material-symbols text-sm leading-5 mr-1.5 flex-shrink-0">check</span>
+            <span :class="workingOpen ? 'break-words' : 'truncate'">{{ step }}</span>
+          </p>
+        </div>
         <p v-else class="text-sm flex items-center">
           <span class="thinking-dot" />
           <span class="thinking-dot" />
@@ -235,6 +240,9 @@ export default {
       workTimer: null,
       // Which replies have their step list open, by `at`.
       openWork: {},
+      // The running turn's list, opened to all its steps by a tap.
+      workingOpen: false,
+      WORKING_SHOWN: 4,
       // The live turn's clock, run here between polls. `liveElapsed` is what
       // the server said, `liveElapsedAt` when it said it; the sentence is
       // found on the timeline at elapsed-plus-however-long-ago, so the bold
@@ -253,6 +261,10 @@ export default {
     },
     // Whether a turn is being spoken right now, by the host rather than the
     // player. Polled fast while it is, so the sentence keeps up.
+    shownSteps() {
+      const steps = (this.working && this.working.steps) || []
+      return this.workingOpen ? steps : steps.slice(-this.WORKING_SHOWN)
+    },
     // How long the running turn has been going: the server's reading plus
     // however long ago it was taken, so the timer moves between polls.
     workingSeconds() {
@@ -415,6 +427,7 @@ export default {
           this.$nextTick(this.scrollToBottom)
         }
         this.pending = !!res?.pending
+        if (!res?.working) this.workingOpen = false
         this.working = res?.working || null
         this.workingFetchedAt = Date.now()
         this.workClock = this.workingFetchedAt
@@ -472,7 +485,8 @@ export default {
       this.workTimer = null
     },
     toggleWork(line) {
-      this.$set(this.openWork, line.at, !this.openWork[line.at])
+      const key = 'w' + line.at
+      this.$set(this.openWork, key, !this.openWork[key])
     },
     // 42s, 3m 38s, 1h 5m — the terminal's own shorthand.
     duration(seconds) {
