@@ -32,6 +32,18 @@
           <p class="text-xs text-fg-muted">{{ line.who === 'you' ? 'You' : 'Claude' }}</p>
           <p v-if="line.start != null" class="text-xs font-mono text-fg-muted underline pl-2">{{ $secondsToTimestamp(line.start) }}</p>
         </div>
+        <!-- What the session did before it said this, folded to one line the
+             way the terminal ends a turn ("Worked for 3m 38s"). Tap for the
+             steps. -->
+        <div v-if="line.work" class="pb-1">
+          <button class="text-xs text-fg-muted flex items-center" @click.stop="toggleWork(line)">
+            <span class="material-symbols text-sm leading-none pr-0.5">{{ openWork[line.at] ? 'expand_less' : 'expand_more' }}</span>
+            Worked for {{ duration(line.work.seconds) }} · {{ line.work.count }} {{ line.work.count === 1 ? 'step' : 'steps' }}
+          </button>
+          <ol v-if="openWork[line.at]" class="text-xs text-fg-muted pl-5 pt-1 list-decimal space-y-0.5">
+            <li v-for="(step, si) in line.work.steps" :key="si">{{ step }}</li>
+          </ol>
+        </div>
         <!-- A turn being spoken right now is shown sentence by sentence: what
              has been said in the usual colour, the sentence in the air bold,
              what is still to come dimmed. The server marks the line live and
@@ -77,8 +89,15 @@
       <div class="max-w-[85%] rounded-lg px-3 py-2 bg-primary/60 border border-transparent">
         <div class="flex items-center pb-0.5">
           <p class="text-xs text-fg-muted">Claude</p>
+          <p v-if="working" class="text-xs font-mono text-fg-muted pl-2">{{ duration(workingSeconds) }}<template v-if="working.count"> · {{ working.count }} {{ working.count === 1 ? 'step' : 'steps' }}</template></p>
         </div>
-        <p class="text-sm flex items-center">
+        <!-- What it is doing, as the terminal shows it: the step in progress,
+             replaced as the next one starts. The dots until there is one. -->
+        <p v-if="working && working.current" class="text-sm flex items-center">
+          <span class="thinking-dot mr-2 flex-shrink-0" />
+          <span class="truncate">{{ working.current }}</span>
+        </p>
+        <p v-else class="text-sm flex items-center">
           <span class="thinking-dot" />
           <span class="thinking-dot" />
           <span class="thinking-dot" />
@@ -147,6 +166,9 @@ const POLL_IDLE_MS = 15000
 // screen track the words in the air; a second keeps them within a sentence.
 // Cheap: the log is derived on demand and the payload is small.
 const POLL_FAST_MS = 1000
+// While a turn is at work: its step changes every few seconds for minutes on
+// end, and every ask costs the host a transcript read, so a little slower.
+const POLL_WORKING_MS = 2000
 // Keep the fast cadence for a short while after the transcript last CHANGED,
 // so a reply that is still growing (and the moment right after it settles)
 // stays snappy no matter who started the turn or how it arrived.
@@ -205,6 +227,14 @@ export default {
       // The reply that was just being spoken, held on screen until the server
       // hands it back as an ended turn. See carryEndedLive.
       endedLive: null,
+      // What the session is doing right now (the server's `working`), when
+      // it was asked, and a clock ticking the timer between asks.
+      working: null,
+      workingFetchedAt: 0,
+      workClock: 0,
+      workTimer: null,
+      // Which replies have their step list open, by `at`.
+      openWork: {},
       // The live turn's clock, run here between polls. `liveElapsed` is what
       // the server said, `liveElapsedAt` when it said it; the sentence is
       // found on the timeline at elapsed-plus-however-long-ago, so the bold
@@ -223,6 +253,13 @@ export default {
     },
     // Whether a turn is being spoken right now, by the host rather than the
     // player. Polled fast while it is, so the sentence keeps up.
+    // How long the running turn has been going: the server's reading plus
+    // however long ago it was taken, so the timer moves between polls.
+    workingSeconds() {
+      const w = this.working
+      if (!w || w.since == null || w.server_time == null) return 0
+      return Math.max(0, w.server_time - w.since + (this.workClock - this.workingFetchedAt) / 1000)
+    },
     liveIndex() {
       return this.lines.findIndex((line) => line.live)
     },
@@ -378,6 +415,11 @@ export default {
           this.$nextTick(this.scrollToBottom)
         }
         this.pending = !!res?.pending
+        this.working = res?.working || null
+        this.workingFetchedAt = Date.now()
+        this.workClock = this.workingFetchedAt
+        if (this.working) this.startWorkClock()
+        else this.stopWorkClock()
         // The ghost prompt — Claude Code's suggested next line, scraped off
         // the session's screen — comes with every poll, because it appears a
         // few seconds after the turn it follows. The reply box shows it.
@@ -417,6 +459,28 @@ export default {
       this.clockTimer = window.setInterval(() => {
         this.liveClock = Date.now()
       }, 250)
+    },
+    startWorkClock() {
+      if (this.workTimer) return
+      this.workTimer = window.setInterval(() => {
+        this.workClock = Date.now()
+      }, 1000)
+    },
+    stopWorkClock() {
+      if (!this.workTimer) return
+      window.clearInterval(this.workTimer)
+      this.workTimer = null
+    },
+    toggleWork(line) {
+      this.$set(this.openWork, line.at, !this.openWork[line.at])
+    },
+    // 42s, 3m 38s, 1h 5m — the terminal's own shorthand.
+    duration(seconds) {
+      const s = Math.round(Number(seconds) || 0)
+      if (s < 60) return `${s}s`
+      const m = Math.floor(s / 60)
+      if (m < 60) return `${m}m ${s % 60}s`
+      return `${Math.floor(m / 60)}h ${m % 60}m`
     },
     stopClock() {
       if (!this.clockTimer) return
@@ -465,6 +529,9 @@ export default {
       // A turn being spoken moves a sentence every few seconds for as long as
       // it lasts; the linger after a change is not enough for a long one.
       if (this.liveIndex >= 0) return POLL_FAST_MS
+      // A turn at work changes step every few seconds, for however long it
+      // takes — past the fast window that a reply with no steps falls out of.
+      if (this.working) return POLL_WORKING_MS
       const since = Date.now() - this.lastChangeAt
       if (since < FAST_LINGER_MS) return POLL_FAST_MS
       if (this.thinking && since < FAST_WINDOW_MS) return POLL_FAST_MS
@@ -518,6 +585,7 @@ export default {
   },
   beforeDestroy() {
     this.stopClock()
+    this.stopWorkClock()
     this.stopPolling()
     document.removeEventListener('visibilitychange', this.onVisibilityChange)
   }
