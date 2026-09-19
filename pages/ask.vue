@@ -70,7 +70,7 @@
 
     <div v-if="baseUrl && !session && !confirm" class="flex-shrink-0 px-3 pt-2 pb-3 border-t border-border bg-bg">
       <div class="flex items-end">
-        <textarea ref="input" v-model="text" rows="1" :disabled="sending" placeholder="What shall we talk about?" class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto" @input="grow" @keydown.enter.exact.prevent="send()" />
+        <textarea ref="input" v-model="text" rows="1" :disabled="sending" placeholder="What shall we talk about?" class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto" enterkeyhint="enter" @input="grow" @keydown.enter.ctrl.exact.prevent="send()" @keydown.enter.meta.exact.prevent="send()" />
         <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate()">
           <span class="material-symbols text-xl" :class="listening ? 'animate-pulse' : ''">mic</span>
         </ui-btn>

@@ -37,7 +37,8 @@
       <!-- A plain textarea rather than ui-text-input: this one has to grow, and
            the shared input is an <input> used by every other screen. One row
            until the text needs more, then up to six, then it scrolls. Enter
-           sends; the growth comes from wrapping, not from typing returns. -->
+           is a new line — a touch keyboard has no Shift+Enter — and
+           Ctrl/Cmd+Enter or the send button sends. -->
       <textarea
         ref="input"
         v-model="text"
@@ -46,7 +47,9 @@
         :placeholder="ghost || 'Say something back…'"
         class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto"
         @input="grow"
-        @keydown.enter.exact.prevent="send"
+        enterkeyhint="enter"
+        @keydown.enter.ctrl.exact.prevent="send"
+        @keydown.enter.meta.exact.prevent="send"
         @focusin="keepInView"
       />
       <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate">
