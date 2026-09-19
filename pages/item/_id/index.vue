@@ -10,12 +10,14 @@
          still going; play/pause and the menu are kept, small, in the title
          row. Everything below the template is upstream's page, untouched. -->
     <template v-if="isConversation">
-      <div class="flex items-center px-3 py-2 border-b border-border flex-shrink-0">
+      <div class="flex items-center px-3 py-1.5 border-b border-border flex-shrink-0">
         <span v-if="conversationState?.live" class="w-2 h-2 rounded-full bg-success mr-2 flex-shrink-0" title="session running" />
-        <!-- The project, as the first crumb of the title: small, muted, and
-             given up first when the row runs short, so the title keeps it. -->
-        <nuxt-link v-if="project" :to="`/bookshelf/series/${project.id}`" class="text-sm text-fg-muted truncate flex-shrink max-w-[40%] mr-1.5">{{ project.name }} /</nuxt-link>
-        <h1 class="text-base font-semibold flex-grow truncate">{{ title }}</h1>
+        <!-- The project, very small under the title; the title sits a touch
+             higher to make room, so the row stays about its old height. -->
+        <div class="flex-grow min-w-0 flex flex-col">
+          <h1 class="text-base font-semibold truncate leading-tight">{{ title }}</h1>
+          <nuxt-link v-if="project" :to="`/bookshelf/series/${project.id}`" class="text-[10px] leading-tight text-fg-muted truncate">{{ project.name }}</nuxt-link>
+        </div>
         <ui-btn v-if="showPlay" color="success" small :padding-x="2" :padding-y="1" class="flex items-center justify-center ml-2" :loading="playerIsStartingForThisMedia" @click="playClick">
           <span class="material-symbols text-xl fill">{{ playerIsPlaying ? 'pause' : 'play_arrow' }}</span>
         </ui-btn>
