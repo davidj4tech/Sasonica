@@ -15,22 +15,26 @@
       <div class="speech-bar w-full h-full flex items-center px-3 pointer-events-auto bg-primary border-t border-fg/10" @click="expand" @touchstart.stop="swipeStart" @touchend.stop="swipeEnd">
         <span class="material-symbols text-xl text-fg-muted mr-2" :class="{ 'speech-pulse': now.speaking }">graphic_eq</span>
         <div class="flex-grow min-w-0">
-          <p class="text-sm font-semibold text-fg truncate">{{ now.title || 'Speaking' }}</p>
-          <p class="text-xs text-fg-muted truncate">{{ now.sentence || (now.paused ? 'Paused' : '…') }}</p>
+          <p class="text-sm font-semibold text-fg truncate">{{ shown.title || 'Speaking' }}</p>
+          <p class="text-xs text-fg-muted truncate">{{ now.live ? now.sentence || (now.paused ? 'Paused' : '…') : 'Finished · play to hear it again' }}</p>
         </div>
-        <button class="material-symbols text-2xl text-fg px-2" aria-label="Back a sentence" @click.stop="ctl('skip-')">fast_rewind</button>
-        <button class="material-symbols text-3xl text-fg px-1" :aria-label="now.paused ? 'Resume' : 'Pause'" @click.stop="toggle">{{ now.paused ? 'play_arrow' : 'pause' }}</button>
-        <button class="material-symbols text-2xl text-fg px-2" aria-label="Next sentence" @click.stop="ctl('skip+')">fast_forward</button>
+        <template v-if="now.live">
+          <button class="material-symbols text-2xl text-fg px-2" aria-label="Back a sentence" @click.stop="ctl('skip-')">fast_rewind</button>
+          <button class="material-symbols text-3xl text-fg px-1" :aria-label="now.paused ? 'Resume' : 'Pause'" @click.stop="toggle">{{ now.paused ? 'play_arrow' : 'pause' }}</button>
+          <button class="material-symbols text-2xl text-fg px-2" aria-label="Next sentence" @click.stop="ctl('skip+')">fast_forward</button>
+        </template>
+        <button v-else class="material-symbols text-3xl text-fg px-1" aria-label="Replay" @click.stop="replayLatest">replay</button>
         <!-- The popup's Tab: hand the slot back to the book or music. -->
-        <button v-if="otherLoaded" class="material-symbols text-xl text-fg-muted pl-2" aria-label="Show the book player" @click.stop="preferOther = true">swap_vert</button>
+        <button v-if="otherLoaded" class="material-symbols text-xl text-fg-muted pl-2" aria-label="Show the book player" @click.stop="choice = 'other'">swap_vert</button>
       </div>
     </div>
 
-    <!-- The slot handed back while a reply plays: speech waits as a chip
-         above the mini player, and a tap takes the slot again. -->
-    <button v-if="visible && !ownsSlot" class="speech-chip fixed right-3 z-50 rounded-full bg-primary border border-fg/10 flex items-center px-3 h-9" :style="{ bottom: MINI_PLAYER_PX + 8 + 'px' }" aria-label="Show the speech player" @click="preferOther = false">
+    <!-- The slot handed back (or, once the reply has finished, a book
+         playing again): speech waits as a chip above the mini player, and a
+         tap takes the slot again. -->
+    <button v-if="visible && !ownsSlot" class="speech-chip fixed right-3 z-50 rounded-full bg-primary border border-fg/10 flex items-center px-3 h-9" :style="{ bottom: MINI_PLAYER_PX + 8 + 'px' }" aria-label="Show the speech player" @click="choice = 'speech'">
       <span class="material-symbols text-lg mr-1" :class="{ 'speech-pulse': now.speaking }">graphic_eq</span>
-      <span class="text-xs">{{ now.paused ? 'Paused' : 'Speaking' }}</span>
+      <span class="text-xs">{{ !now.live ? 'Replay' : now.paused ? 'Paused' : 'Speaking' }}</span>
     </button>
 
     <!-- The full player: every key the popup has for a listener. It stays
@@ -41,7 +45,7 @@
       <div class="speech-sheet relative w-full bg-primary border-t border-fg/10 rounded-t-xl px-4 pt-2 pb-6">
         <div class="flex items-center">
           <span class="material-symbols text-xl text-fg-muted mr-2" :class="{ 'speech-pulse': now.speaking }">graphic_eq</span>
-          <p class="flex-grow min-w-0 text-base font-semibold truncate" :class="now.item ? 'underline' : ''" @click="open">{{ now.title || (now.live ? 'Speaking' : 'Nothing playing') }}</p>
+          <p class="flex-grow min-w-0 text-base font-semibold truncate" :class="shown.item ? 'underline' : ''" @click="open">{{ shown.title || (now.live ? 'Speaking' : 'Nothing playing') }}</p>
           <button class="material-symbols text-3xl text-fg-muted pl-2" aria-label="Close" @click="expanded = false">expand_more</button>
         </div>
         <p class="text-sm text-fg min-h-[3.75rem] line-clamp-3 mt-2 mb-3">{{ now.sentence || (now.paused ? 'Paused' : now.live ? '…' : 'The last reply has finished. Replay it, or go back a turn.') }}</p>
@@ -81,7 +85,7 @@
 
 <script>
 // How often to ask. Quick while a voice is live, so the sentence keeps up and
-// the bar goes away soon after the reply ends; slow while quiet, which is most
+// the bar settles soon after the reply ends; slow while quiet, which is most
 // of the time. Nothing at all while the app is not on screen.
 const POLL_LIVE_MS = 1500
 const POLL_IDLE_MS = 5000
@@ -89,6 +93,16 @@ const POLL_FAILING_MS = 15000
 const BAR_HEIGHT_PX = 56
 // The collapsed mini player's height (.playerContainer in AudioPlayer.vue).
 const MINI_PLAYER_PX = 120
+// The last reply heard, so the bar can offer it again after an app restart.
+const LAST_KEY = 'sasonica.speech.last'
+
+function loadLast() {
+  try {
+    return JSON.parse(window.localStorage.getItem(LAST_KEY) || 'null')
+  } catch (error) {
+    return null
+  }
+}
 
 export default {
   data() {
@@ -102,8 +116,12 @@ export default {
       // latest. red5 answers `prev` with where it landed.
       histIdx: 1,
       swipeY: null,
-      // The listener swapped back to the book or music for this reply.
-      preferOther: false,
+      // The last reply that played: `{ title, item }`. The bar stays after
+      // the reply ends, holding it, so replay is one tap away.
+      last: loadLast(),
+      // The listener's pick for the slot — 'speech', 'other' or null for the
+      // default — lasting until the next reply starts.
+      choice: null,
       MINI_PLAYER_PX
     }
   },
@@ -114,10 +132,18 @@ export default {
     otherLoaded() {
       return this.$store.getters['getIsPlayerOpen']
     },
-    // One player in the slot at a time, as the popup shows one channel: a
-    // reply takes the mini player's place unless the listener swapped back.
+    // What the bar names: the reply playing, else the last one.
+    shown() {
+      return this.now.live ? this.now : this.last || {}
+    },
+    // One player in the slot at a time, as the popup shows one channel. A
+    // reply takes the mini player's place; a finished one keeps it, unless a
+    // book is playing again — then the book's player is the one wanted.
     ownsSlot() {
-      return this.visible && !(this.preferOther && this.otherLoaded)
+      if (!this.visible) return false
+      if (!this.otherLoaded || this.choice === 'speech') return true
+      if (this.choice === 'other') return false
+      return this.now.live || !this.$store.state.playerIsPlaying
     },
     bottomPx() {
       return this.miniPlayerShowing ? MINI_PLAYER_PX : 0
@@ -133,7 +159,7 @@ export default {
     // included: it follows the words, but the bar is the only player speech
     // has in this app, and tapping the bar lands there.
     visible() {
-      return !!this.now.live && !this.$store.state.playerIsFullscreen
+      return (!!this.now.live || !!this.last) && !this.$store.state.playerIsFullscreen
     }
   },
   watch: {
@@ -146,9 +172,9 @@ export default {
         document.documentElement.style.setProperty('--speech-bar-height', on ? BAR_HEIGHT_PX + 'px' : '0px')
       }
     },
-    // A swap back lasts for the reply it was made in.
+    // A swap lasts until the next reply starts.
     'now.live'(live) {
-      if (!live) this.preferOther = false
+      if (live) this.choice = null
     },
   },
   methods: {
@@ -171,6 +197,7 @@ export default {
         const res = await this.request('GET', '/speech/now')
         this.now = res && res.ok ? res : { live: false }
         this.failing = false
+        if (this.now.live && this.now.title) this.remember({ title: this.now.title, item: this.now.item || null })
       } catch (error) {
         // No canvas, not allowed, or the network blinked: no bar, and ask
         // less often until it answers again.
@@ -213,6 +240,15 @@ export default {
       window.setTimeout(() => this.startPolling(), 300)
       return res
     },
+    remember(last) {
+      if (this.last && this.last.title === last.title && this.last.item === last.item) return
+      this.last = last
+      try {
+        window.localStorage.setItem(LAST_KEY, JSON.stringify(last))
+      } catch (error) {
+        // Private storage off: the bar still holds it until the app closes.
+      }
+    },
     swipeStart(e) {
       this.swipeY = e.changedTouches?.[0]?.pageY ?? null
     },
@@ -253,9 +289,9 @@ export default {
       this.ctl('toggle')
     },
     open() {
-      if (!this.now.item) return
+      if (!this.shown.item) return
       this.expanded = false
-      this.$router.push(`/item/${this.now.item}`)
+      this.$router.push(`/item/${this.shown.item}`)
     }
   },
   mounted() {
