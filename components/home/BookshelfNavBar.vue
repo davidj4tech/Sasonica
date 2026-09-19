@@ -20,7 +20,10 @@ export default {
       return this.$store.getters['libraries/getCurrentLibrary']
     },
     currentLibraryIcon() {
-      return this.currentLibrary?.icon || 'database'
+      // Sasonica: an icon the app's font lacks (the web client's "microphone")
+      // drew an empty tab; fall back the way ui-library-icon does.
+      const icon = this.currentLibrary?.icon
+      return icon && this.$store.state.globals.libraryIcons.includes(icon) ? icon : 'database'
     },
     isConversations() {
       // Sasonica: a conversation's series is its project
