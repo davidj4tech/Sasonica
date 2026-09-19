@@ -18,7 +18,8 @@
     Without it, the section on a book-shaped page it started as: a collapsible
     block under the play bar.
   -->
-  <div v-if="chat" ref="scroller" class="w-full overflow-y-auto overflow-x-hidden px-3 py-3" @scroll="onScroll">
+  <div v-if="chat" class="relative flex flex-col">
+  <div ref="scroller" class="w-full flex-grow min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3" @scroll="onScroll">
     <!-- An empty transcript and a failed fetch are different things: the
          first says nothing was said, the second says why nothing is shown
          (the server's own words, which name the actual fault). -->
@@ -109,6 +110,11 @@
         </p>
       </div>
     </div>
+  </div>
+  <!-- Scrolled up to read back: a way down to the newest turn. -->
+  <button v-show="!stickToBottom" class="absolute right-3 bottom-3 z-10 rounded-full bg-primary border border-border shadow-lg w-10 h-10 flex items-center justify-center" title="Jump to the latest" @click="scrollToBottom">
+    <span class="material-symbols text-2xl">arrow_downward</span>
+  </button>
   </div>
 
   <div v-else-if="lines.length" class="w-full my-4">

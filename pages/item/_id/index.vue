@@ -7,8 +7,9 @@
          row, the transcript filling the screen, the composer at the foot.
          The book chrome (cover, author, duration, download, progress) is
          about a finished thing and says nothing about an exchange that is
-         still going; play/pause and the menu are kept, small, in the title
-         row. Everything below the template is upstream's page, untouched. -->
+         still going; the menu is kept, small, in the title row. So was
+         play, until it proved to mean "from the very start": a line is
+         tapped to play from there instead. Everything below the template is upstream's page, untouched. -->
     <template v-if="isConversation">
       <div class="flex items-center px-3 py-1.5 border-b border-border flex-shrink-0">
         <span v-if="conversationState?.live" class="w-2 h-2 rounded-full bg-success mr-2 flex-shrink-0" title="session running" />
@@ -18,9 +19,6 @@
           <h1 class="text-base font-semibold truncate leading-tight">{{ title }}</h1>
           <nuxt-link v-if="project" :to="`/bookshelf/series/${project.id}`" class="text-[10px] leading-tight text-fg-muted truncate">{{ project.name }}</nuxt-link>
         </div>
-        <ui-btn v-if="showPlay" color="success" small :padding-x="2" :padding-y="1" class="flex items-center justify-center ml-2" :loading="playerIsStartingForThisMedia" @click="playClick">
-          <span class="material-symbols text-xl fill">{{ playerIsPlaying ? 'pause' : 'play_arrow' }}</span>
-        </ui-btn>
         <ui-btn color="primary" small :padding-x="2" :padding-y="1" class="flex items-center justify-center ml-2" @click="moreButtonPress">
           <span class="material-symbols text-xl">more_vert</span>
         </ui-btn>
