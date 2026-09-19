@@ -71,6 +71,7 @@ class LocalStorage {
   async getBookshelfListView() {
     try {
       var obj = await Preferences.get({ key: 'bookshelfListView' }) || {}
+      if (obj.value == null) return true // Sasonica: the list view until one is chosen
       return obj.value === '1'
     } catch (error) {
       console.error('[LocalStorage] Failed to get bookshelf list view', error)

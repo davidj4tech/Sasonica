@@ -11,6 +11,9 @@
           <img v-show="libraryItem" ref="cover" :src="bookCoverSrc" class="w-full h-full transition-opacity duration-300" :class="showCoverBg ? 'object-contain' : 'object-fill'" @load="imageLoaded" :style="{ opacity: imageReady ? 1 : 0 }" />
         </div>
 
+        <!-- Sasonica: a conversation whose session is running, as on the grid card. -->
+        <div v-if="isLiveConversation" class="absolute z-20 top-1 left-1 w-2.5 h-2.5 rounded-full bg-success box-shadow-md" title="session running" />
+
         <!-- No progress shown for collapsed series or podcasts in library -->
         <div v-if="!isPodcast && !collapsedSeries" class="absolute bottom-0 left-0 h-1 shadow-sm max-w-full z-10 rounded-b" :class="itemIsFinished ? 'bg-success' : 'bg-yellow-400'" :style="{ width: coverWidth * userProgressPercent + 'px' }"></div>
       </div>
@@ -102,6 +105,11 @@ export default {
     },
     isLocal() {
       return !!this._libraryItem.isLocal
+    },
+    // Sasonica
+    isLiveConversation() {
+      const tags = this.media?.tags || []
+      return Array.isArray(tags) && tags.includes('live')
     },
     media() {
       return this._libraryItem.media || {}
