@@ -196,6 +196,12 @@ const USER_SCROLL_HOLD_MS = 8000
 // keeps the view pinned there rather than growing off-screen.
 const NEAR_BOTTOM_PX = 80
 
+// How far ahead of the clock the bold moves on. Measured on mobile data, the
+// server's clock tracked the player to within a few tenths, yet the bold still
+// read as trailing: a sentence is taken in as it starts, so arriving a beat
+// early reads right where arriving on time reads late.
+const FOLLOW_LEAD_S = 0.3
+
 export default {
   props: {
     libraryItemId: String,
@@ -294,7 +300,7 @@ export default {
       // the bold was running that beat ahead of it. The server says how long
       // for this target, the same figure the terminal highlight waits.
       const raw = this.livePaused ? this.liveElapsed : this.liveElapsed + (this.liveClock - this.liveElapsedAt) / 1000
-      const elapsed = raw - (Number(line.delay) || 0)
+      const elapsed = raw - (Number(line.delay) || 0) + FOLLOW_LEAD_S
       let idx = 0
       offsets.forEach((off, i) => {
         if (elapsed + 0.001 >= off) idx = i
