@@ -5,7 +5,7 @@
        being said (/speech/now) and shows it above the mini player — the
        conversation's title, the sentence being spoken, pause and skip — and
        a tap opens the conversation. Fork-only file. -->
-  <div v-if="visible" id="speechBar" class="fixed left-0 right-0 z-50 layout-wrapper pointer-events-none" :style="{ bottom: bottomPx + 'px' }">
+  <div v-if="visible" id="speechBar" class="fixed left-0 right-0 z-50 pointer-events-none" :style="{ bottom: bottomPx + 'px', height: barHeightPx + 'px' }">
     <div class="speech-bar w-full h-full flex items-center px-3 pointer-events-auto bg-primary border-t border-fg/10" @click="open">
       <span class="material-symbols text-xl text-fg-muted mr-2" :class="{ 'speech-pulse': now.speaking }">graphic_eq</span>
       <div class="flex-grow min-w-0">
@@ -46,12 +46,14 @@ export default {
     bottomPx() {
       return this.miniPlayerShowing ? MINI_PLAYER_PX : 0
     },
-    // Not over the full-screen player, and not on the conversation's own page,
-    // which already follows the voice line by line.
+    barHeightPx() {
+      return BAR_HEIGHT_PX
+    },
+    // Everywhere but over the full-screen player — the conversation's own page
+    // included: it follows the words, but the bar is the only player speech
+    // has in this app, and tapping the bar lands there.
     visible() {
-      if (!this.now.live || this.$store.state.playerIsFullscreen) return false
-      const onItem = this.$route?.name === 'item-id' && this.$route.params?.id === this.now.item
-      return !onItem
+      return !!this.now.live && !this.$store.state.playerIsFullscreen
     }
   },
   watch: {
