@@ -5,6 +5,7 @@
       <Nuxt :key="currentLang" />
     </div>
     <app-audio-player-container ref="streamContainer" />
+    <app-speech-bar /><!-- Sasonica: the voice, on every page -->
     <modals-libraries-modal />
     <modals-playlists-add-create-modal />
     <modals-select-local-folder-modal />
