@@ -404,9 +404,27 @@ export default {
       Browser.open({ url }).catch((error) => console.error('[ConversationLog] open picture failed', error))
     },
     play(line) {
+      // Sasonica: a turn with a history row is replayed by the speech player,
+      // which lights it up here and has the listening keys; the recording in
+      // the book player is the fallback for a turn whose clips are gone.
+      if (line.id && !line.live) return this.replay(line)
       // Tapping a line plays from it, the same move the chapters table makes.
       if (line.start == null) return
       this.$emit('playAtTimestamp', line.start)
+    },
+    async replay(line) {
+      try {
+        const token = this.$store.getters['user/getToken']
+        await this.$nativeHttp.request('POST', `${this.baseUrl}/speech/ctl`, { action: 'replay-id', arg: line.id }, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      } catch (error) {
+        console.error('[ConversationLog] replay failed', error?.message || error)
+        if (line.start != null) this.$emit('playAtTimestamp', line.start)
+        return
+      }
+      // Ask again soon so the line lights up as the voice starts.
+      this.fetchLog({ quiet: true })
     },
     // A reply stops being live a moment before it lands in history: the host
     // clears the speaking row, then writes the ended turn. A poll in between
@@ -436,6 +454,7 @@ export default {
       if (!this.baseUrl || !this.libraryItemId) return
       try {
         const token = this.$store.getters['user/getToken']
+        const askedAt = Date.now()
         const res = await this.$nativeHttp.request('GET', `${this.baseUrl}/conversation/log?item=${this.libraryItemId}`, null, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -461,7 +480,11 @@ export default {
         this.lines = lines
         const live = lines.find((line) => line.live)
         if (live && live.elapsed != null) {
-          this.liveElapsed = Number(live.elapsed) || 0
+          // `elapsed` was true when the answer left the server; it has been
+          // on the way for about half the round trip since. On mobile data
+          // that is a few hundred ms, and the bold trailed the voice by it.
+          const transit = live.paused ? 0 : (Date.now() - askedAt) / 2000
+          this.liveElapsed = (Number(live.elapsed) || 0) + transit
           this.liveElapsedAt = Date.now()
           this.livePaused = !!live.paused
           this.liveClock = this.liveElapsedAt
