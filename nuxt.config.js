@@ -7,7 +7,8 @@ export default {
   env: {
     PROD: '1',
     ANDROID_APP_URL: 'https://play.google.com/store/apps/details?id=com.audiobookshelf.app',
-    IOS_APP_URL: ''
+    IOS_APP_URL: '',
+    SASONICA_BUILD: process.env.GITHUB_SHA || '' // Sasonica: which build this is, for plugins/sasonica-resume-page
   },
 
   publicRuntimeConfig: {
@@ -30,7 +31,7 @@ export default {
 
   css: ['@/assets/tailwind.css', '@/assets/app.css'],
 
-  plugins: ['@/plugins/server.js', '@/plugins/db.js', '@/plugins/localStore.js', '@/plugins/init.client.js', '@/plugins/axios.js', '@/plugins/capacitor/index.js', '@/plugins/capacitor/AbsAudioPlayer.js', '@/plugins/nativeHttp.js', '@/plugins/toast.js', '@/plugins/constants.js', '@/plugins/haptics.js', '@/plugins/i18n.js'],
+  plugins: ['@/plugins/server.js', '@/plugins/db.js', '@/plugins/localStore.js', '@/plugins/init.client.js', '@/plugins/axios.js', '@/plugins/capacitor/index.js', '@/plugins/capacitor/AbsAudioPlayer.js', '@/plugins/nativeHttp.js', '@/plugins/toast.js', '@/plugins/constants.js', '@/plugins/haptics.js', '@/plugins/i18n.js', '@/plugins/sasonica-resume-page.client.js'],
 
   components: true,
 
