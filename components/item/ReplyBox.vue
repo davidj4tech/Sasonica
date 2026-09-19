@@ -280,22 +280,26 @@ export default {
     emitState() {
       this.$emit('session-state', { session: this.session, live: this.live, pane: this.pane, resumable: this.resumable, isConversation: this.isConversation })
     },
+    // Whether the action went through, for a caller with a next step — the
+    // menu's Close and archive must not file away a session it failed to end.
     async manage(action) {
-      if (!this.session) return
+      if (!this.session) return false
       this.failed = false
       try {
         if (action === 'terminal') {
           await this.goToPane()
-          return
+          return true
         }
         const res = await this.request('POST', action === 'resume' ? '/session/resume' : '/session/close', { session: this.session })
         this.live = !!res.live
         this.pane = res.live ? res.pane : null
         this.status = action === 'resume' ? (res.opened ? 'Session reopened.' : 'Session is already running.') : res.closed ? 'Session closed.' : 'Session was not running.'
         this.emitState()
+        return true
       } catch (error) {
         this.failed = true
         this.status = error.message || `Could not ${action} the session.`
+        return false
       }
     },
     async init() {

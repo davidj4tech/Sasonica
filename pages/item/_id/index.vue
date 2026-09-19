@@ -233,6 +233,7 @@ import { Dialog } from '@capacitor/dialog'
 import { AbsFileSystem, AbsDownloader } from '@/plugins/capacitor'
 import { getAverageColorFromCoverUrl } from '@/utils/coverAverageColor'
 import cellularPermissionHelpers from '@/mixins/cellularPermissionHelpers'
+import { patchArchived } from '@/mixins/sasonicaArchive' // Sasonica
 
 export default {
   async asyncData({ store, params, redirect, app, query }) {
@@ -611,8 +612,30 @@ export default {
       this.$refs.conversationLog?.replied()
     },
     // Sasonica: resume / close / go to terminal, from the more menu.
-    onSessionAction(action) {
-      this.$refs.replyBox?.manage(action)
+    // Sasonica: the item menu's session actions, which the reply box runs —
+    // it is what holds the canvas address and the session. Close and archive
+    // is the only one with anything after it: end the session, file the
+    // conversation away, then leave, in that order and stopping at the first
+    // failure, so the page is never left behind for a session still running.
+    async onSessionAction(action) {
+      if (action !== 'closeArchive') {
+        this.$refs.replyBox?.manage(action)
+        return
+      }
+      this.processing = true
+      try {
+        const closed = await this.$refs.replyBox?.manage('close')
+        if (!closed) throw new Error('Could not close the session')
+        await patchArchived(this, this.serverLibraryItemId, this.libraryItem.media, true)
+      } catch (error) {
+        console.error('[sasonica] close and archive failed', error)
+        this.$toast.error(error.message || 'Could not close and archive')
+        return
+      } finally {
+        this.processing = false
+      }
+      this.$toast.success('Closed and archived')
+      window.history.back()
     },
     // Sasonica: the assistant button pressed with this page open replies here.
     onAssist(taken) {

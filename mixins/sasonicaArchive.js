@@ -202,6 +202,17 @@ export function hideArchivedOnShelves(shelves) {
     .filter((shelf) => !Array.isArray(shelf.entities) || shelf.entities.length)
 }
 
+// Put the tag on the item, or take it off, and keep the copy in hand in step
+// with the server. The menu and the page both archive through here, so there
+// is one request to get right; neither says anything about it — the caller
+// knows what it is doing and what to say when it fails.
+export async function patchArchived(vm, itemId, media, archived) {
+  const tags = (media.tags || []).filter((t) => t !== ARCHIVED_TAG)
+  if (archived) tags.push(ARCHIVED_TAG)
+  await vm.$nativeHttp.patch(`/api/items/${itemId}/media`, { tags })
+  vm.$set(media, 'tags', tags)
+}
+
 // For ItemMoreMenuModal: Archive / Unarchive on a server item in a library
 // that archives, or on any conversation. The sweep in agent-media reads the
 // tag as it finds it, so a hand here is never undone by it — a new turn in
@@ -215,17 +226,21 @@ export const archiveMenu = {
       return isArchived(this.libraryItem)
         ? { text: 'Unarchive', value: 'sasonica:unarchive', icon: 'unarchive' }
         : { text: 'Archive', value: 'sasonica:archive', icon: 'archive' }
+    },
+    // Done with it: end the session and file the conversation away in one
+    // press, and leave the page — it is the last thing you want here. Only
+    // while the session is live; a closed one is plain Archive.
+    closeArchiveMenuItem() {
+      if (!this.conversation?.session || !this.conversation.live) return null
+      if (!this.archiveMenuItem || isArchived(this.libraryItem)) return null
+      return { text: 'Close and archive', value: 'session:closeArchive', icon: 'archive' }
     }
   },
   methods: {
     async setArchived(archived) {
-      const media = this.libraryItem.media
-      const tags = (media.tags || []).filter((t) => t !== ARCHIVED_TAG)
-      if (archived) tags.push(ARCHIVED_TAG)
       this.$emit('update:processing', true)
       try {
-        await this.$nativeHttp.patch(`/api/items/${this.serverLibraryItemId}/media`, { tags })
-        this.$set(media, 'tags', tags)
+        await patchArchived(this, this.serverLibraryItemId, this.libraryItem.media, archived)
         this.$toast.success(archived ? 'Archived' : 'Unarchived')
       } catch (error) {
         console.error('[sasonica] archive failed', error)

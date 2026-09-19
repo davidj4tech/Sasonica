@@ -66,6 +66,7 @@ export default {
         if (this.conversation.live) {
           items.push({ text: 'Go to terminal', value: 'session:terminal', icon: 'terminal' })
           items.push({ text: 'Close session', value: 'session:close', icon: 'stop_circle' })
+          if (this.closeArchiveMenuItem) items.push(this.closeArchiveMenuItem)
         } else if (this.conversation.resumable) {
           items.push({ text: 'Resume session', value: 'session:resume', icon: 'play_circle' })
         }
