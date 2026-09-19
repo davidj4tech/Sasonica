@@ -12,6 +12,9 @@
     <template v-if="isConversation">
       <div class="flex items-center px-3 py-2 border-b border-border flex-shrink-0">
         <span v-if="conversationState?.live" class="w-2 h-2 rounded-full bg-success mr-2 flex-shrink-0" title="session running" />
+        <!-- The project, as the first crumb of the title: small, muted, and
+             given up first when the row runs short, so the title keeps it. -->
+        <nuxt-link v-if="project" :to="`/bookshelf/series/${project.id}`" class="text-sm text-fg-muted truncate flex-shrink max-w-[40%] mr-1.5">{{ project.name }} /</nuxt-link>
         <h1 class="text-base font-semibold flex-grow truncate">{{ title }}</h1>
         <ui-btn v-if="showPlay" color="success" small :padding-x="2" :padding-y="1" class="flex items-center justify-center ml-2" :loading="playerIsStartingForThisMedia" @click="playClick">
           <span class="material-symbols text-xl fill">{{ playerIsPlaying ? 'pause' : 'play_arrow' }}</span>
@@ -428,6 +431,10 @@ export default {
     },
     series() {
       return this.mediaMetadata.series || []
+    },
+    // A conversation's series is the project folder it runs in.
+    project() {
+      return this.series[0] || null
     },
     seriesList() {
       if (this.isPodcast) return null
