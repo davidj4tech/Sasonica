@@ -13,6 +13,7 @@
           </div>
           <span class="material-symbols text-2xl px-2" @click="showSortModal = true">sort</span>
         </template>
+        <span v-if="seriesBookPage && isConversations && selectedSeriesName" class="material-symbols text-2xl px-2" @click="newChatInProject">add_comment</span>
         <span v-if="seriesBookPage" class="material-symbols text-2xl px-2" @click="downloadSeries">download</span>
         <span v-if="(page == 'library' && isBookLibrary) || seriesBookPage" class="material-symbols text-2xl px-2" @click="showMoreMenuDialog = true">more_vert</span>
       </div>
@@ -149,6 +150,10 @@ export default {
     async changeView() {
       this.bookshelfListView = !this.bookshelfListView
       await this.$hapticsImpact()
+    },
+    // Sasonica: a new conversation in the project on screen.
+    newChatInProject() {
+      this.$router.push({ path: '/ask', query: { project: this.selectedSeriesName } })
     },
     downloadSeries() {
       console.log('Download Series click')

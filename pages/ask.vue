@@ -11,11 +11,14 @@
     scratch tmux session — and the page then waits for the library to grow
     an item for that session, which happens once its first turn is shelved,
     and moves to it. Same credential as a reply: the Audiobookshelf token.
+
+    `?project=<series name>`, from a project's page: the fresh session opens
+    in that project's directory instead, and the words go nowhere else.
   -->
   <div class="w-full h-full flex flex-col bg-bg">
     <div class="flex items-center px-3 py-2 border-b border-border flex-shrink-0">
       <span class="material-symbols text-xl text-fg-muted">add_comment</span>
-      <h1 class="text-base font-semibold flex-grow truncate pl-2">New chat</h1>
+      <h1 class="text-base font-semibold flex-grow truncate pl-2">{{ newLabel }}</h1>
     </div>
 
     <!-- Where the words go. "New chat" unless a conversation is picked here,
@@ -24,7 +27,7 @@
          order and says which it chose. -->
     <div v-if="baseUrl && !session" class="flex items-center px-3 py-2 border-b border-border flex-shrink-0" @click="openPicker">
       <p class="text-xs text-fg-muted">To</p>
-      <p class="text-sm px-2 flex-grow truncate" :class="target ? '' : 'text-fg-muted'">{{ target ? target.title : sticky ? `${sticky.title} (last)` : 'New chat' }}</p>
+      <p class="text-sm px-2 flex-grow truncate" :class="target ? '' : 'text-fg-muted'">{{ target ? target.title : project ? newLabel : sticky ? `${sticky.title} (last)` : 'New chat' }}</p>
       <span class="material-symbols text-lg text-fg-muted">expand_more</span>
     </div>
 
@@ -34,7 +37,7 @@
         <p v-if="ambiguous" class="text-sm text-fg-muted pb-2">Which conversation?</p>
         <div v-else class="flex items-center py-2 border-b border-border" @click="pick(null)">
           <span class="material-symbols text-lg text-fg-muted">add_comment</span>
-          <p class="text-sm pl-2">New chat</p>
+          <p class="text-sm pl-2">{{ newLabel }}</p>
         </div>
         <div v-for="row in pickerRows" :key="row.session" class="flex items-center py-2 border-b border-border" @click="pick(row)">
           <span class="material-symbols text-lg" :class="row.live ? 'text-success' : 'text-fg-muted'">{{ row.live ? 'radio_button_checked' : 'history' }}</span>
@@ -120,6 +123,15 @@ export default {
       countdownTimer: null
     }
   },
+  computed: {
+    // A project's page sent us here: a new chat there, and only that.
+    project() {
+      return String(this.$route.query.project || '').trim()
+    },
+    newLabel() {
+      return this.project ? `New chat in ${this.project}` : 'New chat'
+    }
+  },
   methods: {
     request(method, path, data) {
       const token = this.$store.getters['user/getToken']
@@ -163,11 +175,13 @@ export default {
       const playing = this.$store.state.currentPlaybackSession?.libraryItemId || ''
       const body = {
         text,
-        target: this.target ? this.target.session : forceNew ? 'new' : '',
+        target: this.target ? this.target.session : forceNew || this.project ? 'new' : '',
         player_item: playing,
         sticky: this.sticky?.session || '',
         // A picked target is the answer; the words are not read for one.
-        parse: !this.target && !forceNew
+        // Nor from a project's page: a chat there was asked for.
+        parse: !this.target && !forceNew && !this.project,
+        project: this.project
       }
       try {
         // When the server would be guessing — nothing picked, no forced new
@@ -317,7 +331,7 @@ export default {
       const answering = this.ambiguous
       // "New chat" picked outright forces a fresh session, over the player
       // and the last thread alike.
-      this.target = row ? { session: row.session, title: row.title } : { session: 'new', title: 'New chat' }
+      this.target = row ? { session: row.session, title: row.title } : { session: 'new', title: this.newLabel }
       this.pickerOpen = false
       this.ambiguous = false
       if (row && answering && this.text.trim()) {
