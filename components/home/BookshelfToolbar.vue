@@ -15,7 +15,11 @@
         </template>
         <span v-if="seriesBookPage && isConversations && selectedSeriesName" class="material-symbols text-2xl px-2" @click="newChatInProject">add_comment</span>
         <span v-if="seriesBookPage" class="material-symbols text-2xl px-2" @click="downloadSeries">download</span>
-        <span v-if="(page == 'library' && isBookLibrary) || seriesBookPage" class="material-symbols text-2xl px-2" @click="showMoreMenuDialog = true">more_vert</span>
+        <!-- Sasonica: also on Projects, and dotted while a Show toggle narrows the list -->
+        <div v-if="(page == 'library' && isBookLibrary) || seriesBookPage || (page === 'series' && isConversations)" class="relative flex items-center px-2">
+          <span class="material-symbols text-2xl" @click="showMoreMenuDialog = true">more_vert</span>
+          <div v-show="isConversations && showNarrows" class="absolute top-0 right-2 w-2 h-2 rounded-full bg-success border border-green-300 shadow-sm z-10 pointer-events-none" />
+        </div>
       </div>
     </div>
 
@@ -26,7 +30,7 @@
 </template>
 
 <script>
-import { showMenuItems, libraryArchives } from '@/mixins/sasonicaArchive' // Sasonica
+import { showMenuItems, libraryArchives, NARROWING } from '@/mixins/sasonicaArchive' // Sasonica
 
 export default {
   data() {
@@ -94,10 +98,15 @@ export default {
     isPodcast() {
       return this.$store.getters['libraries/getCurrentLibraryMediaType'] === 'podcast'
     },
+    // Sasonica
+    showNarrows() {
+      return NARROWING.some((f) => this.settings[f.key])
+    },
     menuItems() {
       if (!this.isBookLibrary) return []
 
       const show = this.isConversations ? showMenuItems(this.settings, libraryArchives(this.$store)) : [] // Sasonica
+      if (this.page === 'series') return show // Sasonica: Projects has nothing to collapse
       if (this.seriesBookPage) {
         return [
           ...show,
