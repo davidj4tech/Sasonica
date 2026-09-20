@@ -207,11 +207,6 @@ export default {
   },
   methods: {
     request(method, path, data) {
-    // Sasonica: the title names the destination, which is the picked
-    // conversation when there is one — not the new chat it is not.
-    heading() {
-      return this.target && this.target.session !== 'new' ? this.target.title : this.newLabel
-    },
       const token = this.$store.getters['user/getToken']
       return this.$nativeHttp.request(method, `${this.baseUrl}${path}`, data, {
         headers: { Authorization: `Bearer ${token}` }
@@ -516,11 +511,6 @@ export default {
       }
     },
     async goToPane() {
-      // A conversation picked here already has a directory — its own — and
-      // the server ignores `project` the moment a session is named. Drop it
-      // rather than leave it colouring the header and the slash menu for a
-      // tree the words are not going to.
-      if (row && this.project) this.$router.replace({ path: '/ask', query: {} }).catch(() => {})
       try {
         await this.request('POST', '/focus', { pane: this.pane })
       } catch (error) {
