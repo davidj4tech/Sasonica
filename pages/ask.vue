@@ -8,8 +8,8 @@
     edit them first — a button pressed to say something should not then want
     a tap; from the drawer (or a project's page) it opens on the text box, and
     the box waits for send, so a typed message can be read over first. The words typed (or dictated) here become the first message of a
-    FRESH Claude Code session on the host — agent-media opens it in the
-    scratch tmux session — and the page then waits for the library to grow
+    FRESH session on the host — Claude Code unless the agent chip says
+    otherwise, and agent-media opens it in the scratch tmux session — and the page then waits for the library to grow
     an item for that session, which happens once its first turn is shelved,
     and moves to it. Same credential as a reply: the Audiobookshelf token.
 
@@ -29,6 +29,10 @@
     <div v-if="baseUrl && !session" class="flex items-center px-3 py-2 border-b border-border flex-shrink-0" @click="openPicker">
       <p class="text-xs text-fg-muted">To</p>
       <p class="text-sm px-2 flex-grow truncate" :class="target ? '' : 'text-fg-muted'">{{ target ? target.title : project ? newLabel : sticky ? `${sticky.title} (last)` : 'New chat' }}</p>
+      <!-- Sasonica: which agent a FRESH session runs. Claude unless tapped;
+           a continued conversation keeps the agent it was started with, so
+           the chip is only here while the destination is a new chat. -->
+      <p v-if="isNew" class="text-xs px-2 py-0.5 mr-2 rounded-full border border-border" :class="agent === 'claude' ? 'text-fg-muted' : 'text-fg'" @click.stop="cycleAgent">{{ agentLabel }}</p>
       <span class="material-symbols text-lg text-fg-muted">expand_more</span>
     </div>
 
@@ -97,6 +101,11 @@ import sasonicaSlash from '@/mixins/sasonicaSlash' // Sasonica
 const ITEM_WAIT_MS = 5 * 60 * 1000
 const ITEM_POLL_MS = 3000
 
+// Sasonica: the agents a new chat can run, as agent-media names them
+// (`AGENT_COMMANDS` in its canvas). Tapping the chip goes round them.
+const AGENT_LABELS = { claude: 'Claude', codex: 'Codex', pi: 'pi' }
+const AGENTS = Object.keys(AGENT_LABELS)
+
 export default {
   mixins: [autoSend, sasonicaSlash], // Sasonica
   data() {
@@ -127,7 +136,10 @@ export default {
       // sent when the countdown runs out unless changed.
       confirm: null,
       countdown: 0,
-      countdownTimer: null
+      countdownTimer: null,
+      // Sasonica: the agent a fresh session runs. Claude every time the page
+      // opens — the other two are asked for, never defaulted to.
+      agent: 'claude'
     }
   },
   computed: {
@@ -137,6 +149,15 @@ export default {
     },
     newLabel() {
       return this.project ? `New chat in ${this.project}` : 'New chat'
+    },
+    // Sasonica: the words are headed for a fresh session — nothing picked,
+    // or "New chat" picked outright. (The server may still route them to a
+    // thread it guesses from the words; the chip is spent if it does.)
+    isNew() {
+      return !this.target || this.target.session === 'new'
+    },
+    agentLabel() {
+      return AGENT_LABELS[this.agent] || this.agent
     }
   },
   methods: {
@@ -201,7 +222,9 @@ export default {
         // A picked target is the answer; the words are not read for one.
         // Nor from a project's page: a chat there was asked for.
         parse: !this.target && !forceNew && !this.project,
-        project: this.project
+        project: this.project,
+        // Sasonica: only a fresh session takes an agent.
+        agent: this.isNew || forceNew ? this.agent : ''
       }
       try {
         // When the server would be guessing — nothing picked, no forced new
@@ -229,10 +252,14 @@ export default {
             this.startConfirm({ session: dry.session, title: dry.title || 'that conversation', text: dry.text || text })
             return
           }
-          // A fresh session: commit as asked, with the trimmed words.
+          // A fresh session: commit as asked, with the trimmed words. The
+          // dry run is where an agent named in the words ("new codex chat,
+          // …") is read — the commit does not parse, so carry it over or
+          // it is lost and the session comes up as Claude.
           body.text = dry.text || text
           body.target = 'new'
           body.parse = false
+          body.agent = dry.agent || body.agent
         }
         const res = await this.request('POST', '/ask', body)
         if (res.ambiguous) {
@@ -285,7 +312,9 @@ export default {
           this.settled = true
         } else if (res.session && res.session !== '?') {
           this.$localStore.setAskLast({ session: res.session, title: '' })
-          this.status = 'Session open — waiting for the first reply…'
+          // Sasonica: say which agent answered the call — a codex chat
+          // asked for in the words looks like any other one otherwise.
+          this.status = `${AGENT_LABELS[res.agent] || 'Session'} open — waiting for the first reply…`
           this.pollUntil = Date.now() + ITEM_WAIT_MS
           this.poll()
         } else {
@@ -346,6 +375,10 @@ export default {
       } catch (error) {
         this.pickerRows = []
       }
+    },
+    // Sasonica: round the agents — three of them, so a chip beats a menu.
+    cycleAgent() {
+      this.agent = AGENTS[(AGENTS.indexOf(this.agent) + 1) % AGENTS.length]
     },
     pick(row) {
       const answering = this.ambiguous
