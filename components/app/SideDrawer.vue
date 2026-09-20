@@ -30,6 +30,9 @@
               <button v-for="name in projects" :key="`project-${name}`" type="button" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-2 pl-14 pr-6 text-fg-muted" @click="newChatIn(name)">
                 <p class="text-sm truncate">{{ name }}</p>
               </button>
+              <nuxt-link v-if="projects.length" to="/bookshelf/series" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-2 pl-14 pr-6 text-fg-muted/70">
+                <p class="text-sm truncate">All projects…</p>
+              </nuxt-link>
               <template v-if="liveSessions.length">
                 <p class="text-xs text-fg-muted/70 pl-14 pr-6 pt-2 pb-1">Running</p>
                 <button v-for="row in liveSessions" :key="row.session" type="button" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-2 pl-12 pr-6 text-fg-muted" @click="goToSession(row)">
