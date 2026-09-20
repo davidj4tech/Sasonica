@@ -15,6 +15,9 @@
 
     `?project=<series name>`, from a project's page: the fresh session opens
     in that project's directory instead, and the words go nowhere else.
+
+    `?session=<uuid>&title=<name>`, from the drawer's list of running
+    sessions: the words go to that session, as if it had been picked here.
   -->
   <div class="w-full h-full flex flex-col bg-bg">
     <div class="flex items-center px-3 py-2 border-b border-border flex-shrink-0">
@@ -26,14 +29,14 @@
          named at the start of the words ("reply to drones, …"), loaded in the
          player, or was the last one spoken to; the server decides in that
          order and says which it chose. -->
-    <div v-if="baseUrl && !session" class="flex items-center px-3 py-2 border-b border-border flex-shrink-0" @click="openPicker">
+    <div v-if="baseUrl && !session" class="flex items-center px-3 py-2 border-b border-border flex-shrink-0" @click="togglePicker">
       <p class="text-xs text-fg-muted">To</p>
       <p class="text-sm px-2 flex-grow truncate" :class="target ? '' : 'text-fg-muted'">{{ target ? target.title : project ? newLabel : sticky ? `${sticky.title} (last)` : 'New chat' }}</p>
       <!-- Sasonica: which agent a FRESH session runs. Claude unless tapped;
            a continued conversation keeps the agent it was started with, so
            the chip is only here while the destination is a new chat. -->
       <p v-if="isNew" class="text-xs px-2 py-0.5 mr-2 rounded-full border border-border" :class="agent === 'claude' ? 'text-fg-muted' : 'text-fg'" @click.stop="cycleAgent">{{ agentLabel }}</p>
-      <span class="material-symbols text-lg text-fg-muted">expand_more</span>
+      <span class="material-symbols text-lg text-fg-muted">{{ pickerOpen ? 'expand_less' : 'expand_more' }}</span>
     </div>
 
     <div class="flex-grow min-h-0 overflow-y-auto px-3 py-4">
@@ -44,6 +47,13 @@
           <span class="material-symbols text-lg text-fg-muted">add_comment</span>
           <p class="text-sm pl-2">{{ newLabel }}</p>
         </div>
+        <!-- Sasonica: the projects — a fresh session in that directory. -->
+        <template v-if="!ambiguous && projects.length">
+          <div v-for="name in projects" :key="`project-${name}`" class="flex items-center py-2 pl-6 border-b border-border" @click="pickProject(name)">
+            <span class="material-symbols text-lg text-fg-muted">folder</span>
+            <p class="text-sm pl-2 truncate">{{ name }}</p>
+          </div>
+        </template>
         <div v-for="row in pickerRows" :key="row.session" class="flex items-center py-2 border-b border-border" @click="pick(row)">
           <span class="material-symbols text-lg" :class="row.live ? 'text-success' : 'text-fg-muted'">{{ row.live ? 'radio_button_checked' : 'history' }}</span>
           <p class="text-sm pl-2 truncate">{{ row.title }}</p>
@@ -52,7 +62,9 @@
       </template>
       <template v-else-if="confirm">
         <p class="text-sm">{{ confirm.text }}</p>
-        <p class="text-sm text-fg-muted pt-3">Sending to <span class="text-fg">{{ confirm.title }}</span> in {{ countdown }}…</p>
+        <p class="text-sm text-fg-muted pt-3">
+          Sending to <span class="text-fg">{{ confirm.title }}</span> in {{ countdown }}…
+        </p>
         <div class="flex items-center pt-3">
           <ui-btn color="primary" small @click="changeDestination">Change</ui-btn>
           <ui-btn color="success" small class="ml-2" @click="commitConfirmed">Send now</ui-btn>
@@ -77,7 +89,20 @@
       <!-- Sasonica: the slash menu, when a message starts with one. -->
       <item-slash-menu :commands="slashMatches" @select="chooseSlashCommand" />
       <div class="flex items-end">
-        <textarea ref="input" v-model="text" rows="1" :disabled="sending" placeholder="What shall we talk about?" class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto" enterkeyhint="enter" @input="onInput" @click="stopAutoSend" @keydown.enter.exact="onSlashEnter" @keydown.enter.ctrl.exact.prevent="send()" @keydown.enter.meta.exact.prevent="send()" />
+        <textarea
+          ref="input"
+          v-model="text"
+          rows="1"
+          :disabled="sending"
+          placeholder="What shall we talk about?"
+          class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto"
+          enterkeyhint="enter"
+          @input="onInput"
+          @click="stopAutoSend"
+          @keydown.enter.exact="onSlashEnter"
+          @keydown.enter.ctrl.exact.prevent="send()"
+          @keydown.enter.meta.exact.prevent="send()"
+        />
         <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate()">
           <span class="material-symbols text-xl" :class="listening ? 'animate-pulse' : ''">mic</span>
         </ui-btn>
@@ -94,6 +119,7 @@
 import { AbsSpeechInput } from '@/plugins/capacitor'
 import autoSend from '@/mixins/autoSend'
 import sasonicaSlash from '@/mixins/sasonicaSlash' // Sasonica
+import { fetchProjects } from '@/utils/sasonicaProjects' // Sasonica
 
 // How long to wait for the library to show the new conversation. The first
 // turn is exported a minute after it is spoken, then Audiobookshelf has to
@@ -137,6 +163,8 @@ export default {
       confirm: null,
       countdown: 0,
       countdownTimer: null,
+      // Sasonica: the projects a new chat can open in, read when the picker is.
+      projects: [],
       // Sasonica: the agent a fresh session runs. Claude every time the page
       // opens — the other two are asked for, never defaulted to.
       agent: 'claude'
@@ -366,15 +394,37 @@ export default {
       this.text = text
       this.$nextTick(() => this.send({ forceNew: true }))
     },
+    // Sasonica: the arrow both ways — a list opened to look at closes again.
+    togglePicker() {
+      if (this.pickerOpen) {
+        this.pickerOpen = false
+        this.ambiguous = false
+        return
+      }
+      this.openPicker()
+    },
     async openPicker() {
       this.ambiguous = false
       this.pickerOpen = true
+      // Sasonica: the projects come from the library, the sessions from the
+      // canvas; neither waits on the other.
+      fetchProjects(this).then((names) => {
+        this.projects = names
+      })
       try {
         const res = await this.request('GET', '/conversations')
         this.pickerRows = res.sessions || []
       } catch (error) {
         this.pickerRows = []
       }
+    },
+    // Sasonica: a project picked here is the same as arriving from its page —
+    // a fresh session in its directory, and the query says so.
+    pickProject(name) {
+      this.pickerOpen = false
+      this.target = null
+      this.$router.replace({ path: '/ask', query: { project: name } }).catch(() => {})
+      this.$nextTick(() => this.$refs.input?.focus())
     },
     // Sasonica: round the agents — three of them, so a chip beats a menu.
     cycleAgent() {
@@ -425,7 +475,15 @@ export default {
       if (taken) taken.push(true)
       if (this.canDictate) this.dictate({ submit: true })
     },
+    // Sasonica: a session named in the query is a destination picked before
+    // the page opened (the drawer's list) — same thing the picker sets.
+    applyQueryTarget() {
+      const session = String(this.$route.query.session || '').trim()
+      if (!session) return
+      this.target = { session, title: String(this.$route.query.title || '').trim() || 'that conversation' }
+    },
     async init() {
+      this.applyQueryTarget()
       this.baseUrl = await this.$localStore.agentMediaBaseUrl(this.$store.state.user.serverConnectionConfig?.address)
       if (!this.baseUrl) return
       this.sticky = await this.$localStore.getAskLast()
@@ -443,6 +501,15 @@ export default {
       } else {
         this.$nextTick(() => this.$refs.input?.focus())
       }
+    }
+  },
+  watch: {
+    // Sasonica: the drawer can point this page somewhere else while it is
+    // already up; Nuxt keeps the component, so the query is read again.
+    '$route.query'() {
+      this.target = null
+      this.pickerOpen = false
+      this.applyQueryTarget()
     }
   },
   mounted() {

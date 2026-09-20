@@ -12,6 +12,35 @@
             <span class="material-symbols fill text-lg">{{ item.icon }}</span>
             <p class="pl-4">{{ item.text }}</p>
           </button>
+          <!-- Sasonica: New chat, and under the chevron what it could be
+               pointed at — a project, which is the directory a fresh session
+               opens in, or a session already running, which the words join
+               instead of starting anything. -->
+          <div v-else-if="item.expand" :key="item.text" class="w-full">
+            <div class="w-full flex items-center" :class="currentRoutePath.startsWith(item.to) ? 'bg-bg-hover/50 text-fg' : 'text-fg-muted'">
+              <nuxt-link :to="item.to" :tabindex="show ? 0 : -1" class="flex-grow hover:bg-bg/60 flex items-center py-3 pl-6 pr-2 min-w-0">
+                <span class="material-symbols fill text-lg">{{ item.icon }}</span>
+                <p class="pl-4 truncate">{{ item.text }}</p>
+              </nuxt-link>
+              <button type="button" :aria-label="targetsOpen ? 'Hide projects and sessions' : 'Show projects and sessions'" :tabindex="show ? 0 : -1" class="h-11 px-4 flex items-center hover:bg-bg/60" @click="toggleTargets">
+                <span class="material-symbols text-lg">{{ targetsOpen ? 'expand_less' : 'expand_more' }}</span>
+              </button>
+            </div>
+            <div v-if="targetsOpen" class="w-full pb-1">
+              <button v-for="name in projects" :key="`project-${name}`" type="button" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-2 pl-14 pr-6 text-fg-muted" @click="newChatIn(name)">
+                <p class="text-sm truncate">{{ name }}</p>
+              </button>
+              <template v-if="liveSessions.length">
+                <p class="text-xs text-fg-muted/70 pl-14 pr-6 pt-2 pb-1">Running</p>
+                <button v-for="row in liveSessions" :key="row.session" type="button" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-2 pl-12 pr-6 text-fg-muted" @click="goToSession(row)">
+                  <span class="material-symbols text-sm text-success">radio_button_checked</span>
+                  <p class="text-sm pl-2 truncate">{{ row.title }}</p>
+                </button>
+              </template>
+              <p v-if="targetsLoading" class="text-sm text-fg-muted/70 py-2 pl-14 pr-6">Looking…</p>
+              <p v-else-if="!projects.length && !liveSessions.length" class="text-sm text-fg-muted/70 py-2 pl-14 pr-6">Nothing to point it at yet.</p>
+            </div>
+          </div>
           <nuxt-link v-else :to="item.to" :key="item.text" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-3 px-6 text-fg" :class="currentRoutePath.startsWith(item.to) ? 'bg-bg-hover/50' : 'text-fg-muted'">
             <span class="material-symbols fill text-lg">{{ item.icon }}</span>
             <p class="pl-4">{{ item.text }}</p>
@@ -37,11 +66,17 @@
 
 <script>
 import TouchEvent from '@/objects/TouchEvent'
+import { fetchProjects } from '@/utils/sasonicaProjects' // Sasonica
 
 export default {
   data() {
     return {
-      touchEvent: null
+      touchEvent: null,
+      // Sasonica: what a new chat can be pointed at, once the chevron is opened.
+      targetsOpen: false,
+      targetsLoading: false,
+      projects: [],
+      liveSessions: []
     }
   },
   watch: {
@@ -108,11 +143,13 @@ export default {
           text: this.$strings.ButtonUserStats,
           to: '/stats'
         })
-        // Sasonica: a new conversation with the agent behind the library.
+        // Sasonica: a new conversation with the agent behind the library,
+        // with the projects and running sessions folded under it.
         items.push({
           icon: 'add_comment',
           text: 'New chat',
-          to: '/ask'
+          to: '/ask',
+          expand: true
         })
       }
 
@@ -165,6 +202,49 @@ export default {
     }
   },
   methods: {
+    // Sasonica: the projects are the Conversations library's series, and the
+    // running sessions come from the canvas. Both are read again each time
+    // the list is opened — a session list goes stale in minutes.
+    async toggleTargets() {
+      await this.$hapticsImpact()
+      this.targetsOpen = !this.targetsOpen
+      if (this.targetsOpen) this.loadTargets()
+    },
+    async loadTargets() {
+      this.targetsLoading = true
+      await Promise.all([this.loadProjects(), this.loadSessions()])
+      this.targetsLoading = false
+    },
+    async loadProjects() {
+      this.projects = await fetchProjects(this)
+    },
+    async loadSessions() {
+      const token = this.$store.getters['user/getToken']
+      const base = token ? await this.$localStore.agentMediaBaseUrl(this.serverConnectionConfig?.address) : ''
+      if (!base) {
+        this.liveSessions = []
+        return
+      }
+      try {
+        const res = await this.$nativeHttp.request('GET', `${base}/conversations`, null, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        this.liveSessions = (res?.sessions || []).filter((row) => row.live)
+      } catch (error) {
+        // No canvas, or an older one: the projects stand on their own.
+        this.liveSessions = []
+      }
+    },
+    // A project: a fresh session in the directory its conversations run in.
+    newChatIn(project) {
+      this.show = false
+      this.$router.push({ path: '/ask', query: { project } }).catch(() => {})
+    },
+    // A session already running: the words go to it, not to a new one.
+    goToSession(row) {
+      this.show = false
+      this.$router.push({ path: '/ask', query: { session: row.session, title: row.title || '' } }).catch(() => {})
+    },
     async clickAction(action) {
       await this.$hapticsImpact()
       if (action === 'logout') {
