@@ -52,6 +52,7 @@
         @input="onInput"
         @click="stopAutoSend"
         enterkeyhint="enter"
+        @keydown.enter.exact="onSlashEnter"
         @keydown.enter.ctrl.exact.prevent="send"
         @keydown.enter.meta.exact.prevent="send"
         @focusin="keepInView"

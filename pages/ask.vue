@@ -77,7 +77,7 @@
       <!-- Sasonica: the slash menu, when a message starts with one. -->
       <item-slash-menu :commands="slashMatches" @select="chooseSlashCommand" />
       <div class="flex items-end">
-        <textarea ref="input" v-model="text" rows="1" :disabled="sending" placeholder="What shall we talk about?" class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto" enterkeyhint="enter" @input="onInput" @click="stopAutoSend" @keydown.enter.ctrl.exact.prevent="send()" @keydown.enter.meta.exact.prevent="send()" />
+        <textarea ref="input" v-model="text" rows="1" :disabled="sending" placeholder="What shall we talk about?" class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto" enterkeyhint="enter" @input="onInput" @click="stopAutoSend" @keydown.enter.exact="onSlashEnter" @keydown.enter.ctrl.exact.prevent="send()" @keydown.enter.meta.exact.prevent="send()" />
         <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate()">
           <span class="material-symbols text-xl" :class="listening ? 'animate-pulse' : ''">mic</span>
         </ui-btn>

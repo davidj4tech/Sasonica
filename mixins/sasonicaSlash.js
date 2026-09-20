@@ -81,6 +81,16 @@ export default {
       }
       this.slashLoading = false
     },
+    // Enter takes the first match while the menu is open. In this box Enter
+    // is otherwise a new line (a touch keyboard has no Shift+Enter) and
+    // Ctrl/Cmd+Enter sends, so nothing is taken away: the menu is only open
+    // while the whole message is one unsent word beginning with `/`.
+    onSlashEnter(event) {
+      const first = this.slashMatches[0]
+      if (!first) return
+      if (event) event.preventDefault()
+      this.chooseSlashCommand(first)
+    },
     // The chosen command, with the space that starts its arguments. The box
     // stays open and focused: a command usually wants something after it.
     chooseSlashCommand(command) {
