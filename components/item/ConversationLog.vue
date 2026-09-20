@@ -195,6 +195,13 @@ const USER_SCROLL_HOLD_MS = 8000
 // How close to the bottom counts as "at the bottom", so a new turn landing
 // keeps the view pinned there rather than growing off-screen.
 const NEAR_BOTTOM_PX = 80
+// How long the live flag must stay down before the page treats the turn as
+// over and goes to the bottom. The flag drops for a cycle on things that are
+// not an ending: a poll that catches the server between clearing the speaking
+// row and writing the ended turn, or the canvas's picture landing on the reply
+// mid-sentence. Jumping on that blip yanks the page away from the line being
+// read — which is exactly what the reader is following.
+const LIVE_END_SETTLE_MS = 1500
 
 // How far ahead of the clock the bold moves on. Measured on mobile data, the
 // server's clock tracked the player to within a few tenths, yet the bold still
@@ -265,7 +272,10 @@ export default {
       liveElapsedAt: 0,
       livePaused: false,
       liveClock: 0,
-      clockTimer: null
+      clockTimer: null,
+      // Pending "the turn ended, go to the bottom" — held for a beat so a
+      // blip in the live flag cannot interrupt the follow-along.
+      bottomTimer: null
     }
   },
   computed: {
@@ -329,10 +339,23 @@ export default {
     // pictures and the next turn arrive — unless they have scrolled away.
     // Whatever landed below while the voice held the page is caught up now.
     liveIndex(now, before) {
-      if (before >= 0 && now < 0 && this.readerIsAway()) {
-        this.stickToBottom = true
-        this.$nextTick(this.scrollToBottom)
+      if (now >= 0) {
+        // Still (or again) speaking: whatever made the flag drop was not the
+        // end of the turn.
+        this.cancelBottom()
+        return
       }
+      if (before < 0 || !this.readerIsAway()) return
+      this.cancelBottom()
+      this.bottomTimer = window.setTimeout(() => {
+        this.bottomTimer = null
+        // Only the live flag is re-checked: the player's own position is
+        // already the poll handler's business, and demanding it be idle here
+        // would strand the page whenever a recorded turn happened to be cued.
+        if (this.liveIndex >= 0 || !this.readerIsAway()) return
+        this.stickToBottom = true
+        this.scrollToBottom()
+      }, LIVE_END_SETTLE_MS)
     },
     activeIndex(index) {
       if (index < 0 || !this.readerIsAway()) return
@@ -602,6 +625,11 @@ export default {
       window.clearInterval(this.clockTimer)
       this.clockTimer = null
     },
+    cancelBottom() {
+      if (!this.bottomTimer) return
+      window.clearTimeout(this.bottomTimer)
+      this.bottomTimer = null
+    },
     scrollToBottom() {
       const el = this.$refs.scroller
       if (!el) return
@@ -705,6 +733,7 @@ export default {
     document.addEventListener('visibilitychange', this.onVisibilityChange)
   },
   beforeDestroy() {
+    this.cancelBottom()
     this.stopClock()
     this.stopWorkClock()
     this.stopPolling()
