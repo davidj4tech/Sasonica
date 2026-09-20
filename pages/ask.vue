@@ -87,7 +87,7 @@
 
     <div v-if="baseUrl && !session && !confirm" class="flex-shrink-0 px-3 pt-2 pb-3 border-t border-border bg-bg">
       <!-- Sasonica: the slash menu, when a message starts with one. -->
-      <item-slash-menu :commands="slashMatches" @select="chooseSlashCommand" />
+      <item-slash-menu :commands="slashMatches" :selected="slashIndex" @select="chooseSlashCommand" />
       <div class="flex items-end">
         <textarea
           ref="input"
@@ -99,7 +99,7 @@
           enterkeyhint="enter"
           @input="onInput"
           @click="stopAutoSend"
-          @keydown.enter.exact="onSlashEnter"
+          @keydown.enter.exact="onSlashEnter" @keydown.down.exact="slashMatches.length && (moveSlashSelection(1), $event.preventDefault())" @keydown.up.exact="slashMatches.length && (moveSlashSelection(-1), $event.preventDefault())" @keydown.esc.exact="closeSlashMenu"
           @keydown.enter.ctrl.exact.prevent="send()"
           @keydown.enter.meta.exact.prevent="send()"
         />

@@ -34,7 +34,7 @@
     </div>
 
     <!-- Sasonica: the slash menu, when a message starts with one. -->
-    <item-slash-menu :commands="slashMatches" @select="chooseSlashCommand" />
+    <item-slash-menu :commands="slashMatches" :selected="slashIndex" @select="chooseSlashCommand" />
 
     <div class="flex items-end">
       <!-- A plain textarea rather than ui-text-input: this one has to grow, and
@@ -53,6 +53,9 @@
         @click="stopAutoSend"
         enterkeyhint="enter"
         @keydown.enter.exact="onSlashEnter"
+        @keydown.down.exact="slashMatches.length && (moveSlashSelection(1), $event.preventDefault())"
+        @keydown.up.exact="slashMatches.length && (moveSlashSelection(-1), $event.preventDefault())"
+        @keydown.esc.exact="closeSlashMenu"
         @keydown.enter.ctrl.exact.prevent="send"
         @keydown.enter.meta.exact.prevent="send"
         @focusin="keepInView"

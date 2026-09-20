@@ -5,46 +5,19 @@
 // `/commands` says which commands the session's own directory offers (its
 // project's skills included), and what follows is matched as you type.
 
-// Fuzzy, the way an editor's command palette is: every letter of the query
-// appears in the name in order. The score prefers a match at the start of the
-// name, then at the start of a word (`cr` → `code-review`), then letters that
-// run together, so the obvious candidate is first and not merely present.
-export function score(name, query) {
-  if (!query) return 1
-  const n = name.toLowerCase()
-  const q = query.toLowerCase()
-  let total = 0
-  let at = 0
-  let previous = -2
-  for (const letter of q) {
-    const found = n.indexOf(letter, at)
-    if (found === -1) return 0
-    let points = 1
-    if (found === 0) points += 10
-    else if ('-_:/'.includes(n[found - 1])) points += 6
-    if (found === previous + 1) points += 4
-    total += points
-    previous = found
-    at = found + 1
-  }
-  // A short name matching the same letters is the better answer: `/run` over
-  // `/run-skill-generator` for "run".
-  return total + Math.max(0, 20 - name.length) / 10
-}
-
-// A command answers to its aliases too (`/quit` is `/exit`, `/cost` is
-// `/usage`), so each is matched and the best of them is the command's score.
-export function commandScore(command, query) {
-  const names = [command.name, ...(command.aliases || [])]
-  return Math.max(...names.map((name) => score(name, query)))
-}
-
-export function rank(commands, query) {
-  return commands
-    .map((command) => ({ command, score: commandScore(command, query) }))
-    .filter((row) => row.score > 0)
-    .sort((a, b) => b.score - a.score || a.command.name.localeCompare(b.command.name))
-    .map((row) => row.command)
+// Matched the way the terminal matches: left to right from the start of the
+// name, not fuzzily. `/co` offers compact, config, context — and never
+// code-review by way of a letter in the middle. A command is offered under
+// its aliases too, and a name that begins with the query beats an alias that
+// does.
+export function matches(commands, query) {
+  const q = (query || '').toLowerCase()
+  const beginsWith = (name) => name.toLowerCase().startsWith(q)
+  const byName = commands.filter((c) => beginsWith(c.name))
+  const byAlias = commands.filter(
+    (c) => !beginsWith(c.name) && (c.aliases || []).some(beginsWith))
+  const order = (a, b) => a.name.localeCompare(b.name)
+  return [...byName.sort(order), ...byAlias.sort(order)]
 }
 
 // What is being typed as a command: the text is one token beginning with `/`
@@ -60,6 +33,7 @@ export default {
   data() {
     return {
       slashCommands: [],
+      slashIndex: 0,
       slashLoading: false,
       slashError: '',
       slashQueryText: null
@@ -80,15 +54,28 @@ export default {
       // as "this phone has no slash menu", and the two are worth telling
       // apart without a rebuild.
       if (this.slashError) return [{ name: '', description: this.slashError, unavailable: true }]
-      return rank(this.slashCommands, this.slashQueryText).slice(0, 8)
+      return matches(this.slashCommands, this.slashQueryText).slice(0, 8)
     }
   },
   methods: {
     // Called from the input's own handler. The list is fetched once, the
     // first time a slash starts a message, and kept for the page's life.
     onSlashInput(text) {
-      this.slashQueryText = slashQuery(text)
-      if (this.slashQueryText !== null) this.loadSlashCommands()
+      const query = slashQuery(text)
+      if (query !== this.slashQueryText) this.slashIndex = 0   // a new query, a new first
+      this.slashQueryText = query
+      if (query !== null) this.loadSlashCommands()
+    },
+    // Up and down move the highlight, as they do in the terminal; the list is
+    // short, so it wraps rather than stopping at the ends. Escape closes it
+    // and leaves what has been typed alone.
+    moveSlashSelection(delta) {
+      const count = this.slashMatches.length
+      if (!count) return
+      this.slashIndex = (this.slashIndex + delta + count) % count
+    },
+    closeSlashMenu() {
+      this.slashQueryText = null
     },
     async loadSlashCommands() {
       if (this.slashCommands.length || this.slashLoading) return
@@ -108,10 +95,10 @@ export default {
     // Ctrl/Cmd+Enter sends, so nothing is taken away: the menu is only open
     // while the whole message is one unsent word beginning with `/`.
     onSlashEnter(event) {
-      const first = this.slashMatches[0]
-      if (!first || first.unavailable) return
+      const chosen = this.slashMatches[this.slashIndex] || this.slashMatches[0]
+      if (!chosen || chosen.unavailable) return
       if (event) event.preventDefault()
-      this.chooseSlashCommand(first)
+      this.chooseSlashCommand(chosen)
     },
     // The chosen command, with the space that starts its arguments. The box
     // stays open and focused: a command usually wants something after it.
@@ -119,6 +106,7 @@ export default {
       const text = `/${command.name} `
       this.text = text
       this.slashQueryText = null
+      this.slashIndex = 0
       this.$nextTick(() => {
         const el = this.$refs.input
         if (!el) return
