@@ -124,16 +124,19 @@
           <p class="text-xs text-fg-muted">Waiting on you{{ approval.agent && approval.agent !== 'claude' ? ` · ${approval.agent}` : '' }}</p>
         </div>
         <p v-if="approval.question" class="text-sm whitespace-pre-line pb-2">{{ approval.question }}</p>
-        <!-- The list was longer than the session's own screen, so what is
-             above the first option shown — the question included — is not
-             on it to be read. The options still answer by number. -->
+        <!-- The list is longer than the session's own screen, so some of it
+             — sometimes the question itself — is not on there to be read.
+             What is shown still answers by number. -->
         <p v-if="approval.partial" class="text-xs text-fg-muted pb-2">
-          This question is longer than the session's screen. Only part of it is here; the rest is at the desk.
+          {{ approval.question ? "Some answers are off the session's screen; they're at the desk."
+                               : "This question runs off the session's screen; the rest is at the desk." }}
         </p>
         <button v-for="opt in approval.options" :key="opt.n" :disabled="answering"
                 class="w-full text-left text-xs rounded px-2 py-1.5 mb-1 border bg-black/20 border-transparent disabled:opacity-50"
                 @click.stop="answer(opt)">
-          <span class="font-mono text-fg-muted pr-1.5">{{ opt.n }}</span>{{ opt.label }}
+          <span class="font-mono text-fg-muted pr-1.5">{{ opt.n }}</span>
+          <span class="font-semibold">{{ opt.label }}</span>
+          <span v-if="opt.detail" class="text-fg-muted"> — {{ opt.detail }}</span>
         </button>
         <p v-if="answerError" class="text-xs text-error pt-1">{{ answerError }}</p>
       </div>
