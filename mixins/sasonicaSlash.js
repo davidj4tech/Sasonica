@@ -32,9 +32,16 @@ export function score(name, query) {
   return total + Math.max(0, 20 - name.length) / 10
 }
 
+// A command answers to its aliases too (`/quit` is `/exit`, `/cost` is
+// `/usage`), so each is matched and the best of them is the command's score.
+export function commandScore(command, query) {
+  const names = [command.name, ...(command.aliases || [])]
+  return Math.max(...names.map((name) => score(name, query)))
+}
+
 export function rank(commands, query) {
   return commands
-    .map((command) => ({ command, score: score(command.name, query) }))
+    .map((command) => ({ command, score: commandScore(command, query) }))
     .filter((row) => row.score > 0)
     .sort((a, b) => b.score - a.score || a.command.name.localeCompare(b.command.name))
     .map((row) => row.command)

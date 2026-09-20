@@ -31,6 +31,11 @@
         <span class="material-symbols text-2xl leading-none">search</span>
       </nuxt-link>
 
+      <!-- Sasonica: a new conversation, from wherever you are -->
+      <button v-if="user && showNewChat" type="button" aria-label="New chat" class="mx-1.5 flex items-center h-10" @click="newChat">
+        <span class="material-symbols text-2xl leading-none">add_comment</span>
+      </button>
+
       <button type="button" aria-label="Toggle side drawer" class="h-7 mx-1.5" @click="clickShowSideDrawer">
         <span class="material-symbols" style="font-size: 1.75rem">menu</span>
       </button>
@@ -77,9 +82,26 @@ export default {
     },
     isCasting() {
       return this.$store.state.isCasting
+    },
+    // Sasonica: everywhere but the page it opens
+    showNewChat() {
+      return this.$route.name !== 'ask'
+    },
+    // Sasonica: a conversation's series is its project, so a project page scopes the new chat
+    newChatProject() {
+      if (this.$route.name !== 'bookshelf-series-id') return null
+      if (!this.$store.getters['libraries/getCurrentLibraryIsConversations']) return null
+      if (!this.$route.params.id) return null
+      return this.$store.state.globals.series?.name || null
     }
   },
   methods: {
+    // Sasonica
+    async newChat() {
+      await this.$hapticsImpact()
+      const project = this.newChatProject
+      this.$router.push(project ? { path: '/ask', query: { project } } : '/ask')
+    },
     castClick() {
       if (this.$store.getters['getIsCurrentSessionLocal']) {
         this.$eventBus.$emit('cast-local-item')

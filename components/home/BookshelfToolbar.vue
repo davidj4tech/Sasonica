@@ -13,7 +13,6 @@
           </div>
           <span class="material-symbols text-2xl px-2" @click="showSortModal = true">sort</span>
         </template>
-        <span v-if="seriesBookPage && isConversations && selectedSeriesName" class="material-symbols text-2xl px-2" @click="newChatInProject">add_comment</span>
         <span v-if="seriesBookPage" class="material-symbols text-2xl px-2" @click="downloadSeries">download</span>
         <!-- Sasonica: also on Projects, and dotted while a Show toggle narrows the list -->
         <div v-if="(page == 'library' && isBookLibrary) || seriesBookPage || (page === 'series' && isConversations)" class="relative flex items-center px-2">
@@ -170,10 +169,6 @@ export default {
     async changeView() {
       this.bookshelfListView = !this.bookshelfListView
       await this.$hapticsImpact()
-    },
-    // Sasonica: a new conversation in the project on screen.
-    newChatInProject() {
-      this.$router.push({ path: '/ask', query: { project: this.selectedSeriesName } })
     },
     downloadSeries() {
       console.log('Download Series click')

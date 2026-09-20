@@ -110,6 +110,28 @@
         </p>
       </div>
     </div>
+    <!--
+      The session is stopped on a question — a permission prompt, Codex's
+      hooks review — and nobody may be at the desk. Read off its screen and
+      shown here with its options; a tap answers it. `key` fingerprints the
+      words on screen, so an answer only counts for the question that was
+      read: if it has moved on, the server refuses and hands back the new one.
+    -->
+    <div v-if="approval" class="w-full flex mb-2 justify-start">
+      <div class="max-w-[85%] rounded-lg px-3 py-2 bg-warning/20 border border-warning/60">
+        <div class="flex items-center pb-1">
+          <span class="material-symbols text-base leading-none pr-1 text-warning">help</span>
+          <p class="text-xs text-fg-muted">Waiting on you{{ approval.agent && approval.agent !== 'claude' ? ` · ${approval.agent}` : '' }}</p>
+        </div>
+        <p class="text-sm whitespace-pre-line pb-2">{{ approval.question }}</p>
+        <button v-for="opt in approval.options" :key="opt.n" :disabled="answering"
+                class="w-full text-left text-xs rounded px-2 py-1.5 mb-1 border bg-black/20 border-transparent disabled:opacity-50"
+                @click.stop="answer(opt)">
+          <span class="font-mono text-fg-muted pr-1.5">{{ opt.n }}</span>{{ opt.label }}
+        </button>
+        <p v-if="answerError" class="text-xs text-error pt-1">{{ answerError }}</p>
+      </div>
+    </div>
   </div>
   <!-- Scrolled up to read back: a way down to the newest turn. -->
   <button v-show="!stickToBottom" class="absolute right-3 bottom-3 z-10 rounded-full bg-primary border border-border shadow-lg w-10 h-10 flex items-center justify-center" title="Jump to the latest" @click="scrollToBottom">
@@ -257,6 +279,14 @@ export default {
       workingFetchedAt: 0,
       workClock: 0,
       workTimer: null,
+      // The session behind this conversation, as the log names it: what an
+      // answer is addressed to.
+      logSession: '',
+      // The question the session is stopped on (the server's `approval`),
+      // and the answer in flight. Cleared by the poll that finds it gone.
+      approval: null,
+      answering: false,
+      answerError: '',
       // Which replies have their step list open, by `at`.
       openWork: {},
       // The running turn's list: every step, open by default; a tap folds it
@@ -504,6 +534,7 @@ export default {
         // source show up promptly instead of waiting out an idle poll.
         const last = lines[lines.length - 1]
         const sig = lines.length + '|' + (last ? last.who + ':' + last.text + '#' + (last.live ? last.sentence : '') : '')
+          + '|' + (res?.approval ? res.approval.key : '')
         if (sig !== this.lastSig) {
           this.lastSig = sig
           this.lastChangeAt = Date.now()
@@ -535,6 +566,13 @@ export default {
         const stepsBefore = this.stepCount(this.working)
         const thinkingBefore = this.thinking
         this.pending = !!res?.pending
+        // A question that has gone (answered here, or at the desk) takes its
+        // error with it; a new one clears the error of the last.
+        if (!res?.approval || !this.approval || res.approval.key !== this.approval.key) {
+          this.answerError = ''
+        }
+        this.approval = res?.approval || null
+        this.logSession = res?.session || this.logSession
         if (!res?.working) this.workingOpen = true
         this.working = res?.working || null
         const stepsNow = this.stepCount(this.working)
@@ -572,6 +610,32 @@ export default {
     },
     refresh() {
       this.fetchLog({ quiet: true })
+    },
+    // Answer the dialog: the option's number and the key of the words that
+    // were on screen when it was read. The server presses the key in the
+    // pane, and refuses if that question has since been answered elsewhere.
+    async answer(opt) {
+      if (this.answering || !this.approval) return
+      const session = this.logSession
+      if (!session) return
+      this.answering = true
+      this.answerError = ''
+      const key = this.approval.key
+      try {
+        const token = this.$store.getters['user/getToken']
+        await this.$nativeHttp.request('POST', `${this.baseUrl}/session/answer`,
+          { session, choice: opt.n, key },
+          { headers: { Authorization: `Bearer ${token}` } })
+        this.approval = null
+      } catch (error) {
+        // The server's own words: "the question has changed" is the one that
+        // matters, and the next poll brings the new question with it.
+        this.answerError = error?.message || String(error)
+        console.error('[ConversationLog] answer failed', this.answerError)
+      } finally {
+        this.answering = false
+        this.fetchLog({ quiet: true })
+      }
     },
     stepCount(working) {
       if (!working) return 0
@@ -681,6 +745,9 @@ export default {
       // A turn at work changes step every few seconds, for however long it
       // takes — past the fast window that a reply with no steps falls out of.
       if (this.working) return POLL_WORKING_MS
+      // A question on screen is answered from here or at the desk; either way
+      // this page should not sit on a stale one.
+      if (this.approval) return POLL_WORKING_MS
       const since = Date.now() - this.lastChangeAt
       if (since < FAST_LINGER_MS) return POLL_FAST_MS
       if (this.thinking && since < FAST_WINDOW_MS) return POLL_FAST_MS
