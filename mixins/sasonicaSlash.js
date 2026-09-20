@@ -61,12 +61,25 @@ export default {
     return {
       slashCommands: [],
       slashLoading: false,
+      slashError: '',
       slashQueryText: null
+    }
+  },
+  watch: {
+    // The input event is the prompt cue, but a watcher is what guarantees it:
+    // the box's own handler does other work first, and a draft restored or
+    // words put in by dictation never raise an input event at all.
+    text(value) {
+      this.onSlashInput(value)
     }
   },
   computed: {
     slashMatches() {
       if (this.slashQueryText === null) return []
+      // A menu that cannot be fetched says so in the box. Silence here reads
+      // as "this phone has no slash menu", and the two are worth telling
+      // apart without a rebuild.
+      if (this.slashError) return [{ name: '', description: this.slashError, unavailable: true }]
       return rank(this.slashCommands, this.slashQueryText).slice(0, 8)
     }
   },
@@ -83,8 +96,10 @@ export default {
       try {
         const res = await this.request('GET', `/commands?${this.slashParams()}`)
         this.slashCommands = res?.commands || []
+        this.slashError = this.slashCommands.length ? '' : 'No commands came back'
       } catch (error) {
         console.error('[sasonica] slash menu failed', error)
+        this.slashError = `Commands unavailable: ${error?.message || error}`
       }
       this.slashLoading = false
     },
@@ -94,7 +109,7 @@ export default {
     // while the whole message is one unsent word beginning with `/`.
     onSlashEnter(event) {
       const first = this.slashMatches[0]
-      if (!first) return
+      if (!first || first.unavailable) return
       if (event) event.preventDefault()
       this.chooseSlashCommand(first)
     },

@@ -233,10 +233,10 @@ export default {
       if (submit && heard) this.startAutoSend()
     },
     onInput() {
+      this.onSlashInput((this.$refs.input && this.$refs.input.value) || this.text) // Sasonica
       this.stopAutoSend()
       this.grow()
       this.saveDraftSoon()
-      this.onSlashInput((this.$refs.input && this.$refs.input.value) || this.text) // Sasonica
     },
     // Sasonica: the menu belongs to this conversation's own directory.
     slashParams() {

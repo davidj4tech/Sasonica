@@ -196,9 +196,9 @@ export default {
       })
     },
     onInput() {
+      this.onSlashInput((this.$refs.input && this.$refs.input.value) || this.text) // Sasonica
       this.stopAutoSend()
       this.grow()
-      this.onSlashInput((this.$refs.input && this.$refs.input.value) || this.text) // Sasonica
     },
     // Sasonica: a new chat's commands are the ones its project's directory
     // offers; with no project named, the target session's own.
