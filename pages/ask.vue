@@ -22,7 +22,7 @@
   <div class="w-full h-full flex flex-col bg-bg">
     <div class="flex items-center px-3 py-2 border-b border-border flex-shrink-0">
       <span class="material-symbols text-xl text-fg-muted">add_comment</span>
-      <h1 class="text-base font-semibold flex-grow truncate pl-2">{{ newLabel }}</h1>
+      <h1 class="text-base font-semibold flex-grow truncate pl-2">{{ heading }}</h1>
     </div>
 
     <!-- Where the words go. "New chat" unless a conversation is picked here,
@@ -190,6 +190,11 @@ export default {
   },
   methods: {
     request(method, path, data) {
+    // Sasonica: the title names the destination, which is the picked
+    // conversation when there is one — not the new chat it is not.
+    heading() {
+      return this.target && this.target.session !== 'new' ? this.target.title : this.newLabel
+    },
       const token = this.$store.getters['user/getToken']
       return this.$nativeHttp.request(method, `${this.baseUrl}${path}`, data, {
         headers: { Authorization: `Bearer ${token}` }
@@ -200,12 +205,14 @@ export default {
       this.stopAutoSend()
       this.grow()
     },
-    // Sasonica: a new chat's commands are the ones its project's directory
-    // offers; with no project named, the target session's own.
+    // Sasonica: the commands belong to the directory the words will land
+    // in — a picked conversation's own, else the project a new chat opens
+    // in. Asked in that order: `new` is not a session, and a project left
+    // over from an earlier pick would offer the wrong tree's commands.
     slashParams() {
-      if (this.project) return `project=${encodeURIComponent(this.project)}`
-      const session = this.target ? this.target.session : ''
-      return session ? `session=${encodeURIComponent(session)}` : ''
+      const session = this.target && this.target.session !== 'new' ? this.target.session : ''
+      if (session) return `session=${encodeURIComponent(session)}`
+      return this.project ? `project=${encodeURIComponent(this.project)}` : ''
     },
     grow() {
       const el = this.$refs.input
@@ -250,7 +257,10 @@ export default {
         // A picked target is the answer; the words are not read for one.
         // Nor from a project's page: a chat there was asked for.
         parse: !this.target && !forceNew && !this.project,
-        project: this.project,
+        // Sasonica: a picked conversation has its own directory, and the
+        // router clears the query a tick later than a pick that sends at
+        // once (answering "which conversation?"), so say so here too.
+        project: this.target ? '' : this.project,
         // Sasonica: only a fresh session takes an agent.
         agent: this.isNew || forceNew ? this.agent : ''
       }
@@ -464,6 +474,11 @@ export default {
       }
     },
     async goToPane() {
+      // A conversation picked here already has a directory — its own — and
+      // the server ignores `project` the moment a session is named. Drop it
+      // rather than leave it colouring the header and the slash menu for a
+      // tree the words are not going to.
+      if (row && this.project) this.$router.replace({ path: '/ask', query: {} }).catch(() => {})
       try {
         await this.request('POST', '/focus', { pane: this.pane })
       } catch (error) {
