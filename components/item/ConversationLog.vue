@@ -123,7 +123,13 @@
           <span class="material-symbols text-base leading-none pr-1 text-warning">help</span>
           <p class="text-xs text-fg-muted">Waiting on you{{ approval.agent && approval.agent !== 'claude' ? ` · ${approval.agent}` : '' }}</p>
         </div>
-        <p class="text-sm whitespace-pre-line pb-2">{{ approval.question }}</p>
+        <p v-if="approval.question" class="text-sm whitespace-pre-line pb-2">{{ approval.question }}</p>
+        <!-- The list was longer than the session's own screen, so what is
+             above the first option shown — the question included — is not
+             on it to be read. The options still answer by number. -->
+        <p v-if="approval.partial" class="text-xs text-fg-muted pb-2">
+          This question is longer than the session's screen. Only part of it is here; the rest is at the desk.
+        </p>
         <button v-for="opt in approval.options" :key="opt.n" :disabled="answering"
                 class="w-full text-left text-xs rounded px-2 py-1.5 mb-1 border bg-black/20 border-transparent disabled:opacity-50"
                 @click.stop="answer(opt)">
