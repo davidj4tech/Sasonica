@@ -55,7 +55,13 @@
           </div>
         </template>
         <div v-for="row in pickerRows" :key="row.session" class="flex items-center py-2 border-b border-border" @click="pick(row)">
-          <span class="material-symbols text-lg" :class="row.live ? 'text-success' : 'text-fg-muted'">{{ row.live ? 'radio_button_checked' : 'history' }}</span>
+          <!-- Sasonica: a live row wears the same dot as its card on the
+               Conversations shelf — working amber, needs-approval red —
+               so one session does not read two ways in two lists. -->
+          <span v-if="row.live" class="w-[18px] flex items-center justify-center flex-shrink-0">
+            <span class="w-2 h-2 rounded-full" :class="dotClass(row)" :title="dotTitle(row)" />
+          </span>
+          <span v-else class="material-symbols text-lg text-fg-muted">history</span>
           <p class="text-sm pl-2 truncate">{{ row.title }}</p>
         </div>
         <p v-if="!pickerRows.length" class="text-sm text-fg-muted py-2">Nothing to pick from yet.</p>
@@ -120,6 +126,7 @@ import { AbsSpeechInput } from '@/plugins/capacitor'
 import autoSend from '@/mixins/autoSend'
 import sasonicaSlash from '@/mixins/sasonicaSlash' // Sasonica
 import { fetchProjects } from '@/utils/sasonicaProjects' // Sasonica
+import { sessionDotClass, sessionDotTitle } from '@/utils/sasonicaSessionState' // Sasonica
 
 // How long to wait for the library to show the new conversation. The first
 // turn is exported a minute after it is spoken, then Audiobookshelf has to
@@ -165,6 +172,11 @@ export default {
       countdownTimer: null,
       // Sasonica: the projects a new chat can open in, read when the picker is.
       projects: [],
+      // Sasonica: what each live session is doing, `{session: state}`, read
+      // with the picker's rows. The shelf polls this too, but its mixin
+      // empties the store when it leaves the screen, so this page asks for
+      // its own copy rather than showing a map nobody is refreshing.
+      states: {},
       // Sasonica: the agent a fresh session runs. Claude every time the page
       // opens — the other two are asked for, never defaulted to.
       agent: 'claude'
@@ -177,6 +189,11 @@ export default {
     },
     newLabel() {
       return this.project ? `New chat in ${this.project}` : 'New chat'
+    },
+    // Sasonica: the title names the destination, which is the picked
+    // conversation when there is one — not the new chat it is not.
+    heading() {
+      return this.target && this.target.session !== 'new' ? this.target.title : this.newLabel
     },
     // Sasonica: the words are headed for a fresh session — nothing picked,
     // or "New chat" picked outright. (The server may still route them to a
@@ -421,6 +438,19 @@ export default {
       fetchProjects(this).then((names) => {
         this.projects = names
       })
+      // Sasonica: and what the live ones are doing, for the dots.
+      this.request('GET', '/sessions/state')
+        .then((res) => {
+          const next = {}
+          for (const row of (res && res.sessions) || []) {
+            if (row && row.session) next[row.session] = row.state
+          }
+          this.states = next
+        })
+        .catch(() => {
+          // No canvas, or an older one: every live row keeps the plain dot.
+          this.states = {}
+        })
       try {
         const res = await this.request('GET', '/conversations')
         this.pickerRows = res.sessions || []
@@ -440,8 +470,20 @@ export default {
     cycleAgent() {
       this.agent = AGENTS[(AGENTS.indexOf(this.agent) + 1) % AGENTS.length]
     },
+    // Sasonica: the dots, by the shelf's rule.
+    dotClass(row) {
+      return sessionDotClass(this.states[row.session])
+    },
+    dotTitle(row) {
+      return sessionDotTitle(this.states[row.session])
+    },
     pick(row) {
       const answering = this.ambiguous
+      // A conversation picked here already has a directory — its own — and
+      // the server ignores `project` the moment a session is named. Drop it
+      // rather than leave it colouring the header and the slash menu for a
+      // tree the words are not going to.
+      if (row && this.project) this.$router.replace({ path: '/ask', query: {} }).catch(() => {})
       // "New chat" picked outright forces a fresh session, over the player
       // and the last thread alike.
       this.target = row ? { session: row.session, title: row.title } : { session: 'new', title: this.newLabel }

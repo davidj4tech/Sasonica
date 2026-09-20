@@ -52,6 +52,7 @@
 
 <script>
 import { Capacitor } from '@capacitor/core'
+import { sessionDotClass, sessionDotTitle } from '@/utils/sasonicaSessionState' // Sasonica
 
 export default {
   props: {
@@ -116,12 +117,10 @@ export default {
       return this.store.getters['sasonica/getSessionState'](this._libraryItem.path)
     },
     liveDotClass() {
-      if (this.sessionState === 'approval') return 'bg-error'
-      if (this.sessionState === 'working') return 'bg-warning animate-pulse'
-      return 'bg-success'
+      return sessionDotClass(this.sessionState)
     },
     liveDotTitle() {
-      return { working: 'working', waiting: 'waiting on you', approval: 'needs approval' }[this.sessionState] || 'session running'
+      return sessionDotTitle(this.sessionState)
     },
     media() {
       return this._libraryItem.media || {}
