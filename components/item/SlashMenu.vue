@@ -1,0 +1,25 @@
+<template>
+  <!--
+    Sasonica: the commands matching what has been typed after a `/`, above the
+    box. Newest-style command palette: the best match first, a tap fills it in.
+  -->
+  <div v-if="commands.length" class="w-full mb-1.5 rounded-sm border border-border bg-primary overflow-hidden">
+    <div v-for="command in commands" :key="command.name" class="flex items-baseline px-2 py-1.5 border-b border-border last:border-b-0" @click="$emit('select', command)">
+      <p class="text-sm text-fg flex-shrink-0">/{{ command.name }}</p>
+      <p v-if="command.description" class="text-xs text-fg-muted pl-2 truncate">{{ command.description }}</p>
+      <div class="flex-grow" />
+      <span v-if="command.terminal" class="material-symbols text-sm text-fg-muted pl-1" title="terminal only">terminal</span>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  props: {
+    commands: {
+      type: Array,
+      default: () => []
+    }
+  }
+}
+</script>

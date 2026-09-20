@@ -70,6 +70,8 @@
     </div>
 
     <div v-if="baseUrl && !session && !confirm" class="flex-shrink-0 px-3 pt-2 pb-3 border-t border-border bg-bg">
+      <!-- Sasonica: the slash menu, when a message starts with one. -->
+      <item-slash-menu :commands="slashMatches" @select="chooseSlashCommand" />
       <div class="flex items-end">
         <textarea ref="input" v-model="text" rows="1" :disabled="sending" placeholder="What shall we talk about?" class="flex-grow text-sm py-2 px-2 rounded-sm bg-bg text-fg border border-border outline-none resize-none overflow-y-auto" enterkeyhint="enter" @input="onInput" @click="stopAutoSend" @keydown.enter.ctrl.exact.prevent="send()" @keydown.enter.meta.exact.prevent="send()" />
         <ui-btn v-if="canDictate" :disabled="sending" color="primary" :padding-x="3" class="ml-2 flex items-center justify-center" @click="dictate()">
@@ -87,6 +89,7 @@
 <script>
 import { AbsSpeechInput } from '@/plugins/capacitor'
 import autoSend from '@/mixins/autoSend'
+import sasonicaSlash from '@/mixins/sasonicaSlash' // Sasonica
 
 // How long to wait for the library to show the new conversation. The first
 // turn is exported a minute after it is spoken, then Audiobookshelf has to
@@ -95,7 +98,7 @@ const ITEM_WAIT_MS = 5 * 60 * 1000
 const ITEM_POLL_MS = 3000
 
 export default {
-  mixins: [autoSend],
+  mixins: [autoSend, sasonicaSlash], // Sasonica
   data() {
     return {
       baseUrl: '',
@@ -146,6 +149,14 @@ export default {
     onInput() {
       this.stopAutoSend()
       this.grow()
+      this.onSlashInput((this.$refs.input && this.$refs.input.value) || this.text) // Sasonica
+    },
+    // Sasonica: a new chat's commands are the ones its project's directory
+    // offers; with no project named, the target session's own.
+    slashParams() {
+      if (this.project) return `project=${encodeURIComponent(this.project)}`
+      const session = this.target ? this.target.session : ''
+      return session ? `session=${encodeURIComponent(session)}` : ''
     },
     grow() {
       const el = this.$refs.input

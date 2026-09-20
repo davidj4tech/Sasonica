@@ -33,6 +33,9 @@
       <p class="text-xs text-info pl-2 flex-shrink-0">use</p>
     </div>
 
+    <!-- Sasonica: the slash menu, when a message starts with one. -->
+    <item-slash-menu :commands="slashMatches" @select="chooseSlashCommand" />
+
     <div class="flex items-end">
       <!-- A plain textarea rather than ui-text-input: this one has to grow, and
            the shared input is an <input> used by every other screen. One row
@@ -82,6 +85,7 @@
 <script>
 import { AbsSpeechInput } from '@/plugins/capacitor'
 import autoSend from '@/mixins/autoSend'
+import sasonicaSlash from '@/mixins/sasonicaSlash' // Sasonica
 
 export default {
   props: {
@@ -95,7 +99,7 @@ export default {
     // on screen right now. Comes from the log's poll, via the page.
     suggestion: String
   },
-  mixins: [autoSend],
+  mixins: [autoSend, sasonicaSlash], // Sasonica
   data() {
     return {
       baseUrl: '',
@@ -231,6 +235,11 @@ export default {
       this.stopAutoSend()
       this.grow()
       this.saveDraftSoon()
+      this.onSlashInput((this.$refs.input && this.$refs.input.value) || this.text) // Sasonica
+    },
+    // Sasonica: the menu belongs to this conversation's own directory.
+    slashParams() {
+      return this.session ? `session=${this.session}` : `item=${this.libraryItemId}`
     },
     // Half a reply, kept per session. It lives on the canvas rather than in
     // this app, so leaving a conversation half-answered for another one —
