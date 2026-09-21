@@ -10,6 +10,8 @@
 //           under it, lines appended below, no offsets): the bold stays on
 //           screen and the view is never yanked to the bottom; hand scroll →
 //           "Follow along"; "New messages ↓"; at default and Larger text
+//   keys    the top play/pause key: one or two by height, in sync, portrait,
+//           landscape, Larger
 //   skew    the bold follows /speech/now's pos when `elapsed` runs ahead
 import { spawn } from 'node:child_process'
 import path from 'node:path'
@@ -30,7 +32,7 @@ const mock = await mockAt(8811, { MOCK_SPEECH_REST_S: '0' })
 const skewMock = await mockAt(8812, { MOCK_REAL_VOICE: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['skew.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
     failed += (await run(file, env)) ? 1 : 0
   }

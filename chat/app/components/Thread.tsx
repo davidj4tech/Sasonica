@@ -77,18 +77,56 @@ function AssistantMessage() {
   // empty assistant placeholder. The WorkingIndicator is our in-progress
   // display (§14), so the placeholder draws nothing.
   const empty = useAuiState((s) => s.message.content.length === 0)
+  const bubbleRef = useRef<HTMLDivElement>(null)
+  const tall = useTallBubble(bubbleRef, !empty)
   if (empty) return null
   return (
     <MessagePrimitive.Root className={running ? 'msg agent speaking' : 'msg agent'}>
       <WorkSummary />
       <div className="bubble-row">
-        <div className="bubble">
+        <div className="bubble" ref={bubbleRef}>
           <MessagePrimitive.Parts components={partComponents} />
         </div>
-        <MessageSpeechKey />
+        {/* The play/pause key at the foot of a spoken reply, and — on a
+            reply too tall to see whole — the same key at its top, so a long
+            reply can be started or paused without scrolling to its end. Both
+            read the same state, so they always agree. */}
+        <div className="msg-keys">
+          {tall && <MessageSpeechKey />}
+          <MessageSpeechKey />
+        </div>
       </div>
     </MessagePrimitive.Root>
   )
+}
+
+/** Two keys need at least this much height to not sit on top of each other. */
+const TWO_KEYS_PX = 2 * 44 + 32
+
+/**
+ * Whether a bubble gets a second key at its top: taller than two keys, and
+ * taller than the visible band (the viewport less the sticky footer) — a
+ * reply that fits on the screen has its foot key in view already. So in
+ * landscape, where the band is short, more replies get one.
+ */
+function useTallBubble(ref: React.RefObject<HTMLElement | null>, on: boolean) {
+  const [tall, setTall] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!on || !el || typeof ResizeObserver === 'undefined') return
+    const view = el.closest<HTMLElement>('.viewport')
+    const check = () => {
+      const footer = view?.querySelector<HTMLElement>('.footer')
+      const band = (view?.clientHeight || window.innerHeight) - (footer?.offsetHeight || 0)
+      setTall(el.offsetHeight > Math.max(TWO_KEYS_PX, band))
+    }
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    if (view) ro.observe(view)
+    return () => ro.disconnect()
+  }, [ref, on])
+  return tall
 }
 
 function textOf(message: AppendMessage): string {

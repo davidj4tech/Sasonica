@@ -216,7 +216,11 @@ a { color: var(--accent); }
 
 /* Play/pause beside a spoken reply. */
 .msg.agent { max-width: 100%; }
-.bubble-row { display: flex; align-items: flex-end; gap: 2px; min-width: 0; }
+.bubble-row { display: flex; align-items: stretch; gap: 2px; min-width: 0; }
+.bubble-row .bubble { align-self: flex-start; }
+/* The keys column beside the bubble: one key at the foot, or (a tall reply) one at each end. */
+.msg-keys { flex: none; display: flex; flex-direction: column; justify-content: flex-end; }
+.msg-keys > .msg-key:first-child:not(:last-child) { margin-bottom: auto; }
 .bubble-row .bubble { min-width: 0; max-width: calc(100% - 46px); }
 .msg-key { flex: none; width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; border-radius: 50%; color: var(--muted); opacity: .75; cursor: pointer; padding: 0; }
 .msg-key .ico { width: 1.1rem; height: 1.1rem; }

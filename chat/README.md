@@ -165,7 +165,9 @@ device code and passed through.
   the bar shows only the time — the live line has the words — and a pause
   stops the bold at once (the two agree before the next log poll).
 - Play/pause beside spoken replies: ▶ on a line with a history `id`
-  (`replay-id`), pause/resume on the live line.
+  (`replay-id`), pause/resume on the live line. A reply too tall to see
+  whole (taller than the visible band) gets the same key at its top-right
+  as well; both read one state.
 - Follow-along scroll: while the live line plays, the view keeps its bold
   sentence in sight (moving only when it would leave the view, not every
   tick) instead of sticking to the bottom; a hand scroll stops it and shows
