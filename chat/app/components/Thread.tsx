@@ -43,6 +43,10 @@ import {
   type ThreadActions
 } from './parts'
 
+/** "⌘+Enter" on Apple keyboards, "Ctrl+Enter" elsewhere. */
+const SEND_KEYS =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘+Enter' : 'Ctrl+Enter'
+
 const partComponents = {
   Text: LineText,
   Image: Picture,
@@ -178,7 +182,25 @@ export function Thread(props: ThreadProps) {
               )}
               {props.status}
               <ComposerPrimitive.Root className="composer">
-                <ComposerPrimitive.Input className="input" rows={1} placeholder={props.placeholder || 'Say something back…'} />
+                {/*
+                  Enter is a new line, everywhere: a message to an agent is
+                  often several lines, and a stray Enter must not send half
+                  of one. Ctrl/Cmd+Enter sends (assistant-ui's
+                  submitMode="ctrlEnter"), and so does the button. On the
+                  phone the soft keyboard shows a return key (enterKeyHint),
+                  not "send". The box grows with its content up to maxRows,
+                  and app.css caps it further on a short (landscape) screen.
+                  The server flattens newlines when it types into the pane
+                  (§6.3 compose()), but records the text as written.
+                */}
+                <ComposerPrimitive.Input
+                  className="input"
+                  rows={1}
+                  maxRows={8}
+                  submitMode="ctrlEnter"
+                  enterKeyHint="enter"
+                  placeholder={props.placeholder || 'Say something back…'}
+                />
                 {isRunning && (
                   // STUB until §12: the button is here so the gesture exists.
                   <ComposerPrimitive.Cancel className="stop" title="Stop (not in v0)">
@@ -187,6 +209,8 @@ export function Thread(props: ThreadProps) {
                 )}
                 <ComposerPrimitive.Send className="send">↑</ComposerPrimitive.Send>
               </ComposerPrimitive.Root>
+              {/* Only where there is a real keyboard: app.css hides it on touch-only devices. */}
+              <p className="send-hint">{SEND_KEYS} to send</p>
             </ThreadPrimitive.ViewportFooter>
           </ThreadPrimitive.Viewport>
         </ThreadPrimitive.Root>
