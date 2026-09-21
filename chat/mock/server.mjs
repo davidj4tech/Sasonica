@@ -11,6 +11,11 @@
  * --static (default: build/client if it exists) it also serves the built SPA
  * on the same port, so Settings can be left blank.
  *
+ * Slow link: MOCK_DELAY_MS=2500 (or --delay 2500) holds every app-route
+ * answer that long, like the phone→red5 hop (a 39-line log took 2.1–2.5 s).
+ * `GET /mock/delay?ms=N` changes it while running (tests flip it between a
+ * cold and a cached open). Static files and pictures are never delayed.
+ *
  * Fixture sessions (all text invented):
  *   speaking  — live, a reply being spoken now (follow-along bold)
  *   approval  — live, stopped on a permission prompt (/session/answer)
@@ -18,6 +23,7 @@
  *   working   — live, a turn running (`working` steps advance)
  *   fresh     — live, not on the shelf yet (item: null)
  *   shelved   — ended, resumable, with pictures and a work summary
+ *   long      — ended, 90 lines, for the bottom-first window and scrolling
  */
 import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -32,6 +38,8 @@ const opt = (name, dflt) => {
 const PORT = Number(opt('port', process.env.MOCK_PORT || 8793))
 const here = new URL('.', import.meta.url).pathname
 const STATIC = resolve(here, '..', opt('static', 'build/client'))
+let DELAY_MS = Number(opt('delay', process.env.MOCK_DELAY_MS || 0)) || 0
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const now = () => Date.now() / 1000
 const r3 = (t) => Math.round(t * 1000) / 1000
@@ -163,6 +171,24 @@ add(
     ]
   })
 )
+
+{
+  // A long conversation, so a thread has more than the first window (20)
+  // and must be opened at its foot.
+  const lines = []
+  const base = T0 - 86400 * 3
+  for (let i = 0; i < 45; i++) {
+    lines.push(youLine(`Question ${i + 1}: what about step ${i + 1}?`, base + i * 120))
+    lines.push(
+      agentLine(
+        `Answer ${i + 1}. ` + 'This is a reply of middling length, long enough to wrap onto a few lines on a phone so the thread is properly tall. '.repeat(1 + (i % 3)),
+        base + i * 120 + 30,
+        { work: work(4 + i, ['Read a file', 'Think']) }
+      )
+    )
+  }
+  add(session(randomUUID(), 'Mock: long conversation', { live: false, state: null, at: r3(T0 - 86400 * 3 + 45 * 120), lines }))
+}
 
 // ── Derived state, per request ────────────────────────────────────────────
 
@@ -331,6 +357,12 @@ createServer(async (req, res) => {
     return res.end(svg(path.slice(5)))
   }
   if (path === '/healthz') return res.writeHead(200).end('ok')
+  if (path === '/mock/delay') {
+    DELAY_MS = Number(url.searchParams.get('ms')) || 0
+    console.log(`delay now ${DELAY_MS} ms`)
+    res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
+    return res.end(String(DELAY_MS))
+  }
 
   if (!API.has(path)) {
     if (req.method === 'GET' && serveStatic(req, res, path)) return
@@ -345,10 +377,11 @@ createServer(async (req, res) => {
   }
 
   const body = req.method === 'POST' ? await readBody(req) : {}
+  if (DELAY_MS) await sleep(DELAY_MS)
   const status = await route(req.method, path, url.searchParams, body, res)
   log(status)
 }).listen(PORT, '127.0.0.1', () => {
-  console.log(`mock canvas on http://127.0.0.1:${PORT}${existsSync(STATIC) ? ` (serving ${STATIC})` : ''}`)
+  console.log(`mock canvas on http://127.0.0.1:${PORT}${existsSync(STATIC) ? ` (serving ${STATIC})` : ''}${DELAY_MS ? `, answering after ${DELAY_MS} ms` : ''}`)
   for (const s of Object.values(S)) console.log(`  ${s.session}  ${s.title}`)
 })
 
