@@ -7,14 +7,23 @@
  * so any skew between the phone and red5 moves the bold. Sasonica's
  * ConversationLog.vue measures the interval on the local clock instead —
  * `elapsed` plus however long ago WE received it — which is skew-free; that
- * is what this does. It also borrows two of that file's measured tweaks:
- * half the round trip is added for the answer's transit, and the bold leads
- * the clock by 0.3 s, because a sentence is taken in as it starts.
+ * is what this does. The answer's transit is taken off (TRANSIT_CAP_MS),
+ * and the bold leads the clock by the per-device lead (lib/followLead.ts),
+ * because a sentence is taken in as it starts.
  */
 import type { Line } from '../api/types'
+import { getFollowLead } from './followLead'
 
-/** How far ahead of the clock the bold moves on (ConversationLog.vue). */
-export const FOLLOW_LEAD_S = 0.3
+/**
+ * How long ago, at most, `elapsed` was true when its answer arrives.
+ * MEASURED (red5, 22 Sep 2026, on the canvas's own host so one clock): the
+ * server stamps `server_time` — and ages `elapsed` to it — at the very END
+ * of /conversation/log (receive − server_time: 0.00 s median over 979
+ * polls, while the request itself took 0.2–2.6 s). So the age at receipt is
+ * the one-way trip back, not half the round trip: half a 2 s poll would
+ * push the bold ~1 s ahead. Capped at a phone→red5 hop (RTT ~0.43 s).
+ */
+const TRANSIT_CAP_MS = 250
 /** Speaking rate for the estimate when a live line has no offsets and no index. */
 const EST_CHARS_PER_S = 14
 
@@ -40,14 +49,15 @@ export function liveClockOf(line: Line, receivedAtMs: number, roundTripMs: numbe
     elapsed: Number(line.elapsed) || 0,
     delay: Number(line.delay) || 0,
     paused,
-    anchorMs: paused ? receivedAtMs : receivedAtMs - roundTripMs / 2
+    anchorMs: paused ? receivedAtMs : receivedAtMs - Math.min(roundTripMs / 2, TRANSIT_CAP_MS)
   }
 }
 
 /** The sentence to bold at local time `nowMs`, or -1. Never moves while paused. */
 export function sentenceAt(clock: LiveClock, nowMs: number): number {
   const raw = clock.paused ? clock.elapsed : clock.elapsed + (nowMs - clock.anchorMs) / 1000
-  const heard = raw - clock.delay + FOLLOW_LEAD_S
+  // The per-device lead (Settings), read per tick from a cached value.
+  const heard = raw - clock.delay + getFollowLead()
   if (!clock.offsets.length) {
     if (clock.sentence !== null && clock.sentence >= 0) return Math.min(clock.sentence, clock.sentences.length - 1)
     // Neither offsets nor an index: estimate from speaking rate, so there is

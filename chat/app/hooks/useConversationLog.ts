@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, fetchLogTail, getConversationLog } from '../api'
 import type { Approval, ConversationLog, Line, Working } from '../api/types'
 import { liveClockOf, type LiveClock } from '../lib/followAlong'
+import { unmatched, type PendingSend } from '../lib/pending'
 import { loadThread, peekThread, plainLine, saveThreadLog } from '../lib/snapshots'
 import { usePoll } from './usePoll'
 
@@ -35,8 +36,6 @@ const FAST_LINGER_MS = 20 * 1000
 const FAST_WINDOW_MS = 3 * 60 * 1000
 /** How long an ended live line is held while the server catches up. */
 const ENDED_LIVE_HOLD_MS = 30 * 1000
-/** How long an optimistic "you" line waits for its real one. */
-const OPTIMISTIC_HOLD_MS = 60 * 1000
 /**
  * A cold open (nothing cached) asks for this many newest lines first, once
  * the server supports `?tail=` (api fetchLogTail); today it gets them all.
@@ -99,8 +98,8 @@ export function useConversationLog(session: string) {
     const snap = peekThread(session)
     return snap?.lines.length ? fromSnapshot(snap.lines) : EMPTY
   })
-  // Sent from here and not yet back as a "you" line.
-  const [optimistic, setOptimistic] = useState<{ text: string; at: number }[]>([])
+  // Sent from here and not yet back as a "you" line (lib/pending.ts).
+  const [sends, setSends] = useState<PendingSend[]>([])
   const [awaiting, setAwaiting] = useState(false)
 
   const stateRef = useRef(state)
@@ -171,10 +170,8 @@ export function useConversationLog(session: string) {
         changedAtRef.current = now
       }
 
-      // Drop optimistic lines once a "you" line with the same words is back.
-      setOptimistic((opt) =>
-        opt.filter((o) => now - o.at * 1000 < OPTIMISTIC_HOLD_MS && !lines.some((l) => l.who === 'you' && l.at >= o.at - 5 && l.text.trim() === o.text.trim()))
-      )
+      // Retire sends whose own line is back (lib/pending.ts: no clocks).
+      setSends((cur) => unmatched(cur, lines, now))
 
       const liveLine = lines.find((l) => l.live)
       setState({
@@ -239,16 +236,42 @@ export function useConversationLog(session: string) {
 
   const kick = usePoll(fetchOnce, nextDelay, !!session, [session])
 
-  /** A reply was accepted: show it at once and poll fast until it lands. */
-  const sent = useCallback(
-    (text: string) => {
-      setOptimistic((o) => [...o, { text, at: Date.now() / 1000 }])
+  /**
+   * A message is going out: show it at once ("sending…"), remembering which
+   * "you" lines the thread already had, and poll fast. Returns its local id
+   * for sent() / failed().
+   */
+  const seqRef = useRef(0)
+  const sending = useCallback(
+    (text: string): string => {
+      const id = `${Date.now()}-${++seqRef.current}`
+      const before = stateRef.current.lines.filter((l) => l.who === 'you').map((l) => l.at)
+      setSends((cur) => [...cur, { id, text, at: Date.now() / 1000, before, state: 'sending' }])
       setAwaiting(true)
+      changedAtRef.current = Date.now()
+      kick()
+      return id
+    },
+    [kick]
+  )
+  /** The server took it; it stays until its own line comes back. */
+  const sent = useCallback(
+    (id: string) => {
+      setSends((cur) => cur.map((s) => (s.id === id && s.state === 'sending' ? { ...s, state: 'sent' } : s)))
       changedAtRef.current = Date.now()
       kick()
     },
     [kick]
   )
+  /** It did not go (or was typed but not taken): keep the words, with why. */
+  const failed = useCallback((id: string, error: string, untaken = false) => {
+    setSends((cur) => cur.map((s) => (s.id === id ? { ...s, state: untaken ? 'untaken' : 'failed', error } : s)))
+    setAwaiting(false)
+  }, [])
+  /** Take a failed send away (retry sends it again as a new one). */
+  const discard = useCallback((id: string) => {
+    setSends((cur) => cur.filter((s) => s.id !== id))
+  }, [])
 
   /**
    * Re-render from the answer's `approval` (the next dialog, or a 409's
@@ -261,8 +284,11 @@ export function useConversationLog(session: string) {
   }, [])
 
   const isRunning = state.pending || awaiting || !!state.working
+  // Reconciled against the lines being drawn too, not only in apply(): a
+  // line that arrived before the send was even marked never shows beside it.
+  const optimistic = useMemo(() => unmatched(sends, state.lines), [sends, state.lines])
   return useMemo(
-    () => ({ ...state, optimistic, isRunning, sent, setApproval, refresh: kick }),
-    [state, optimistic, isRunning, sent, setApproval, kick]
+    () => ({ ...state, optimistic, isRunning, sending, sent, failed, discard, setApproval, refresh: kick }),
+    [state, optimistic, isRunning, sending, sent, failed, discard, setApproval, kick]
   )
 }

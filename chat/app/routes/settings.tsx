@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { getTargets } from '../api'
 import { credentialKind, hasLegacyToken, pairedDevice, serverBase, setBaseUrl, setLegacyToken, storedBaseUrl, unpair } from '../api/auth'
+import { LEAD_DEFAULT_S, LEAD_MAX_S, LEAD_MIN_S, LEAD_STEP_S, setFollowLead, useFollowLead } from '../lib/followLead'
 import { getShowAmbient, setShowAmbient } from '../lib/pictures'
 import { getTextSize, setTextSize, TEXT_SIZES, type TextSizeId } from '../lib/textSize'
 
@@ -28,6 +29,7 @@ export default function Settings() {
   const [size, setSize] = useState<TextSizeId>(() => getTextSize())
   const [ambient, setAmbient] = useState(() => getShowAmbient())
   const [kind, setKind] = useState(() => credentialKind())
+  const lead = useFollowLead()
 
   const save = () => {
     setBaseUrl(url)
@@ -132,6 +134,24 @@ export default function Settings() {
             ))}
           </div>
           <small>On this device only. Applies at once.</small>
+        </fieldset>
+        <fieldset>
+          <legend>Follow-along lead</legend>
+          <div className="stepper" role="group" aria-label="Follow-along lead">
+            <button type="button" aria-label="Less lead" disabled={lead <= LEAD_MIN_S} onClick={() => setFollowLead(lead - LEAD_STEP_S)}>
+              −
+            </button>
+            <span className="stepper-value">{lead.toFixed(1)} s</span>
+            <button type="button" aria-label="More lead" disabled={lead >= LEAD_MAX_S} onClick={() => setFollowLead(lead + LEAD_STEP_S)}>
+              +
+            </button>
+            {lead !== LEAD_DEFAULT_S && (
+              <button type="button" className="quiet" onClick={() => setFollowLead(LEAD_DEFAULT_S)}>
+                Reset
+              </button>
+            )}
+          </div>
+          <small>How far the bold sentence runs ahead of the voice. More if the bold lags what you hear, less if it jumps ahead. On this device only.</small>
         </fieldset>
         <fieldset>
           <legend>Pictures</legend>

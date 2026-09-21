@@ -84,7 +84,7 @@ function ThreadPage({ session }: { session: string }) {
     else if (heldRef.current.seen !== log.live) heldRef.current = null
   }
   const press = barPress || heldRef.current?.press || null
-  const skew = useElapsedSkew(session, log.live, speech.now)
+  const skew = useElapsedSkew(session, log.live, speech.now, speech.nowAskedAt)
   const live = useMemo(() => {
     const clock = log.live && press ? withPaused(log.live, press.paused, press.at) : log.live
     return clock ? withSkew(clock, skew) : clock
@@ -95,27 +95,31 @@ function ThreadPage({ session }: { session: string }) {
     [session, log.lines, log.approval, live, log.optimistic]
   )
 
+  // The message shows at once ("sending…") and is replaced by the server's
+  // own line when that comes back (lib/pending.ts). A refusal keeps the
+  // words in the bubble with Retry; nothing is thrown, so the box empties.
+  const { sending, sent, failed, discard } = log
   const onSend = useCallback(
     async (text: string) => {
-      setStatus({ text: 'Sending…' })
+      const id = sending(text)
+      setStatus(null)
       try {
         const res = await reply(session, text)
+        sent(id)
         // A revived session reads the reply once it has loaded, which can
         // take a minute — "sent" there would be a small lie (§6.3).
-        setStatus({ text: res.opened ? 'Session reopened — it will pick this up shortly.' : 'Sent.' })
-        log.sent(text)
+        if (res.opened) setStatus({ text: 'Session reopened — it will pick this up shortly.' })
       } catch (err) {
-        // 502 with submitted:false: the words are in the composer but were
-        // never taken — say so rather than showing "thinking" forever.
+        // 502 with submitted:false: the words are in the pane's box but
+        // were never taken — a retry would type them twice.
         if (err instanceof ApiError && err.payload.submitted === false) {
-          setStatus({ text: `Typed into ${err.payload.pane || 'the session'} but not taken — press Enter at the desk.`, failed: true })
+          failed(id, `Typed into ${err.payload.pane || 'the session'} but not taken — press Enter at the desk.`, true)
           return
         }
-        setStatus({ text: err instanceof Error ? err.message : String(err), failed: true })
-        throw err
+        failed(id, err instanceof Error ? err.message : String(err))
       }
     },
-    [session, log]
+    [session, sending, sent, failed]
   )
 
   const onStop = useCallback(
@@ -125,8 +129,17 @@ function ThreadPage({ session }: { session: string }) {
     [session]
   )
 
+  const optimisticRef = useRef(log.optimistic)
+  optimisticRef.current = log.optimistic
   const actions = useMemo(
     () => ({
+      retry: (id: string) => {
+        const send = optimisticRef.current.find((s) => s.id === id)
+        if (!send) return
+        discard(id)
+        void onSend(send.text)
+      },
+      discard,
       answer: async (approval: Approval, choice: number) => {
         const res = await answer({ session, choice, key: approval.key })
         if (res.ok) {
@@ -142,7 +155,7 @@ function ThreadPage({ session }: { session: string }) {
         return { error: res.error, key: approval.key }
       }
     }),
-    [session, log]
+    [session, log, discard, onSend]
   )
 
   // Live: /sessions/state lists it (polled), else the list said so, else
@@ -232,25 +245,35 @@ function ThreadPage({ session }: { session: string }) {
 }
 
 /** Below this, the log's clock and the player agree well enough (pos is whole seconds). */
-const SKEW_MIN_S = 1
-const SKEW_SAMPLES = 5
+const SKEW_MIN_S = 0.5
+/** The lower envelope is taken over this many /speech/now answers (~12 s). */
+const SKEW_SAMPLES = 8
+/** E[min of 8 uniform fractions of a second]: what the envelope still over-reads. */
+const SKEW_FLOOR_BIAS_S = 0.1
 
 /**
- * How far the log's live `elapsed` runs ahead of what the listener hears.
+ * How far the log's live `elapsed` runs ahead of what the player is at.
  *
- * REALITY (red5, 22 Sep 2026, speech on the phone): `elapsed` is wall time
- * since the reply started, less pauses — but a streamed reply stalls
- * between clips, and the stalls are not taken off. Against /speech/now's
- * `pos` (the player's own position) it ran 3.5 s ahead after the first
- * clip and 14 s ahead (43.1 vs 29) forty seconds in, so the bold, and the
- * view following it, raced ahead of the voice. `delay` said 0.
+ * MEASURED (red5, 22 Sep 2026, speech on the phone, one clock): `elapsed`
+ * is wall time since the reply started, and the stalls between streamed
+ * clips are not taken off, so it runs ahead of the player — by ~1.4 s on
+ * two replies and 2.3 s on a third, drifting up within a reply as stalls
+ * add up. `delay` said 0.
  *
- * So for the thread being spoken, each /speech/now answer (every 1.5 s)
- * compares the two: the median of the last few differences, when over a
- * second, is held back from the bold as extra delay. `pos` is whole
- * seconds (+0.5 is its middle). Not playing, another thread, no `pos`: 0.
+ * `pos` (/speech/now) is the player's own position, but whole seconds, and
+ * STALE: it is the canvas's ~1 Hz speech snapshot, and /speech/now itself
+ * took 1.4–3.3 s to answer. The first version of this compared `elapsed` at
+ * the answer's ARRIVAL with pos + 0.5 and took the median, which counted the
+ * staleness as lead: it held the bold back 2.9–3.8 s against a true 1.4–2.3
+ * — the bold trailed the voice by ~1.5–1.9 s ("a little bit behind").
+ *
+ * Now: d = elapsed at the moment the /speech/now request was SENT − pos.
+ * Staleness and the fraction of a second pos drops can only make d larger
+ * than the true lead, never smaller, so the lower envelope (the minimum of
+ * the last SKEW_SAMPLES) is the estimate, less its small expected
+ * over-read. Not playing, another thread, no `pos`: 0.
  */
-function useElapsedSkew(session: string, clock: LiveClock | null, now: SpeechNow | null): number {
+function useElapsedSkew(session: string, clock: LiveClock | null, now: SpeechNow | null, askedAt: number): number {
   const [skew, setSkew] = useState(0)
   const samplesRef = useRef<number[]>([])
   const clockRef = useRef(clock)
@@ -263,13 +286,12 @@ function useElapsedSkew(session: string, clock: LiveClock | null, now: SpeechNow
   }, [sentences])
   useEffect(() => {
     const c = clockRef.current
-    if (!c || c.paused || !now?.live || now.paused || now.session !== session || typeof now.pos !== 'number') return
-    const est = c.elapsed + (Date.now() - c.anchorMs) / 1000
-    const samples = [...samplesRef.current.slice(-(SKEW_SAMPLES - 1)), est - (now.pos + 0.5)]
+    if (!c || c.paused || !askedAt || !now?.live || now.paused || now.session !== session || typeof now.pos !== 'number') return
+    const elapsedThen = c.elapsed + (askedAt - c.anchorMs) / 1000
+    const samples = [...samplesRef.current.slice(-(SKEW_SAMPLES - 1)), elapsedThen - now.pos]
     samplesRef.current = samples
-    const sorted = [...samples].sort((a, b) => a - b)
-    const median = sorted[Math.floor(sorted.length / 2)]
-    setSkew(median > SKEW_MIN_S ? Math.round(median * 10) / 10 : 0)
-  }, [now, session])
+    const floor = Math.min(...samples) - SKEW_FLOOR_BIAS_S
+    setSkew(floor > SKEW_MIN_S ? Math.round(floor * 10) / 10 : 0)
+  }, [now, askedAt, session])
   return skew
 }

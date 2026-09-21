@@ -18,6 +18,7 @@ import type { ThreadMessageLike } from '@assistant-ui/react'
 import { pictureUrl } from '../api'
 import type { Approval, AskQuestion, Line, SessionId, WorkSummary } from '../api/types'
 import type { LiveClock } from './followAlong'
+import type { PendingSend } from './pending'
 
 export const ASK_TOOL = 'AskUserQuestion'
 export const APPROVAL_TOOL = 'SessionApproval'
@@ -26,8 +27,8 @@ export const APPROVAL_TOOL = 'SessionApproval'
 export type ChatItem =
   | { kind: 'line'; session: SessionId; line: Line; live: LiveClock | null; approval: Approval | null; answeredWith: string[] }
   | { kind: 'approval'; session: SessionId; approval: Approval }
-  /** Sent from here, not yet back in the log. */
-  | { kind: 'optimistic'; session: SessionId; text: string; at: number }
+  /** Sent from here, not yet back in the log (lib/pending.ts). */
+  | { kind: 'optimistic'; session: SessionId; send: PendingSend }
 
 export interface LineCustom {
   work?: WorkSummary
@@ -36,6 +37,8 @@ export interface LineCustom {
   figure?: boolean
   live?: LiveClock | null
   optimistic?: boolean
+  /** The pending send behind an optimistic message. */
+  send?: PendingSend
   [k: string]: unknown
 }
 
@@ -60,11 +63,11 @@ type Part = Exclude<ThreadMessageLike['content'], string>[number]
 export function convertItem(item: ChatItem): ThreadMessageLike {
   if (item.kind === 'optimistic') {
     return {
-      id: `${item.session}:local:${item.at}`,
+      id: `${item.session}:local:${item.send.id}`,
       role: 'user',
-      createdAt: new Date(item.at * 1000),
-      content: [{ type: 'text', text: item.text }],
-      metadata: { custom: { optimistic: true } }
+      createdAt: new Date(item.send.at * 1000),
+      content: [{ type: 'text', text: item.send.text }],
+      metadata: { custom: { optimistic: true, send: item.send } }
     }
   }
 
@@ -146,7 +149,7 @@ export function buildItems(args: {
   lines: Line[]
   approval: Approval | null
   live: LiveClock | null
-  optimistic: { text: string; at: number }[]
+  optimistic: PendingSend[]
 }): ChatItem[] {
   const { session, lines, approval, live } = args
   const items: ChatItem[] = []
@@ -170,7 +173,7 @@ export function buildItems(args: {
       answeredWith
     })
   })
-  for (const o of args.optimistic) items.push({ kind: 'optimistic', session, ...o })
+  for (const send of args.optimistic) items.push({ kind: 'optimistic', session, send })
   if (approval && !askOnScreen) items.push({ kind: 'approval', session, approval })
   return items
 }

@@ -47,7 +47,10 @@ streamed reply whose sentences grow while it plays, starts `paused`, has
 offsets and a null `sentence`. `GET /mock/real/restart?in=N` starts them
 (`&ended=1` holds them finished); `GET /mock/voice?loop=0` stops the
 speaking fixture coming back after it ends (`loop=1` restores it);
-`POST /rename` renames any fixture (a title containing FAIL gets a 500); `MOCK_REAL_VOICE=1` makes `/speech/now`
+`POST /rename` renames any fixture (a title containing FAIL gets a 500);
+`GET /mock/reply?delay=&skew=&flatten=&fail=` makes /reply slow (the line
+lands in the log first), shifts the server clock, flattens whitespace or
+refuses; `MOCK_REAL_VOICE=1` makes `/speech/now`
 speak the streamed one with its `pos` lagging `elapsed`. The speaking thread's long reply
 (with a figure above it and ambient art on it) is one shared voice clock
 for `/speech/now`, `/speech/ctl` (every action) and the live line; it
@@ -65,11 +68,11 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 ```
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
-and runs `test/{pair,follow,keys,skew,rename,finished}.mjs` in headless
+and runs `test/{pair,follow,keys,skew,rename,finished,send}.mjs` in headless
 Chromium at phone size: pairing and the one-request thread open,
 follow-along on the real-shaped speech (default and Larger text), the top
-play/pause key (portrait, landscape, Larger), the skew correction, rename,
-and the finished speech bar. Playwright is not a
+play/pause key (portrait, landscape, Larger), the skew correction against
+a stale `pos`, rename, the finished speech bar, and the send race. Playwright is not a
 dependency; any playwright-core with its browsers in `~/.cache/ms-playwright`
 will do. Screenshots go to `$TMPDIR/sasonica-chat-shots`.
 
@@ -203,11 +206,22 @@ It passed the mock and failed on the phone because real live lines differ:
   auto-scroll. Following is now just "a live line, not paused, not taken
   over by hand"; the guard holds while paused too.
 - **`elapsed` runs ahead of the voice**: it is wall time since the reply
-  started, and stalls between streamed clips are not taken off; against
-  `/speech/now`'s `pos` it led by 3.5 s after the first clip and 14 s (43.1
-  vs 29) forty seconds in (`delay` said 0). For the thread being spoken the
-  bold is held back by the median difference (when over 1 s), so it and the
-  view follow the voice, not the clock.
+  started, and stalls between streamed clips are not taken off; measured on
+  red5 (one clock) it led the player by ~1.4 s on two replies and 2.3 s on a
+  third, drifting up as stalls add up (`delay` said 0). `/speech/now`'s
+  `pos` is the player's position but whole seconds and STALE (the canvas's
+  ~1 Hz snapshot, and the route takes 1.4–3.3 s), so the correction takes
+  the lower envelope of `elapsed`-when-asked − `pos` over the last 8
+  answers: staleness can only push that up, never down. (A first version
+  used the median at arrival, counted the staleness as lead, and held the
+  bold 1.5–1.9 s behind the voice.)
+- **`server_time` is stamped at the end of /conversation/log** (receive −
+  server_time 0.00 s over 979 polls), so `elapsed` was true one transit
+  before it arrived, not half a (slow) round trip: the anchor takes off at
+  most 0.25 s.
+- Settings → Follow-along lead (default 0.5 s, 0–2 s) nudges the bold
+  ahead or back, per device, for what no server number shows (the phone
+  player's output latency, and taking a sentence in as it starts).
 - `sentence` can be null; with no offsets either, the sentence is estimated
   from the speaking rate so there is still one to follow.
 - Pictures: `[[visual:]]` figures as a thumbnail that opens on a tap;
@@ -234,9 +248,15 @@ It passed the mock and failed on the phone because real live lines differ:
   409 re-renders the new question with "The question changed — choose again".
   An AskUserQuestion still on screen gets live buttons; answered ones are
   read-only with the choice marked.
-- Composer: `/reply {session, text}` (§10), shelved or not. "Session
-  reopened" vs "Sent"; a 502 `submitted: false` says the words are in the
-  composer but were not taken.
+- Composer: `/reply {session, text}` (§10), shelved or not. The message
+  shows at once ("sending…") and is REPLACED by the server's own line when
+  that comes back (`lib/pending.ts`): matched on the first new "you" line
+  with the same words (whitespace-normalised, a `Re: “…” —` prefix or a
+  slash-command chip allowed), never on time, so a line that arrives before
+  /reply answers, or a server clock off from the phone's, cannot show it
+  twice. A refusal keeps the words on the message with Retry / Discard; a
+  502 `submitted: false` says they are in the pane's box but were not taken.
+  "Session reopened" when `opened`.
   The composer stays usable while a turn runs (the harness queues typed input).
 - New chat: place picker (`/targets.places`) and agent picker, `/ask {text,
   target: "new", cwd, agent}`, then straight into the new thread.

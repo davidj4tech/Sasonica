@@ -26,6 +26,10 @@ export interface ThreadActions {
    * NEW question's key, so the message survives the re-render).
    */
   answer: (approval: Approval, choice: number) => Promise<{ error: string; key: string }>
+  /** Send a failed message again (it becomes a new send). */
+  retry?: (sendId: string) => void
+  /** Drop a failed message. */
+  discard?: (sendId: string) => void
 }
 export const ThreadActionsContext = createContext<ThreadActions>({ answer: async (a) => ({ error: 'not wired', key: a.key }) })
 
@@ -163,9 +167,32 @@ export function CommandChip() {
   return <span className="command-chip">{label}</span>
 }
 
+/**
+ * Under a message sent from here: "sending…" until the server takes it,
+ * nothing once it has (the bubble is replaced by the server's own line when
+ * that arrives), or what went wrong with Retry / Discard.
+ */
 export function OptimisticMark() {
-  const { optimistic } = useCustom()
-  return optimistic ? <span className="sending-mark">sending…</span> : null
+  const { optimistic, send } = useCustom()
+  const { retry, discard } = useContext(ThreadActionsContext)
+  if (!optimistic || !send) return null
+  if (send.state === 'sending') return <span className="sending-mark">sending…</span>
+  if (send.state === 'sent') return null
+  return (
+    <span className="sending-mark failed">
+      <span className="why">{send.error || 'Not sent.'}</span>
+      {send.state === 'failed' && retry && (
+        <button className="send-action" onClick={() => retry(send.id)}>
+          Retry
+        </button>
+      )}
+      {discard && (
+        <button className="send-action quiet" onClick={() => discard(send.id)}>
+          {send.state === 'failed' ? 'Discard' : 'OK'}
+        </button>
+      )}
+    </span>
+  )
 }
 
 // ── Asks and approvals (human tool UI) ────────────────────────────────────

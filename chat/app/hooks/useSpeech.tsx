@@ -55,6 +55,8 @@ export interface Finished {
 export interface Speech {
   /** The server's answer with any unconfirmed press applied; null before the first. */
   now: SpeechNow | null
+  /** Local ms the request behind `now` was SENT (its `pos` is no newer than this). */
+  nowAskedAt: number
   /** The reply that just ended (held FINISHED_HOLD_MS), or null. */
   finished: Finished | null
   /** The last press was refused: the sentence to show, briefly. */
@@ -96,6 +98,7 @@ export function useSpeechActions(): SpeechActions {
 
 export function SpeechProvider({ children }: { children: ReactNode }) {
   const [server, setServer] = useState<SpeechNow | null>(null)
+  const [serverAskedAt, setServerAskedAt] = useState(0)
   const [override, setOverride] = useState<{ o: Override; pause: { paused: boolean; at: number } | null } | null>(null)
   const [finished, setFinished] = useState<Finished | null>(null)
   const [error, setError] = useState('')
@@ -131,6 +134,7 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
       // delay as soon as this returns, and it must see `live`.
       serverRef.current = res
       setServer(res)
+      setServerAskedAt(askedAt)
       setOverride(null)
     } catch {
       // No canvas, not allowed, or the network blinked: no bar, and ask
@@ -242,6 +246,7 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Speech>(
     () => ({
       now,
+      nowAskedAt: serverAskedAt,
       finished: finishedShown,
       error,
       pausePress: override?.pause || null,
@@ -256,7 +261,7 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
       dismissFinished: () => setFinished(null),
       onSettled
     }),
-    [now, finishedShown, error, override, histIdx, publicCtl, toggle, prevTurn, nextTurn, replayLatest, replayId, onSettled]
+    [now, serverAskedAt, finishedShown, error, override, histIdx, publicCtl, toggle, prevTurn, nextTurn, replayLatest, replayId, onSettled]
   )
 
   const actions = useMemo<SpeechActions>(

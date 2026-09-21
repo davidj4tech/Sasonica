@@ -49,8 +49,8 @@
  *               (the app estimates the sentence)
  * POST /rename renames any fixture (`terminal: false` with a `why` for an
  * ended or working one); a title containing FAIL is refused 500.
- * MOCK_REAL_VOICE=1 makes /speech/now speak `real`, with the player's `pos`
- * lagging `elapsed` (pos = 0.75 × elapsed), as red5's phone lane did.
+ * MOCK_REAL_VOICE=1 makes /speech/now speak `real` with a player behind
+ * `elapsed` and a stale, slow `pos`, as red5's phone lane does.
  */
 import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -430,17 +430,26 @@ function spokenTurns() {
 
 /**
  * MOCK_REAL_VOICE=1: /speech/now reports the streaming real-shaped session
- * instead, with the player's `pos` falling behind `elapsed` as red5's did
- * (stalls between clips: pos = 0.75 × elapsed), so the app's skew
- * correction has something to correct.
+ * instead, modelled on red5 (22 Sep 2026): the player falls behind
+ * `elapsed` (stalls between clips: 1.4 s, growing 0.02 s a second), and
+ * its `pos` is STALE — a snapshot taken at most once a second, answered
+ * 1.5 s after the request arrives, as the canvas's 1 Hz speech poller and
+ * a slow /speech/now do.
  */
 const REAL_VOICE = process.env.MOCK_REAL_VOICE === '1'
+export const realPlayerPos = (elapsed) => Math.max(0, 0.98 * elapsed - 1.4)
+const realSnap = { t: 0, pos: 0 }
 function realVoiceNow() {
   const s = Object.values(S).find((x) => x.variant === 'real')
   if (!s || s.real.hold) return null
-  const pos = now() - s.real.start
-  if (pos < 0 || pos >= REAL_LEN_S) return null
-  return { ok: true, live: true, speaking: pos >= 2, paused: pos < 2, sentence: '', session: s.session, title: s.title, item: s.item, pos: Math.floor(pos * 0.75), dur: Math.ceil(REAL_LEN_S * 0.75), speed: 1, muted: false }
+  const t = now()
+  const e = t - s.real.start
+  if (e < 0 || e >= REAL_LEN_S) return null
+  if (t - realSnap.t >= 1) {
+    realSnap.t = t
+    realSnap.pos = realPlayerPos(e)
+  }
+  return { ok: true, live: true, speaking: e >= 2, paused: e < 2, sentence: '', session: s.session, title: s.title, item: s.item, pos: Math.floor(realSnap.pos), dur: Math.ceil(REAL_LEN_S), speed: 1, muted: false }
 }
 
 function speechNow() {
@@ -582,10 +591,20 @@ function logOf(s) {
 }
 
 /** A reply lands in a session: the listener's line, a turn, an answer. */
+/**
+ * How /reply behaves (GET /mock/reply?delay=&skew=&flatten=&fail= sets it):
+ * the listener's line lands in the log at once, then the answer waits
+ * `delay` ms — so a poll can bring the line back BEFORE /reply answers, the
+ * race David's phone hit. `skew` s shifts the server's `at` (its clock vs
+ * the phone's); `flatten` records the text with its whitespace flattened,
+ * as a pane would; `fail` refuses with 500.
+ */
+const REPLY = { delay: 0, skew: 0, flatten: false, fail: false }
+
 function receive(s, text) {
   const t = now()
   const into = s.real ? s.history : s.lines
-  into.push(youLine(text, t))
+  into.push(youLine(REPLY.flatten ? text.replace(/\s+/g, ' ').trim() : text, t + REPLY.skew))
   s.live = true
   s.pane = s.pane || `%${20 + Object.keys(S).length}`
   s.state = 'working'
@@ -694,6 +713,15 @@ createServer(async (req, res) => {
     for (const x of Object.values(S)) if (x.real) x.real = { start: now() + lead, appended: 0, hold }
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end('ok')
+  }
+  if (path === '/mock/reply') {
+    const q = url.searchParams
+    if (q.has('delay')) REPLY.delay = Number(q.get('delay')) || 0
+    if (q.has('skew')) REPLY.skew = Number(q.get('skew')) || 0
+    if (q.has('flatten')) REPLY.flatten = q.get('flatten') === '1'
+    if (q.has('fail')) REPLY.fail = q.get('fail') === '1'
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify(REPLY))
   }
   if (path === '/mock/voice') {
     // Tests: `?loop=0` stops the speaking fixture coming back after it ends
@@ -832,8 +860,14 @@ async function route(method, path, q, body, res) {
       s = byItem(body.item || '')
       if (!s) return err(404, 'not a conversation (no session behind it)')
     }
+    if (REPLY.fail) {
+      if (REPLY.delay) await sleep(REPLY.delay)
+      return err(500, 'could not deliver the reply')
+    }
     const opened = !s.live
     receive(s, text)
+    // The line is in the log already; the answer comes after (the race).
+    if (REPLY.delay) await sleep(REPLY.delay)
     return ok({ session: s.session, pane: s.pane, opened, submitted: true })
   }
 
@@ -904,7 +938,12 @@ async function route(method, path, q, body, res) {
     return ok({ session: s.session, title, terminal: !why, why })
   }
 
-  if (method === 'GET' && path === '/speech/now') return ok(speechNow())
+  if (method === 'GET' && path === '/speech/now') {
+    const answer = speechNow()
+    // The real-voice model answers slowly, with the pos it read on arrival.
+    if (REAL_VOICE && answer.session && S[answer.session]?.variant === 'real') await sleep(1500)
+    return ok(answer)
+  }
 
   if (method === 'POST' && path === '/speech/ctl') {
     const out = speechCtl(String(body.action || ''), body.arg)
