@@ -26,6 +26,7 @@ import {
 } from '@assistant-ui/react'
 import { useCallback, useMemo, useRef, type ReactNode } from 'react'
 import type { Working } from '../api/types'
+import { useBottomFirst } from '../hooks/useBottomFirst'
 import { APPROVAL_TOOL, ASK_TOOL, convertItem, type ChatItem } from '../lib/convert'
 import {
   ApprovalToolUI,
@@ -120,7 +121,11 @@ export interface ThreadProps {
 }
 
 export function Thread(props: ThreadProps) {
-  const { items, isRunning, suggestion, onSend } = props
+  const { isRunning, suggestion, onSend } = props
+  // Newest messages first, older ones added above once those are painted
+  // (hooks/useBottomFirst.ts). Mount one Thread per conversation.
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const items = useBottomFirst(props.items, viewportRef)
 
   const onNew = useCallback(
     async (message: AppendMessage) => {
@@ -161,7 +166,7 @@ export function Thread(props: ThreadProps) {
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadActionsContext.Provider value={props.actions}>
         <ThreadPrimitive.Root className="thread">
-          <ThreadPrimitive.Viewport className="viewport">
+          <ThreadPrimitive.Viewport className="viewport" ref={viewportRef}>
             {items.length === 0 && props.empty}
             <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
             <WorkingIndicator working={props.working} workingAt={props.workingAt} thinking={props.thinking} />
