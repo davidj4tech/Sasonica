@@ -42,6 +42,18 @@ CORS for the app routes, so the bundle can be served from anywhere
 (`pnpm dev`, or `pnpm mock` for its static server). Reading is safe; sending,
 answering and starting chats are real.
 
+## Preview on a phone
+
+```
+pnpm build
+SASONICA_CHAT_TOKEN=<bearer> node serve.mjs --host <tailnet ip> --port 8795
+```
+
+Serves the bundle with the SPA fallback, and prints a one-time pairing link
+(`/pair?c=…`, 30 minutes) that stores the token in the phone's browser, so the
+token is never typed or pasted. Blank server address = this host on 8781, so
+serving from the canvas's machine needs no Settings at all.
+
 ## Layout
 
 | Path | What |
