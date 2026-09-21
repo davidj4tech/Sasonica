@@ -76,6 +76,8 @@ export default {
     },
     entityTitle() {
       if (this.page === 'library') {
+        // Sasonica: a conversation library holds chats, not books
+        if (this.isConversations) return this.$strings.LabelChats
         return this.isPodcast ? this.$strings.LabelPodcasts : this.$strings.LabelBooks
       } else if (this.page === 'playlists') {
         return this.$strings.ButtonPlaylists
