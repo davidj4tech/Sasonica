@@ -18,6 +18,9 @@
 
     `?session=<uuid>&title=<name>`, from the drawer's list of running
     sessions: the words go to that session, as if it had been picked here.
+
+    `?cwd=<directory>`, from the canvas's own list of places: a fresh session
+    in that directory. Same as `project=`, without a library in the middle.
   -->
   <div class="w-full h-full flex flex-col bg-bg">
     <div class="flex items-center px-3 py-2 border-b border-border flex-shrink-0">
@@ -47,11 +50,11 @@
           <span class="material-symbols text-lg text-fg-muted">add_comment</span>
           <p class="text-sm pl-2">{{ newLabel }}</p>
         </div>
-        <!-- Sasonica: the projects — a fresh session in that directory. -->
+        <!-- Sasonica: the places — a fresh session in that directory. -->
         <template v-if="!ambiguous && projects.length">
-          <div v-for="name in projects" :key="`project-${name}`" class="flex items-center py-2 pl-6 border-b border-border" @click="pickProject(name)">
+          <div v-for="place in projects" :key="`place-${place.path}`" class="flex items-center py-2 pl-6 border-b border-border" @click="pickProject(place)">
             <span class="material-symbols text-lg text-fg-muted">folder</span>
-            <p class="text-sm pl-2 truncate">{{ name }}</p>
+            <p class="text-sm pl-2 truncate">{{ place.name }}</p>
           </div>
         </template>
         <div v-for="row in pickerRows" :key="row.session" class="flex items-center py-2 border-b border-border" @click="pick(row)">
@@ -125,7 +128,7 @@
 import { AbsSpeechInput } from '@/plugins/capacitor'
 import autoSend from '@/mixins/autoSend'
 import sasonicaSlash from '@/mixins/sasonicaSlash' // Sasonica
-import { fetchProjects } from '@/utils/sasonicaProjects' // Sasonica
+import { fetchTargets } from '@/utils/sasonicaTargets' // Sasonica
 import { sessionDotClass, sessionDotTitle } from '@/utils/sasonicaSessionState' // Sasonica
 
 // How long to wait for the library to show the new conversation. The first
@@ -187,8 +190,14 @@ export default {
     project() {
       return String(this.$route.query.project || '').trim()
     },
+    // Sasonica: or a place from the canvas's own list, which names the
+    // directory outright instead of a series.
+    cwd() {
+      return String(this.$route.query.cwd || '').trim()
+    },
     newLabel() {
-      return this.project ? `New chat in ${this.project}` : 'New chat'
+      const where = this.project || this.cwd.split('/').filter(Boolean).pop() || ''
+      return where ? `New chat in ${where}` : 'New chat'
     },
     // Sasonica: the title names the destination, which is the picked
     // conversation when there is one — not the new chat it is not.
@@ -224,7 +233,8 @@ export default {
     slashParams() {
       const session = this.target && this.target.session !== 'new' ? this.target.session : ''
       if (session) return `session=${encodeURIComponent(session)}`
-      return this.project ? `project=${encodeURIComponent(this.project)}` : ''
+      if (this.project) return `project=${encodeURIComponent(this.project)}`
+      return this.cwd ? `cwd=${encodeURIComponent(this.cwd)}` : ''
     },
     grow() {
       const el = this.$refs.input
@@ -263,16 +273,17 @@ export default {
       const playing = this.$store.state.currentPlaybackSession?.libraryItemId || ''
       const body = {
         text,
-        target: this.target ? this.target.session : forceNew || this.project ? 'new' : '',
+        target: this.target ? this.target.session : forceNew || this.project || this.cwd ? 'new' : '',
         player_item: playing,
         sticky: this.sticky?.session || '',
         // A picked target is the answer; the words are not read for one.
         // Nor from a project's page: a chat there was asked for.
-        parse: !this.target && !forceNew && !this.project,
+        parse: !this.target && !forceNew && !this.project && !this.cwd,
         // Sasonica: a picked conversation has its own directory, and the
         // router clears the query a tick later than a pick that sends at
         // once (answering "which conversation?"), so say so here too.
         project: this.target ? '' : this.project,
+        cwd: this.target ? '' : this.cwd,
         // Sasonica: only a fresh session takes an agent.
         agent: this.isNew || forceNew ? this.agent : ''
       }
@@ -428,11 +439,6 @@ export default {
     async openPicker() {
       this.ambiguous = false
       this.pickerOpen = true
-      // Sasonica: the projects come from the library, the sessions from the
-      // canvas; neither waits on the other.
-      fetchProjects(this).then((names) => {
-        this.projects = names
-      })
       // Sasonica: and what the live ones are doing, for the dots.
       this.request('GET', '/sessions/state')
         .then((res) => {
@@ -446,19 +452,18 @@ export default {
           // No canvas, or an older one: every live row keeps the plain dot.
           this.states = {}
         })
-      try {
-        const res = await this.request('GET', '/conversations')
-        this.pickerRows = res.sessions || []
-      } catch (error) {
-        this.pickerRows = []
-      }
+      // Sasonica: one call for both halves — the directories a fresh chat
+      // can open in, and the conversations it could go to instead.
+      const { places, sessions } = await fetchTargets(this)
+      this.projects = places
+      this.pickerRows = sessions
     },
-    // Sasonica: a project picked here is the same as arriving from its page —
-    // a fresh session in its directory, and the query says so.
-    pickProject(name) {
+    // Sasonica: a place picked here is the same as arriving from a project's
+    // page — a fresh session in that directory, and the query says so.
+    pickProject(place) {
       this.pickerOpen = false
       this.target = null
-      this.$router.replace({ path: '/ask', query: { project: name } }).catch(() => {})
+      this.$router.replace({ path: '/ask', query: { cwd: place.path } }).catch(() => {})
       this.$nextTick(() => this.$refs.input?.focus())
     },
     // Sasonica: round the agents — three of them, so a chip beats a menu.

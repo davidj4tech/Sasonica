@@ -69,7 +69,7 @@
 
 <script>
 import TouchEvent from '@/objects/TouchEvent'
-import { fetchTargets } from '@/utils/sasonicaProjects' // Sasonica
+import { fetchTargets } from '@/utils/sasonicaTargets' // Sasonica
 
 export default {
   data() {
