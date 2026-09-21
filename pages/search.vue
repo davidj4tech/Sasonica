@@ -10,7 +10,8 @@
       <div v-if="!isFetching && lastSearch && !totalResults" class="w-full py-8 flex justify-center">
         <p class="text-lg text-fg-muted">{{ $strings.MessageNoItemsFound }}</p>
       </div>
-      <p v-if="bookResults.length" class="font-semibold text-sm mb-1">{{ $strings.LabelBooks }}</p>
+      <!-- Sasonica: chats in a conversation library -->
+      <p v-if="bookResults.length" class="font-semibold text-sm mb-1">{{ isConversations ? $strings.LabelChats : $strings.LabelBooks }}</p>
       <template v-for="item in bookResults">
         <div :key="item.libraryItem.id" class="w-full h-16 py-1">
           <nuxt-link :to="`/item/${item.libraryItem.id}`">
