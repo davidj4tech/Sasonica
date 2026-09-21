@@ -19,7 +19,8 @@ import { useConversationLog } from '../hooks/useConversationLog'
 import { useSpeech } from '../hooks/useSpeech'
 import { knownLive, knownTitle, useSessionStates } from '../hooks/useThreads'
 import { buildItems } from '../lib/convert'
-import { withPaused, type LiveClock } from '../lib/followAlong'
+import { withPaused, withSkew, type LiveClock } from '../lib/followAlong'
+import type { SpeechNow } from '../api/types'
 
 type Status = { text: string; failed?: boolean } | null
 
@@ -60,7 +61,11 @@ function ThreadPage({ session }: { session: string }) {
     else if (heldRef.current.seen !== log.live) heldRef.current = null
   }
   const press = barPress || heldRef.current?.press || null
-  const live = useMemo(() => (log.live && press ? withPaused(log.live, press.paused, press.at) : log.live), [log.live, press])
+  const skew = useElapsedSkew(session, log.live, speech.now)
+  const live = useMemo(() => {
+    const clock = log.live && press ? withPaused(log.live, press.paused, press.at) : log.live
+    return clock ? withSkew(clock, skew) : clock
+  }, [log.live, press, skew])
 
   const items = useMemo(
     () => buildItems({ session, lines: log.lines, approval: log.approval, live, optimistic: log.optimistic }),
@@ -170,3 +175,45 @@ function ThreadPage({ session }: { session: string }) {
   )
 }
 
+/** Below this, the log's clock and the player agree well enough (pos is whole seconds). */
+const SKEW_MIN_S = 1
+const SKEW_SAMPLES = 5
+
+/**
+ * How far the log's live `elapsed` runs ahead of what the listener hears.
+ *
+ * REALITY (red5, 22 Sep 2026, speech on the phone): `elapsed` is wall time
+ * since the reply started, less pauses — but a streamed reply stalls
+ * between clips, and the stalls are not taken off. Against /speech/now's
+ * `pos` (the player's own position) it ran 3.5 s ahead after the first
+ * clip and 14 s ahead (43.1 vs 29) forty seconds in, so the bold, and the
+ * view following it, raced ahead of the voice. `delay` said 0.
+ *
+ * So for the thread being spoken, each /speech/now answer (every 1.5 s)
+ * compares the two: the median of the last few differences, when over a
+ * second, is held back from the bold as extra delay. `pos` is whole
+ * seconds (+0.5 is its middle). Not playing, another thread, no `pos`: 0.
+ */
+function useElapsedSkew(session: string, clock: LiveClock | null, now: SpeechNow | null): number {
+  const [skew, setSkew] = useState(0)
+  const samplesRef = useRef<number[]>([])
+  const clockRef = useRef(clock)
+  clockRef.current = clock
+  const sentences = clock?.sentences[0] || ''
+  // A new reply starts afresh.
+  useEffect(() => {
+    samplesRef.current = []
+    setSkew(0)
+  }, [sentences])
+  useEffect(() => {
+    const c = clockRef.current
+    if (!c || c.paused || !now?.live || now.paused || now.session !== session || typeof now.pos !== 'number') return
+    const est = c.elapsed + (Date.now() - c.anchorMs) / 1000
+    const samples = [...samplesRef.current.slice(-(SKEW_SAMPLES - 1)), est - (now.pos + 0.5)]
+    samplesRef.current = samples
+    const sorted = [...samples].sort((a, b) => a - b)
+    const median = sorted[Math.floor(sorted.length / 2)]
+    setSkew(median > SKEW_MIN_S ? Math.round(median * 10) / 10 : 0)
+  }, [now, session])
+  return skew
+}

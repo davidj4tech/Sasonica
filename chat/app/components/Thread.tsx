@@ -24,7 +24,7 @@ import {
   type ExternalThreadQueueAdapter,
   type ThreadSuggestion
 } from '@assistant-ui/react'
-import { useCallback, useMemo, useRef, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
 import { useFollowAlong } from '../hooks/useFollowAlong'
@@ -109,6 +109,21 @@ function useStop(onStop: (speech: 'auto' | 'silence') => void) {
   }, [onStop])
 }
 
+/**
+ * How many messages arrived below the live line since it went live — shown
+ * as a hint instead of scrolling to them (the view is following the voice).
+ * Resets with each new live line.
+ */
+function useNewBelow(items: ChatItem[], liveIndex: number, liveKey: number | null): number {
+  const below = liveIndex >= 0 ? items.length - 1 - liveIndex : 0
+  const [base, setBase] = useState<{ key: number | null; below: number }>({ key: liveKey, below })
+  useEffect(() => {
+    if (base.key !== liveKey) setBase({ key: liveKey, below })
+  }, [liveKey, below, base.key])
+  if (liveKey === null || base.key !== liveKey) return 0
+  return Math.max(0, below - base.below)
+}
+
 export interface ThreadProps {
   items: ChatItem[]
   isRunning: boolean
@@ -139,16 +154,26 @@ export function Thread(props: ThreadProps) {
   const items = useBottomFirst(props.items, viewportRef)
   // While the live line plays, the view follows its bold sentence instead
   // of sticking to the bottom (hooks/useFollowAlong.ts).
-  const liveItem = props.items.find((i) => i.kind === 'line' && i.live)
+  // Driven only by "this thread has a live line" and "it is not paused" —
+  // never by how many messages there are or what follows the live one.
+  const liveIndex = props.items.findIndex((i) => i.kind === 'line' && !!i.live)
+  const liveItem = liveIndex >= 0 ? props.items[liveIndex] : undefined
   const liveClock = liveItem?.kind === 'line' ? liveItem.live : null
-  const follow = useFollowAlong(viewportRef, liveItem?.kind === 'line' && liveClock ? liveItem.line.at : null, !!liveClock && !liveClock.paused)
+  const liveKey = liveItem?.kind === 'line' && liveClock ? liveItem.line.at : null
+  const follow = useFollowAlong(viewportRef, liveKey, !!liveClock && !liveClock.paused)
+  const newBelow = useNewBelow(props.items, liveIndex, liveKey)
 
+  const { toFoot, guarded } = follow
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const text = textOf(message)
-      if (text) await onSend(text)
+      if (!text) return
+      await onSend(text)
+      // A send is the reader taking over: show them their words, even
+      // while a reply is being followed.
+      if (guarded) toFoot()
     },
-    [onSend]
+    [onSend, guarded, toFoot]
   )
   const onCancel = useStop(props.onStop)
 
@@ -182,15 +207,24 @@ export function Thread(props: ThreadProps) {
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadActionsContext.Provider value={props.actions}>
         <ThreadPrimitive.Root className="thread">
-          <ThreadPrimitive.Viewport className="viewport" ref={viewportRef} autoScroll={!follow.following} scrollToBottomOnRunStart={!follow.following}>
+          <ThreadPrimitive.Viewport className="viewport" ref={viewportRef} autoScroll={!follow.guarded} scrollToBottomOnRunStart={!follow.guarded}>
             {items.length === 0 && props.empty}
             <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
             <WorkingIndicator working={props.working} workingAt={props.workingAt} thinking={props.thinking} />
             <ThreadPrimitive.ViewportFooter className="footer">
-              {follow.detached && (
-                <button className="follow-pill" onClick={follow.resume}>
-                  Follow along
-                </button>
+              {(follow.detached || (newBelow > 0 && follow.guarded)) && (
+                <div className="float-pills">
+                  {follow.detached && (
+                    <button className="follow-pill" onClick={follow.resume}>
+                      Follow along
+                    </button>
+                  )}
+                  {newBelow > 0 && follow.guarded && (
+                    <button className="follow-pill new-below" onClick={follow.toFoot}>
+                      {newBelow === 1 ? 'New message' : `${newBelow} new messages`} ↓
+                    </button>
+                  )}
+                </div>
               )}
               {props.speechBar}
               {suggestion && (

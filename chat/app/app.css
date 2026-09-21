@@ -210,7 +210,9 @@ a { color: var(--accent); }
 .skey.big .ico { width: 1.8rem; height: 1.8rem; }
 
 /* Shown when the reader scrolled away from the sentence being spoken. */
-.follow-pill { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); min-height: 44px; padding: 0 18px; border-radius: 99px; border: 1px solid var(--accent); background: var(--panel); color: var(--accent); font-weight: 600; box-shadow: 0 4px 14px #0006; cursor: pointer; white-space: nowrap; }
+.float-pills { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); display: flex; justify-content: center; gap: 8px; pointer-events: none; flex-wrap: wrap; padding: 0 8px; }
+.follow-pill { pointer-events: auto; min-height: 44px; padding: 0 18px; border-radius: 99px; border: 1px solid var(--accent); background: var(--panel); color: var(--accent); font-weight: 600; box-shadow: 0 4px 14px #0006; cursor: pointer; white-space: nowrap; }
+.follow-pill.new-below { border-color: var(--line); color: inherit; font-weight: 500; }
 
 /* Play/pause beside a spoken reply. */
 .msg.agent { max-width: 100%; }

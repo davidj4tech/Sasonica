@@ -3,29 +3,46 @@
  *
  * A thread normally sticks to its bottom (assistant-ui's auto-scroll). While
  * a live line is being spoken that is wrong: a reply taller than the screen
- * keeps its foot in view and the bold sentence — near the top of the reply,
- * early on — goes off the top. So while the live line plays, this takes
- * over: the page's Viewport gets `autoScroll={false}` (the `following` this
- * returns), and every FOLLOW_TICK_MS the bold sentence is checked against
- * the visible band — the viewport less the sticky footer (composer, speech
- * bar). Only when it is leaving that band does the view move, smoothly, to
- * put the sentence's top at FOLLOW_AT of the band: a little above the
- * middle, so it can advance a good way before the next move. No move per
- * tick, so no jitter.
+ * keeps its foot in view and the bold sentence goes off the top. So while
+ * this thread has a live line, this hook owns the viewport's scrolling:
  *
- * A reader who scrolls by hand (wheel, touch drag, paging keys) is left
- * alone: following stops and `detached` is set, for a "Follow along" pill
- * that calls `resume()`. A new live line starts following again.
+ * - FOLLOWING = a live line exists in this thread, it is not paused, and the
+ *   reader has not taken over. Nothing else — not the number of messages,
+ *   not lines appended after the live one, not `working` updates, not the
+ *   live line's sentences growing — starts or stops it. Every
+ *   FOLLOW_TICK_MS the bold sentence is checked against the visible band
+ *   (the viewport less the sticky footer); only when it is leaving the band
+ *   does the view move, smoothly, to put it at FOLLOW_AT of the band.
  *
- * Paused: nothing moves, and the thread's normal behaviour is back (the
- * auto-scroll re-reads "at the bottom?" when it is re-enabled). Ended: if
- * the reader was following, the view goes to the foot, where the thread
- * normally sits.
+ * - THE GUARD: while a live line exists (paused or not), every
+ *   `viewport.scrollTo` that is not this hook's own is dropped. That is the
+ *   only way assistant-ui scrolls (useThreadViewportAutoScroll, 0.15.x), and
+ *   `autoScroll={false}` is NOT enough to stop it: once any scroll-to-bottom
+ *   was requested (initialize, run start, a send) while the view was already
+ *   at the bottom, no scroll event ever clears its "scrolling to bottom"
+ *   flag, and from then on EVERY content resize scrolls to the bottom,
+ *   whatever `autoScroll` says. Real replies resize constantly (the live
+ *   line's text streams in, `working` steps change, lines are appended), so
+ *   on the phone the view was yanked to the bottom again and again. (The
+ *   browser's own scroll anchoring and the reader's hand are not scrollTo
+ *   calls and are untouched.)
  *
- * Sits beside hooks/useBottomFirst.ts: that pin owns the first moments of
- * a thread (FOLLOW_START_MS), and its settle ends well before this starts.
+ * - A reader who scrolls by hand (wheel, touch drag, paging keys) is left
+ *   alone: following stops and `detached` is set, for a "Follow along" pill
+ *   that calls `resume()`. A new live line starts following again.
+ *
+ * - Messages that arrive below the live line while it plays do not move the
+ *   view; the thread shows a "New messages ↓" hint instead (`toFoot()`).
+ *
+ * - Paused: nothing moves. Ended: if the reader was following, the view goes
+ *   to the foot, where the thread normally sits; if not, their place is
+ *   kept, and assistant-ui's pending scroll-to-bottom (if any) is cancelled
+ *   the way its own code cancels it on a pointer press.
+ *
+ * Sits beside hooks/useBottomFirst.ts: that pin (scrollTop writes, not
+ * scrollTo) owns the first moments of a thread (FOLLOW_START_MS).
  */
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
 const FOLLOW_TICK_MS = 250
 /** Let useBottomFirst's opening pin settle first. */
@@ -39,13 +56,60 @@ const SCROLL_SETTLE_MS = 700
 
 const PAGING_KEYS = new Set(['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'Home', 'End', ' '])
 
+/**
+ * @param liveKey  the live line's identity (its `at`), or null when this
+ *                 thread has none
+ * @param playing  the live line is not paused
+ */
 export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveKey: number | null, playing: boolean) {
   const [detached, setDetached] = useState(false)
   const [ready, setReady] = useState(false)
   const movingUntilRef = useRef(0)
   const followedRef = useRef(false)
 
-  const following = ready && liveKey !== null && playing && !detached
+  const hasLive = liveKey !== null
+  const following = ready && hasLive && playing && !detached
+
+  // ── The guard ───────────────────────────────────────────────────────────
+  const guardRef = useRef(false)
+  guardRef.current = hasLive
+  const ownRef = useRef(false)
+  /** Blocked foreign scrolls, for tests and debugging (window.__followBlocked). */
+  const blockedRef = useRef(0)
+
+  useLayoutEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const native = el.scrollTo
+    // An own property shadows Element.prototype.scrollTo for this element
+    // only; removed again on unmount.
+    el.scrollTo = function guarded(this: HTMLElement, ...args: unknown[]) {
+      if (guardRef.current && !ownRef.current) {
+        blockedRef.current += 1
+        ;(window as unknown as { __followBlocked?: number }).__followBlocked = blockedRef.current
+        return
+      }
+      return (native as (...a: unknown[]) => void).apply(this, args)
+    } as typeof el.scrollTo
+    return () => {
+      delete (el as { scrollTo?: unknown }).scrollTo
+    }
+  }, [viewportRef])
+
+  /** This hook's own scroll: the only kind the guard lets through. */
+  const scrollOwn = useCallback(
+    (top: number, behavior: ScrollBehavior) => {
+      const el = viewportRef.current
+      if (!el) return
+      ownRef.current = true
+      try {
+        el.scrollTo({ top, behavior })
+      } finally {
+        ownRef.current = false
+      }
+    },
+    [viewportRef]
+  )
 
   useEffect(() => {
     const t = window.setTimeout(() => setReady(true), FOLLOW_START_MS)
@@ -81,9 +145,9 @@ export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveK
       const target = Math.max(0, Math.min(max, top))
       if (Math.abs(target - el.scrollTop) < 4) return
       movingUntilRef.current = Date.now() + SCROLL_SETTLE_MS
-      el.scrollTo({ top: target, behavior: 'smooth' })
+      scrollOwn(target, 'smooth')
     },
-    [viewportRef]
+    [viewportRef, scrollOwn]
   )
 
   // The tick, while following.
@@ -95,11 +159,12 @@ export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveK
     return () => window.clearInterval(id)
   }, [following, place])
 
-  // A hand on the scroll stops following. Programmatic scrolls fire none of
-  // these, so the tick's own moves never detach it.
+  // A hand on the scroll stops following — listened for whenever there is a
+  // live line, paused or not, so a reader who scrolls during a pause gets
+  // the pill too. Programmatic scrolls fire none of these.
   useEffect(() => {
     const el = viewportRef.current
-    if (!el || !following) return
+    if (!el || !hasLive) return
     const off = () => {
       movingUntilRef.current = 0
       followedRef.current = false
@@ -118,15 +183,29 @@ export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveK
       el.removeEventListener('touchmove', off)
       window.removeEventListener('keydown', onKey)
     }
-  }, [following, viewportRef])
+  }, [hasLive, viewportRef])
 
-  // The reply ended while it was being followed: back to the foot.
+  // The reply ended. Following it: back to the foot. Not following: stay
+  // put, and cancel whatever scroll-to-bottom assistant-ui still has
+  // pending (its viewport drops it on a pointerdown), so lifting the guard
+  // does not yank the reader down on the next resize.
+  const hadLiveRef = useRef(false)
   useEffect(() => {
-    if (liveKey !== null || !followedRef.current) return
-    followedRef.current = false
+    if (hasLive) {
+      hadLiveRef.current = true
+      return
+    }
+    if (!hadLiveRef.current) return
+    hadLiveRef.current = false
     const el = viewportRef.current
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [liveKey, viewportRef])
+    if (!el) return
+    if (followedRef.current) {
+      followedRef.current = false
+      scrollOwn(el.scrollHeight, 'smooth')
+    } else {
+      el.dispatchEvent(new Event('pointerdown'))
+    }
+  }, [hasLive, viewportRef, scrollOwn])
 
   const resume = useCallback(() => {
     setDetached(false)
@@ -135,5 +214,25 @@ export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveK
     window.requestAnimationFrame(() => place(true))
   }, [place])
 
-  return { following, detached: detached && liveKey !== null && playing, resume }
+  /** To the foot of the thread (the "New messages" hint, or a send): the reader takes over. */
+  const toFoot = useCallback(() => {
+    const el = viewportRef.current
+    if (!el) return
+    if (hasLive) {
+      followedRef.current = false
+      setDetached(true)
+    }
+    movingUntilRef.current = 0
+    scrollOwn(el.scrollHeight, 'smooth')
+  }, [viewportRef, hasLive, scrollOwn])
+
+  return {
+    following,
+    /** The reader took over from a live line: offer "Follow along". */
+    detached: detached && hasLive,
+    /** A live line exists: assistant-ui's own scrolling is held off. */
+    guarded: hasLive,
+    resume,
+    toFoot
+  }
 }

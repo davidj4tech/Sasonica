@@ -50,7 +50,7 @@ function LiveText({ text, clock }: { text: string; clock: LiveClock }) {
   // A quarter-second tick is what moves the bold between polls.
   const now = useTick(!clock.paused, 250)
   const current = sentenceAt(clock, now)
-  const parts = liveParts(text, clock.sentences)
+  const { parts, tail } = liveParts(text, clock.sentences)
   return (
     <p className="line-text live-text">
       {parts.map((p, i) => (
@@ -59,6 +59,8 @@ function LiveText({ text, clock }: { text: string; clock: LiveClock }) {
           <span className={i === current ? 'sentence now' : i < current ? 'sentence said' : 'sentence'}>{p.text}</span>
         </span>
       ))}
+      {/* Not rendered to speech yet: shown, never bold (the sentences grow into it). */}
+      {tail && <span className="sentence pending">{tail}</span>}
     </p>
   )
 }

@@ -37,6 +37,18 @@
  *               repliable by session all the same (§10)
  *   shelved   — ended, resumable, with pictures and a work summary
  *   long      — ended, 90 lines, for the bottom-first window and scrolling
+ *   real      — shaped like red5's live data (22 Sep 2026), on its own loop
+ *               (REAL_LEN_S spoken, REAL_REST_S quiet): the live line's
+ *               `sentences`/`offsets` GROW while it plays (the first poll
+ *               covers ~40 % of the text) and the offsets are revised;
+ *               `sentence` is null; the first ~2 s say `paused: true`; the
+ *               turn is `pending` with `working` steps changing every poll;
+ *               and lines are APPENDED below the live one mid-speech, so it
+ *               stops being the last line
+ *   nooffsets — live, `offsets: []` and `sentence: null`, `elapsed` advancing
+ *               (the app estimates the sentence)
+ * MOCK_REAL_VOICE=1 makes /speech/now speak `real`, with the player's `pos`
+ * lagging `elapsed` (pos = 0.75 × elapsed), as red5's phone lane did.
  */
 import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -217,6 +229,90 @@ add(
   add(session(randomUUID(), 'Mock: long conversation', { live: false, state: null, at: r3(T0 - 86400 * 3 + 45 * 120), lines }))
 }
 
+// ── Real-shaped speech (red5, 22 Sep 2026) ───────────────────────────────
+//
+// Each has its own clock (s.real = {start, len}); it is live for len
+// seconds, rests REAL_REST_S, then starts over with the appended lines gone.
+const REAL_LEN_S = Number(process.env.MOCK_REAL_LEN_S ?? 70)
+const REAL_REST_S = Number(process.env.MOCK_REAL_REST_S ?? 8)
+const REAL_SENTENCES = Array.from({ length: 22 }, (_, i) =>
+  [
+    `Point ${i + 1} of the long reply, spoken the way red5 streams it.`,
+    'Its clips render a few at a time, so the list of sentences grows while the voice is already speaking.',
+    'The page must show the whole text from the start and let the bold walk down it.'
+  ][i % 3]
+)
+const REAL_TEXT = REAL_SENTENCES.join(' ')
+const REAL_STEP_S = REAL_LEN_S / REAL_SENTENCES.length
+function realHistory(base) {
+  const lines = []
+  for (let i = 0; i < 6; i++) {
+    lines.push(youLine(`Earlier question ${i + 1}, so the thread scrolls.`, base + i * 60))
+    lines.push(agentLine(`Earlier answer ${i + 1}. ` + 'A reply of middling length that wraps onto a few lines on a phone. '.repeat(2), base + i * 60 + 20))
+  }
+  return lines
+}
+function realSession(title, variant) {
+  const base = T0 - 3600
+  const s = session(randomUUID(), title, { pane: variant === 'real' ? '%16' : '%17', state: 'working', variant })
+  s.history = [...realHistory(base), youLine('Tell me everything, at length.', base + 900)]
+  s.reply = agentLine(REAL_TEXT, base + 960)
+  s.real = { start: now() + 3, appended: 0 }
+  return add(s)
+}
+realSession('Mock: real speech (streaming, appends)', 'real')
+realSession('Mock: real speech (no offsets)', 'nooffsets')
+
+/** The real-shaped sessions' lines and turn state, at this moment. */
+function realState(s) {
+  const t = now()
+  let pos = t - s.real.start
+  if (!s.real.hold && pos > REAL_LEN_S + REAL_REST_S) {
+    s.real = { start: t, appended: 0 }
+    pos = 0
+  }
+  const lines = [...s.history]
+  const speaking = !s.real.hold && pos >= 0 && pos < REAL_LEN_S
+  if (!speaking) {
+    lines.push({ ...s.reply, id: s.reply.id })
+    s.pending = false
+    s.working = null
+    s.state = 'waiting'
+    return { lines }
+  }
+  // Clips render ahead of the voice, a few sentences at a time: at first
+  // ~40 % of the text, then +3 sentences every 4 s.
+  const n = Math.min(REAL_SENTENCES.length, Math.ceil(REAL_SENTENCES.length * 0.4) + 3 * Math.floor(pos / 4))
+  const sentences = REAL_SENTENCES.slice(0, n)
+  // Offsets revised as clips land: the not-yet-reached ones drift by a
+  // fraction of a second from poll to poll.
+  const wobble = Math.floor(pos / 3) % 2 ? 0.35 : 0
+  const offsets = s.variant === 'nooffsets' ? [] : sentences.map((_, i) => r3(i * REAL_STEP_S + (i * REAL_STEP_S > pos ? wobble : 0)))
+  const live = {
+    ...s.reply,
+    id: undefined,
+    live: true,
+    sentences,
+    sentence: null,
+    offsets,
+    elapsed: r3(Math.max(0, pos)),
+    paused: pos < 2,
+    server_time: r3(t),
+    delay: 0
+  }
+  lines.push(live)
+  if (s.variant === 'real') {
+    // Appended mid-speech: the live line is no longer the last.
+    if (pos > 12) lines.push(agentLine('(mock) A later message, appended while the reply above is still being spoken.', s.reply.at + 30))
+    if (pos > 24) lines.push(youLine('(mock) And a reply typed at the desk meanwhile.', s.reply.at + 40))
+  }
+  s.pending = true
+  s.state = 'working'
+  const steps = WORK_STEPS.slice(0, 1 + (Math.floor(pos / 2) % WORK_STEPS.length))
+  s.working = { since: r3(s.real.start), count: steps.length + Math.floor(pos / 2), current: steps[steps.length - 1], current_at: r3(t - 1), steps: steps.slice(-5), server_time: r3(t) }
+  return { lines }
+}
+
 // ── Derived state, per request ────────────────────────────────────────────
 
 function tickSession(s) {
@@ -330,7 +426,26 @@ function spokenTurns() {
   return all.sort((a, b) => b.line.at - a.line.at)
 }
 
+/**
+ * MOCK_REAL_VOICE=1: /speech/now reports the streaming real-shaped session
+ * instead, with the player's `pos` falling behind `elapsed` as red5's did
+ * (stalls between clips: pos = 0.75 × elapsed), so the app's skew
+ * correction has something to correct.
+ */
+const REAL_VOICE = process.env.MOCK_REAL_VOICE === '1'
+function realVoiceNow() {
+  const s = Object.values(S).find((x) => x.variant === 'real')
+  if (!s || s.real.hold) return null
+  const pos = now() - s.real.start
+  if (pos < 0 || pos >= REAL_LEN_S) return null
+  return { ok: true, live: true, speaking: pos >= 2, paused: pos < 2, sentence: '', session: s.session, title: s.title, item: s.item, pos: Math.floor(pos * 0.75), dur: Math.ceil(REAL_LEN_S * 0.75), speed: 1, muted: false }
+}
+
 function speechNow() {
+  if (REAL_VOICE) {
+    const r = realVoiceNow()
+    if (r) return r
+  }
   vTick()
   if (!V.on) return { ok: true, live: false, speaking: false, paused: false, sentence: '', session: null, title: '', item: null, pos: null, dur: null, speed: null, muted: V.muted }
   const { s } = V.on
@@ -458,7 +573,7 @@ const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, p
 function logOf(s) {
   tickSession(s)
   vTick()
-  const lines = s.lines.map((l) => (V.on && V.on.s === s && V.on.line === l ? liveLine(l) : l))
+  const lines = s.real ? realState(s).lines : s.lines.map((l) => (V.on && V.on.s === s && V.on.line === l ? liveLine(l) : l))
   const last = lines[lines.length - 1]
   const pending = s.pending || (!!last && last.who === 'you')
   return { ok: true, session: s.session, lines, pending, working: s.working, approval: s.approval, suggestion: pending ? '' : s.suggestion }
@@ -467,7 +582,8 @@ function logOf(s) {
 /** A reply lands in a session: the listener's line, a turn, an answer. */
 function receive(s, text) {
   const t = now()
-  s.lines.push(youLine(text, t))
+  const into = s.real ? s.history : s.lines
+  into.push(youLine(text, t))
   s.live = true
   s.pane = s.pane || `%${20 + Object.keys(S).length}`
   s.state = 'working'
@@ -482,7 +598,7 @@ function receive(s, text) {
         s.working = null
         s.pending = false
         s.state = 'waiting'
-        s.lines.push(agentLine(`(mock) I heard: “${text.slice(0, 120)}”.`, now(), { work: work(5.4, WORK_STEPS.slice(0, 2)) }))
+        into.push(agentLine(`(mock) I heard: “${text.slice(0, 120)}”.`, now(), { work: work(5.4, WORK_STEPS.slice(0, 2)) }))
         s.suggestion = 'thanks'
       }
     }
@@ -568,6 +684,15 @@ createServer(async (req, res) => {
     return res.end(svg(path.slice(5)))
   }
   if (path === '/healthz') return res.writeHead(200).end('ok')
+  if (path === '/mock/real/restart') {
+    // Tests: start the real-shaped replies now (they go live in `?in=` s).
+    // `?ended=1` holds them finished (spoken, with a history id) until the next restart.
+    const lead = Number(url.searchParams.get('in') || 0)
+    const hold = url.searchParams.get('ended') === '1'
+    for (const x of Object.values(S)) if (x.real) x.real = { start: now() + lead, appended: 0, hold }
+    res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
+    return res.end('ok')
+  }
   if (path === '/mock/pair') {
     PAIR.armed = true
     console.log(`pairing code ${PAIR.code} armed`)
@@ -698,7 +823,6 @@ async function route(method, path, q, body, res) {
       if (!s) return err(404, 'not a conversation (no session behind it)')
     }
     const opened = !s.live
-
     receive(s, text)
     return ok({ session: s.session, pane: s.pane, opened, submitted: true })
   }

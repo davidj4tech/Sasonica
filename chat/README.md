@@ -6,8 +6,9 @@ entry point; for now it builds to a static bundle.
 
 Stack: React 19 + TypeScript, React Router v7 in SPA mode (`ssr: false`),
 assistant-ui's `useExternalStoreRuntime`. It talks to agent-media's canvas
-through the **v0** routes described in
-`agent-media/docs/server-contract.md` §6, bound to assistant-ui as in §14.
+through the routes in `agent-media/docs/server-contract.md`: §6 (v0), with
+§9 device pairing and §10 threads keyed by session (both built on red5 22 Sep
+2026), bound to assistant-ui as in §14.
 
 ```
 pnpm install
@@ -21,19 +22,31 @@ pnpm build          # → build/client/index.html + assets (static SPA)
 pnpm build && pnpm mock        # http://127.0.0.1:8793 — serves the bundle AND a fake canvas
 ```
 
-Open it, go to Settings, set the server address to `http://127.0.0.1:8793`
-and any token (`bad` gets a 401). Or run `pnpm dev` (Vite on :5173) beside
-`pnpm mock` with the same settings.
+Open it: a fresh browser lands on **Pair this device**. Server address
+`http://127.0.0.1:8793`, code `c0ffee42` (`MOCK_PAIR_CODE`). The code dies on
+its first success, as the real one does; `GET /mock/pair` re-arms it, and
+`/?pair=c0ffee42&server=http://127.0.0.1:8793` pairs with no typing.
+`GET /mock/devices` lists paired devices and `?revoke=<id>` forgets one; its
+token then gets 401, as a revoked one does. Settings → Advanced / legacy still
+takes any bearer as an ABS token (`bad` gets a 401). Or run `pnpm dev` (Vite
+on :5173) beside `pnpm mock` with the same settings.
 
 `MOCK_DELAY_MS=2500 pnpm mock` holds every app-route answer 2.5 s, like the
 phone→red5 link (`GET /mock/delay?ms=N` changes it while running) — the way to
 see a cached open paint before the network answers.
 
-The mock (`mock/server.mjs`) answers every route the app uses from invented
-fixtures: a reply being spoken (follow-along), a permission prompt whose
-question changes every 45 s (a stale card gets 409 "the question has
-changed"), an AskUserQuestion on screen, a turn at work, a session not on the
-shelf yet, and a shelved conversation with pictures. The speaking thread's long reply
+The mock (`mock/server.mjs`) answers every route the app uses (both keys:
+`?session=` and the v0 `?item=`) from invented fixtures: a reply being spoken
+(follow-along), a permission prompt whose question changes every 45 s (a
+stale card gets 409 "the question has changed"), an AskUserQuestion on
+screen, a turn at work, a session not on the shelf yet (readable and
+repliable by session), and a shelved conversation with pictures. Two more
+are shaped like red5's real speech (see "Follow-along on real data"): a
+streamed reply whose sentences grow while it plays, starts `paused`, has
+`working` changing under it and lines appended below it; and one with no
+offsets and a null `sentence`. `GET /mock/real/restart?in=N` starts them
+(`&ended=1` holds them finished); `MOCK_REAL_VOICE=1` makes `/speech/now`
+speak the streamed one with its `pos` lagging `elapsed`. The speaking thread's long reply
 (with a figure above it and ambient art on it) is one shared voice clock
 for `/speech/now`, `/speech/ctl` (every action) and the live line; it
 loops, resting 10 s between ("finished") — `MOCK_SPEECH_REST_S=0` loops
@@ -42,44 +55,78 @@ without a rest for long test runs. `/reply`, `/ask` and
 here. **Test write paths against the mock only**: against the real canvas a
 POST types into a running agent session.
 
+## Headless tests
+
+```
+pnpm build
+PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
+```
+
+`test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
+and runs `test/{pair,follow,keys,skew}.mjs` in headless Chromium at phone
+size: pairing and the one-request thread open, follow-along on the
+real-shaped speech (default and Larger text), the top play/pause key
+(portrait, landscape, Larger) and the skew correction. Playwright is not a
+dependency; any playwright-core with its browsers in `~/.cache/ms-playwright`
+will do. Screenshots go to `$TMPDIR/sasonica-chat-shots`.
+
 ## Run against a real canvas
 
-Settings → server address `http://<canvas host>:8781` (red5's canvas binds its
-tailnet IP, not loopback) and your Audiobookshelf token. The canvas answers
-CORS for the app routes, so the bundle can be served from anywhere
-(`pnpm dev`, or `pnpm mock` for its static server). Reading is safe; sending,
-answering and starting chats are real.
+Pair (§9). At the desk on the canvas's host:
+
+```
+media-visual-canvas pair --device "Pixel 8a" --host <canvas tailnet ip>
+```
+
+prints `sasonica://pair?server=<base>&code=<code>` (one-time, 30 min). Paste
+it into Pair this device, or type the server address and code. `POST /pair`
+trades it for a device token; the server address becomes the base it
+answered from. Settings shows the paired device and **Unpair** (forgets it
+here; revoke the token itself with `media-visual-canvas devices --revoke
+<id>`). The legacy way, an Audiobookshelf token plus a server address, is
+under Settings → Advanced / legacy and is used only while not paired. The
+canvas answers CORS for the app routes and `POST /pair`, so the bundle can be
+served from anywhere. Reading is safe; sending, answering and starting chats
+are real.
 
 ## Preview on a phone
 
 ```
 pnpm build
-SASONICA_CHAT_TOKEN=<bearer> node serve.mjs --host <tailnet ip> --port 8795
+node serve.mjs --host <tailnet ip> --port 8795 [--canvas http://<canvas>:8781]
 ```
 
-Serves the bundle with the SPA fallback, and prints a pairing link
-(`/pair?c=…`, good for 30 minutes) that stores the token in the phone's browser, so the
-token is never typed or pasted. Blank server address = this host on 8781, so
-serving from the canvas's machine needs no Settings at all.
+Serves the bundle with the SPA fallback. To pair the phone: mint a code at
+the desk (`media-visual-canvas pair --device NAME --host <canvas ip>`) and
+open `http://<tailnet ip>:8795/pair?c=<code>` on the phone. The preview
+redirects to `/?pair=<code>&server=<canvas>` and the app pairs itself with
+the canvas; this server never sees a token. `--canvas` (or
+`SASONICA_CHAT_CANVAS`) defaults to this host on 8781.
+
+Legacy: with `SASONICA_CHAT_TOKEN=<ABS bearer>` set it also prints its own
+`/pair?c=…` link (30 minutes) whose page stores that bearer in the phone's
+browser, as before. A `/pair?c=` that is not that code is taken to be a
+device code and passed through.
 
 ## Layout
 
 | Path | What |
 | --- | --- |
-| `app/api/auth.ts` | the only module that stores the base URL and credential. v1 device pairing (§9) replaces this file |
-| `app/api/types.ts` | v0 shapes transcribed from §6, with notes where the live server differs |
-| `app/api/index.ts` | every call the app makes; v1 route changes land here |
+| `app/api/auth.ts` | the only module that stores the base URL and credentials: the device token (§9 `pair()`, `unpair()`, link parsing), else the legacy ABS bearer. Prototype storage is localStorage; `readDevice`/`writeDevice` are what move to the Android keystore in the Capacitor build |
+| `app/routes/pairing.tsx` | Pair this device: a pasted link, or server + code; auto-pairs from `?pair=&server=` |
+| `app/api/types.ts` | shapes transcribed from §6/§9/§10, with notes where the live server differs |
+| `app/api/index.ts` | every call the app makes, keyed by session (§10) |
 | `app/lib/convert.ts` | log line → `ThreadMessageLike` (§14), approval attachment |
 | `app/lib/followAlong.ts` | live-line sentence clock, whitespace-faithful sentence split |
 | `app/hooks/useConversationLog.ts` | the adaptive poll (1 s live / 2 s working or approval / 15 s idle, setTimeout-based) |
-| `app/hooks/useThreads.ts` | `/targets`, `/sessions/state` (5 s), session → item resolution |
-| `app/lib/snapshots.ts`, `app/lib/store.ts` | the last good lines + item per thread, and the list, in memory over IndexedDB (40 threads LRU); best-effort |
+| `app/hooks/useThreads.ts` | `/targets`, `/sessions/state` (5 s) |
+| `app/lib/snapshots.ts`, `app/lib/store.ts` | the last good lines per thread (by session), and the list, in memory over IndexedDB (40 threads LRU); best-effort. `CACHE_VERSION` in store.ts drops old-shaped entries on upgrade |
 | `app/hooks/usePrefetch.ts` | warms the top 5 threads from the list, one at a time, low priority |
 | `app/hooks/useBottomFirst.ts` | newest 20 messages first, older ones added above, scroll pinned to the bottom |
 | `app/lib/textSize.ts` | the per-device text size (one root `--text-size`; everything is rem) |
 | `app/hooks/useSpeech.tsx` | the ONE `/speech/now` poll for the app (1.5 s live / 5 s idle / 15 s failing), the `/speech/ctl` keys, optimistic state |
 | `app/components/SpeechBar.tsx` | the speech bar and its full-controls sheet |
-| `app/hooks/useFollowAlong.ts` | keeps the bold sentence on screen while the live line plays; "Follow along" pill |
+| `app/hooks/useFollowAlong.ts` | keeps the bold sentence on screen while the live line plays; holds off assistant-ui's own scrolling while a live line exists; "Follow along" pill, "New messages ↓" |
 | `app/lib/pictures.ts` | the per-device "Show ambient artwork" setting |
 | `app/components/Thread.tsx` | the assistant-ui runtime and thread layout |
 | `app/components/parts.tsx` | follow-along text, pictures, work summary, ask/approval tool UIs, working indicator |
@@ -87,9 +134,14 @@ serving from the canvas's machine needs no Settings at all.
 
 ## What works
 
-- Opening a thread feels instant: it paints from its saved snapshot (lines +
-  resolved item) with "updating…" in the header, and a known thread goes
-  straight to the log — one round trip, not two. The list paints from its
+- Pairing (§9): first run lands on Pair this device (a pasted
+  `sasonica://pair?…` or `http(s)://…/pair?c=…` link, or server + code); a
+  link opened into the app as `/?pair=<code>&server=<base>` pairs at once.
+  Settings shows the paired device (name, server, id) and Unpair; the ABS
+  token lives on under Advanced / legacy.
+- Opening a thread is ONE request, `/conversation/log?session=` (§10) — no
+  session → item lookup, shelved or not — and it paints first from its saved
+  snapshot with "updating…" in the header. The list paints from its
   snapshot too, and warms the top five threads in the background. A cached
   live line is plain text until fresh data restarts the follow-along.
   Blocked or private storage just means no cache. `fetchLogTail()` in
@@ -117,16 +169,48 @@ serving from the canvas's machine needs no Settings at all.
 - Follow-along scroll: while the live line plays, the view keeps its bold
   sentence in sight (moving only when it would leave the view, not every
   tick) instead of sticking to the bottom; a hand scroll stops it and shows
-  a "Follow along" pill. Paused: nothing moves. Ended: back to the foot.
+  a "Follow along" pill. Messages arriving below the live line never move
+  the view; "New messages ↓" offers them. Paused: nothing moves. Ended: back
+  to the foot if you were following, else your place is kept. Sending takes
+  you to the foot.
+
+### Follow-along on real data (red5, 22 Sep 2026)
+
+It passed the mock and failed on the phone because real live lines differ:
+
+- **The sentences grow while the reply is spoken** (streamed clips): the
+  first poll of a 1188-character reply carried 7 sentences covering 519
+  characters, later ones 10, 13, 17. The app drew only the sentences, so the
+  bubble shrank to 44 % when the line went live and grew back every poll.
+  Now the whole text shows from the start; the uncovered tail is plain.
+- **assistant-ui scrolls to the bottom whatever `autoScroll` says**: a
+  scroll-to-bottom requested while the view is already at the bottom (on
+  open, run start, a send) fires no scroll event, so its "scrolling to
+  bottom" flag never clears, and every content resize after that scrolls to
+  the bottom. Real threads resize constantly (the growing live line,
+  `working` steps, appended lines). While a live line exists, every
+  `scrollTo` on the viewport that is not the follow hook's own is dropped.
+- **Every reply starts `paused: true`** for ~1.5 s (the first clip loading),
+  and a pause that turned following off handed the view back to the
+  auto-scroll. Following is now just "a live line, not paused, not taken
+  over by hand"; the guard holds while paused too.
+- **`elapsed` runs ahead of the voice**: it is wall time since the reply
+  started, and stalls between streamed clips are not taken off; against
+  `/speech/now`'s `pos` it led by 3.5 s after the first clip and 14 s (43.1
+  vs 29) forty seconds in (`delay` said 0). For the thread being spoken the
+  bold is held back by the median difference (when over 1 s), so it and the
+  view follow the voice, not the clock.
+- `sentence` can be null; with no offsets either, the sentence is estimated
+  from the speaking rate so there is still one to follow.
 - Pictures: `[[visual:]]` figures as a thumbnail that opens on a tap;
   ambient art hidden unless Settings → Show ambient artwork (per device).
 
 - Thread list from `/targets` (live first, state badges from `/sessions/state`
   polled every 5 s).
-- Thread view: session → item via `/conversation?session=` (re-asked every
-  3 s for up to 5 min while there is no item: "not on the shelf yet"), then
-  `/conversation/log?item=` polled adaptively; ids `${session}:${at}`; ended
-  live lines held until the server returns them (no shrink-and-jump).
+- Thread view: `/conversation/log?session=` polled adaptively (a 404 "no
+  conversation for that session yet" keeps asking every 3 s); ids
+  `${session}:${at}`; ended live lines held until the server returns them
+  (no shrink-and-jump).
 - Follow-along: the live line's sentence in bold on a local clock between
   polls; not advancing while paused.
 - Pictures (figure wide, ambient small), work summaries, the slash-command
@@ -136,9 +220,9 @@ serving from the canvas's machine needs no Settings at all.
   409 re-renders the new question with "The question changed — choose again".
   An AskUserQuestion still on screen gets live buttons; answered ones are
   read-only with the choice marked.
-- Composer: `/reply {item, text}`; before the thread has an item, `/ask
-  {text, target: <session>}` instead. "Session reopened" vs "Sent"; a 502
-  `submitted: false` says the words are in the composer but were not taken.
+- Composer: `/reply {session, text}` (§10), shelved or not. "Session
+  reopened" vs "Sent"; a 502 `submitted: false` says the words are in the
+  composer but were not taken.
   The composer stays usable while a turn runs (the harness queues typed input).
 - New chat: place picker (`/targets.places`) and agent picker, `/ask {text,
   target: "new", cwd, agent}`, then straight into the new thread.
@@ -153,4 +237,7 @@ serving from the canvas's machine needs no Settings at all.
   branch-from-here, `dry: true` routing for words that name a thread, the
   thread-list adapter (routing is React Router instead). Auto-scroll is
   assistant-ui's own, not the 8 s reader hold from ConversationLog.vue.
-- Auth is a pasted bearer in localStorage (v1: pairing + keystore).
+- The device token is in localStorage; the Capacitor build moves it to the
+  Android keystore (`readDevice`/`writeDevice` in `api/auth.ts`).
+- `POST /pair` does not echo the device's name (the desk's `--device` wins),
+  so Settings shows the name the app asked for until the server says.

@@ -15,6 +15,8 @@ import type { Line } from '../api/types'
 
 /** How far ahead of the clock the bold moves on (ConversationLog.vue). */
 export const FOLLOW_LEAD_S = 0.3
+/** Speaking rate for the estimate when a live line has no offsets and no index. */
+const EST_CHARS_PER_S = 14
 
 export interface LiveClock {
   sentences: string[]
@@ -44,9 +46,19 @@ export function liveClockOf(line: Line, receivedAtMs: number, roundTripMs: numbe
 
 /** The sentence to bold at local time `nowMs`, or -1. Never moves while paused. */
 export function sentenceAt(clock: LiveClock, nowMs: number): number {
-  if (!clock.offsets.length) return clock.sentence ?? -1
   const raw = clock.paused ? clock.elapsed : clock.elapsed + (nowMs - clock.anchorMs) / 1000
   const heard = raw - clock.delay + FOLLOW_LEAD_S
+  if (!clock.offsets.length) {
+    if (clock.sentence !== null && clock.sentence >= 0) return Math.min(clock.sentence, clock.sentences.length - 1)
+    // Neither offsets nor an index: estimate from speaking rate, so there is
+    // still a sentence to bold and to follow (never -1 while there is text).
+    let chars = heard * EST_CHARS_PER_S
+    for (let i = 0; i < clock.sentences.length; i++) {
+      chars -= clock.sentences[i].length + 1
+      if (chars < 0) return i
+    }
+    return clock.sentences.length - 1
+  }
   let idx = 0
   clock.offsets.forEach((off, i) => {
     if (heard + 0.001 >= off) idx = i
@@ -60,14 +72,30 @@ export function sentenceAt(clock: LiveClock, nowMs: number): number {
  * splitter joins and trims on any whitespace, so a newline between list items
  * would come back as a space until the turn ended. Walked character by
  * character; anything that does not line up falls back to space-joined.
+ *
+ * `tail` is the text the sentences do not cover yet. REALITY (red5, 22 Sep
+ * 2026, streamed clips): a live reply's `sentences` (and `offsets`) GROW
+ * while it is spoken — the first poll of a 1188-character reply carried 7
+ * sentences covering 519 characters, the fourth 17. Rendering only the
+ * sentences made the bubble shrink to 44 % when the line went live and grow
+ * back poll by poll, and every growth was a content resize that the
+ * thread's auto-scroll answered by jumping to the bottom. The whole text is
+ * shown from the start; the uncovered part is plain, unsaid text.
  */
-export function liveParts(text: string, sentences: string[]): { lead: string; text: string }[] {
-  const plain = sentences.map((t, i) => ({ lead: i ? ' ' : '', text: t }))
+export function liveParts(text: string, sentences: string[]): { parts: { lead: string; text: string }[]; tail: string } {
   const gap = (from: number) => {
     let p = from
     while (p < text.length && /\s/.test(text[p])) p++
     const breaks = text.slice(from, p).replace(/[^\n]/g, '')
     return { end: p, ws: breaks || ' ' }
+  }
+  const fallback = () => {
+    const parts = sentences.map((t, i) => ({ lead: i ? ' ' : '', text: t }))
+    // Where the last sentence ends in the real text, by its last few words.
+    const last = sentences[sentences.length - 1] || ''
+    const probe = last.slice(-24)
+    const at = probe ? text.lastIndexOf(probe) : -1
+    return { parts, tail: at >= 0 ? text.slice(at + probe.length) : '' }
   }
   const parts: { lead: string; text: string }[] = []
   let p = 0
@@ -79,7 +107,7 @@ export function liveParts(text: string, sentences: string[]): { lead: string; te
     for (let k = 0; k < sentence.length; ) {
       if (/\s/.test(sentence[k])) {
         while (k < sentence.length && /\s/.test(sentence[k])) k++
-        if (!/\s/.test(text[p] || '')) return plain
+        if (!/\s/.test(text[p] || '')) return fallback()
         const run = gap(p)
         p = run.end
         out += run.ws
@@ -87,12 +115,12 @@ export function liveParts(text: string, sentences: string[]): { lead: string; te
         out += sentence[k++]
         p++
       } else {
-        return plain
+        return fallback()
       }
     }
     parts.push({ lead: i ? lead.ws : '', text: out })
   }
-  return parts
+  return { parts, tail: text.slice(p) }
 }
 
 /** 42s, 3m 38s, 1h 5m — the terminal's own shorthand. */
@@ -117,4 +145,14 @@ export function withPaused(clock: LiveClock, paused: boolean, atMs: number): Liv
     return { ...clock, paused: true, elapsed, anchorMs: atMs }
   }
   return { ...clock, paused: false, anchorMs: atMs }
+}
+
+/**
+ * The clock with `skewS` more playout delay: the bold held back by that
+ * much. For the log's `elapsed` running ahead of what the listener hears
+ * (see useElapsedSkew in routes/thread.tsx).
+ */
+export function withSkew(clock: LiveClock, skewS: number): LiveClock {
+  if (!skewS) return clock
+  return { ...clock, delay: clock.delay + skewS }
 }
