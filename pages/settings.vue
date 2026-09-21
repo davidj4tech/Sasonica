@@ -199,6 +199,12 @@
       </div>
     </div>
 
+    <!-- Sasonica: which harnesses this canvas has, and the two things that
+         used to need the desk — installing one, and signing into it. -->
+    <div class="py-3">
+      <app-agent-setup />
+    </div>
+
     <div v-show="loading" class="w-full h-full absolute top-0 left-0 flex items-center justify-center z-10">
       <ui-loading-indicator />
     </div>
