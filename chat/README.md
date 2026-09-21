@@ -49,8 +49,8 @@ pnpm build
 SASONICA_CHAT_TOKEN=<bearer> node serve.mjs --host <tailnet ip> --port 8795
 ```
 
-Serves the bundle with the SPA fallback, and prints a one-time pairing link
-(`/pair?c=…`, 30 minutes) that stores the token in the phone's browser, so the
+Serves the bundle with the SPA fallback, and prints a pairing link
+(`/pair?c=…`, good for 30 minutes) that stores the token in the phone's browser, so the
 token is never typed or pasted. Blank server address = this host on 8781, so
 serving from the canvas's machine needs no Settings at all.
 

@@ -1,12 +1,11 @@
 // A preview server for the built bundle: static files, the SPA fallback, and
-// a one-time pairing link that puts a login token into the browser.
+// a short-lived pairing link that puts a login token into the browser.
 //
 // Not the app's future home -- that is the Capacitor shell -- but the way to
 // hold the prototype on a phone before it is one. The token problem is the
 // same one the canvas's /pair solves: typing a long bearer on a phone keyboard
 // is miserable, and pasting it into a chat puts it in a transcript. So the
-// token stays on this host, and what travels is a short code that works once
-// and expires.
+// token stays on this host, and what travels is a short code that expires.
 //
 //   SASONICA_CHAT_TOKEN      the bearer to hand over (read from the env, never
 //                            logged)
@@ -63,9 +62,12 @@ createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x')
   try {
     if (url.pathname === '/pair') {
+      // Good for its whole window, not once: a phone browser can load a link
+      // twice (a preview, a reload after the redirect), and a one-shot code
+      // then greets the person with "expired" on their very first tap. The
+      // server is tailnet-bound, and 8 hex digits in 30 minutes is not a
+      // guessing game anyone can win from there.
       const ok = pair && url.searchParams.get('c') === pair.code && Date.now() - pair.at < PAIR_TTL_MS
-      // Spent on first use, right or wrong: a guess costs the code.
-      pair = null
       if (!ok) {
         res.writeHead(403, { 'Content-Type': 'text/plain' })
         return res.end('invalid or expired pairing code\n')
@@ -87,7 +89,7 @@ createServer(async (req, res) => {
   console.log(`sasonica chat preview on http://${HOST}:${PORT}/`)
   if (pair) {
     const link = `http://${HOST}:${PORT}/pair?c=${pair.code}`
-    console.log(`pair (once, 30 min): ${link}`)
+    console.log(`pair (30 min): ${link}`)
     const dir = process.env.XDG_RUNTIME_DIR
     if (dir) await writeFile(path.join(dir, 'sasonica-chat-pair'), link + '\n', { mode: 0o600 }).catch(() => {})
   }
