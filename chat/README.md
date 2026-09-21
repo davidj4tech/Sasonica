@@ -33,7 +33,11 @@ The mock (`mock/server.mjs`) answers every route the app uses from invented
 fixtures: a reply being spoken (follow-along), a permission prompt whose
 question changes every 45 s (a stale card gets 409 "the question has
 changed"), an AskUserQuestion on screen, a turn at work, a session not on the
-shelf yet, and a shelved conversation with pictures. `/reply`, `/ask` and
+shelf yet, and a shelved conversation with pictures. The speaking thread's long reply
+(with a figure above it and ambient art on it) is one shared voice clock
+for `/speech/now`, `/speech/ctl` (every action) and the live line; it
+loops, resting 10 s between ("finished") — `MOCK_SPEECH_REST_S=0` loops
+without a rest for long test runs. `/reply`, `/ask` and
 `/session/answer` change its state, so every write path can be exercised
 here. **Test write paths against the mock only**: against the real canvas a
 POST types into a running agent session.
@@ -73,6 +77,10 @@ serving from the canvas's machine needs no Settings at all.
 | `app/hooks/usePrefetch.ts` | warms the top 5 threads from the list, one at a time, low priority |
 | `app/hooks/useBottomFirst.ts` | newest 20 messages first, older ones added above, scroll pinned to the bottom |
 | `app/lib/textSize.ts` | the per-device text size (one root `--text-size`; everything is rem) |
+| `app/hooks/useSpeech.tsx` | the ONE `/speech/now` poll for the app (1.5 s live / 5 s idle / 15 s failing), the `/speech/ctl` keys, optimistic state |
+| `app/components/SpeechBar.tsx` | the speech bar and its full-controls sheet |
+| `app/hooks/useFollowAlong.ts` | keeps the bold sentence on screen while the live line plays; "Follow along" pill |
+| `app/lib/pictures.ts` | the per-device "Show ambient artwork" setting |
 | `app/components/Thread.tsx` | the assistant-ui runtime and thread layout |
 | `app/components/parts.tsx` | follow-along text, pictures, work summary, ask/approval tool UIs, working indicator |
 | `app/routes/*` | thread list, thread, new chat, settings |
@@ -92,6 +100,26 @@ serving from the canvas's machine needs no Settings at all.
   a real keyboard); grows to 8 rows. Landscape and the soft keyboard keep
   the header and composer on screen; the column is a centred 46rem.
 - Text size: Settings → Small / Default (17px) / Large / Larger, per device.
+
+- Speech bar (§6.5), on the list, a thread and new chat, while a reply is
+  live (and for a minute after it ends, as "Finished · replay"). Title opens
+  the thread; sentence; progress sliver; back / pause-resume / on a
+  sentence. The chevron opens the full set: turns (`prev`/`replay` with the
+  hist index, as SpeechBar.vue), paragraphs, end of reply, replay latest,
+  speed −/reset/+ (the `media speed` ladder, predicted), volume −/+, mute.
+  Pause, speed and mute are optimistic and held until a poll asked after the
+  press answers; a refused press rolls back and says why. One poller for
+  the app, stopped while the tab is hidden. In the thread that is speaking,
+  the bar shows only the time — the live line has the words — and a pause
+  stops the bold at once (the two agree before the next log poll).
+- Play/pause beside spoken replies: ▶ on a line with a history `id`
+  (`replay-id`), pause/resume on the live line.
+- Follow-along scroll: while the live line plays, the view keeps its bold
+  sentence in sight (moving only when it would leave the view, not every
+  tick) instead of sticking to the bottom; a hand scroll stops it and shows
+  a "Follow along" pill. Paused: nothing moves. Ended: back to the foot.
+- Pictures: `[[visual:]]` figures as a thumbnail that opens on a tap;
+  ambient art hidden unless Settings → Show ambient artwork (per device).
 
 - Thread list from `/targets` (live first, state badges from `/sessions/state`
   polled every 5 s).
@@ -121,7 +149,7 @@ serving from the canvas's machine needs no Settings at all.
   available yet"; the double-press → `speech: "silence"` logic is in
   `useStop` (Thread.tsx). When §12 exists, only the function body changes.
 - Drafts (`/draft`), slash menu (`/commands`), rename, resume/close, `/focus`
-  ("answer at the desk" is text only), speech bar and replay, dictation,
+  ("answer at the desk" is text only), dictation,
   branch-from-here, `dry: true` routing for words that name a thread, the
   thread-list adapter (routing is React Router instead). Auto-scroll is
   assistant-ui's own, not the 8 s reader hold from ConversationLog.vue.

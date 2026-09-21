@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router'
 import './app.css'
+import { SpeechProvider } from './hooks/useSpeech'
 import { TEXT_SIZE_BOOT } from './lib/textSize'
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -56,5 +57,10 @@ function useVisualViewportHeight() {
 
 export default function App() {
   useVisualViewportHeight()
-  return <Outlet />
+  // One /speech/now poll for every screen (hooks/useSpeech.tsx).
+  return (
+    <SpeechProvider>
+      <Outlet />
+    </SpeechProvider>
+  )
 }

@@ -258,6 +258,60 @@ export interface AnswerResponse extends Envelope {
   approval: Approval | null
 }
 
+// ── §6.5 Speech ───────────────────────────────────────────────────────────
+
+/**
+ * GET /speech/now — what the voice is saying, for the speech bar.
+ * REALITY (red5, 22 Sep 2026): idle is `{live: false, speaking: false,
+ * paused: false, sentence: "", session: null, title: "", item: null, pos:
+ * null, dur: null, speed: null, muted: false}`; while live `pos` and `dur`
+ * are whole seconds and `dur` grows as the reply's clips render.
+ */
+export interface SpeechNow extends Envelope {
+  /** Speaking or paused. */
+  live: boolean
+  speaking: boolean
+  paused: boolean
+  sentence: string
+  /** Filled only while live, and only for a valid session id. */
+  session: SessionId | null
+  title: string
+  item: ItemId | null
+  pos: number | null
+  dur: number | null
+  speed: number | null
+  muted: boolean
+}
+
+/** `_APP_SPEECH_ACTIONS`; anything else is 400 "unknown action". */
+export type SpeechAction =
+  | 'toggle'
+  | 'skip-'
+  | 'skip+'
+  | 'para-'
+  | 'para+'
+  | 'jump-end'
+  | 'prev'
+  | 'replay'
+  | 'replay-id'
+  | 'speed-'
+  | 'speed+'
+  | 'speed0'
+  | 'vol-'
+  | 'vol+'
+  | 'mute'
+
+export interface SpeechCtlRequest {
+  action: SpeechAction
+  /** Turn index for `prev`/`replay` (1 = latest); history row id for `replay-id`. */
+  arg?: number
+}
+
+/** `ok: true` means the command ran, not that it did anything — read `out`. */
+export interface SpeechCtlResponse extends Envelope {
+  out: string
+}
+
 // ── §12 (v1, NOT BUILT) ───────────────────────────────────────────────────
 
 export interface StopRequest {

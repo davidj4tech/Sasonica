@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { getTargets } from '../api'
 import { hasToken, serverBase, setBaseUrl, setToken, storedBaseUrl } from '../api/auth'
+import { getShowAmbient, setShowAmbient } from '../lib/pictures'
 import { getTextSize, setTextSize, TEXT_SIZES, type TextSizeId } from '../lib/textSize'
 
 export default function Settings() {
@@ -15,6 +16,7 @@ export default function Settings() {
   const [saved, setSaved] = useState('')
   const [check, setCheck] = useState('')
   const [size, setSize] = useState<TextSizeId>(() => getTextSize())
+  const [ambient, setAmbient] = useState(() => getShowAmbient())
 
   const save = () => {
     setBaseUrl(url)
@@ -93,6 +95,21 @@ export default function Settings() {
             ))}
           </div>
           <small>On this device only. Applies at once.</small>
+        </fieldset>
+        <fieldset>
+          <legend>Pictures</legend>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={ambient}
+              onChange={(e) => {
+                setShowAmbient(e.target.checked)
+                setAmbient(e.target.checked)
+              }}
+            />
+            Show ambient artwork
+          </label>
+          <small>The small pictures drawn beside a reply. Figures (diagrams) always show, as a thumbnail. On this device only.</small>
         </fieldset>
         {saved && <p className="status">{saved}</p>}
         {check && <p className="status">{check}</p>}

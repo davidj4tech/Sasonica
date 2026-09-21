@@ -12,7 +12,10 @@ import {
 } from '@assistant-ui/react'
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { Approval, Working } from '../api/types'
+import { useSpeechActions } from '../hooks/useSpeech'
+import { IconPause, IconPlay } from './SpeechBar'
 import type { ApprovalArgs, AskArgs, LineCustom } from '../lib/convert'
+import { useShowAmbient } from '../lib/pictures'
 import { duration, liveParts, sentenceAt, type LiveClock } from '../lib/followAlong'
 
 /** What the tool UIs need from the thread page. */
@@ -67,12 +70,34 @@ export const LineText: TextMessagePartComponent = ({ text }) => {
   return <p className="line-text">{text}</p>
 }
 
-/** A `[[visual:]]` figure gets the width; ambient art stays small. */
+/**
+ * A `[[visual:]]` figure (`figure: true`) is a compact thumbnail; a tap
+ * opens it to the column's width, and a tap on the opened one goes to the
+ * picture itself, as before. Ambient art (`figure: false`) is hidden unless
+ * Settings → "Show ambient artwork" (lib/pictures.ts), and then stays small.
+ */
 function PictureView({ image }: { image: string }) {
   const { figure } = useCustom()
+  const showAmbient = useShowAmbient()
+  const [open, setOpen] = useState(false)
+  if (!figure) {
+    if (!showAmbient) return null
+    return (
+      <a className="picture ambient" href={image} target="_blank" rel="noreferrer">
+        <img src={image} alt="" loading="lazy" />
+      </a>
+    )
+  }
+  if (!open) {
+    return (
+      <button className="picture figure thumb" onClick={() => setOpen(true)} aria-label="Open the figure">
+        <img src={image} alt="figure" loading="lazy" />
+      </button>
+    )
+  }
   return (
-    <a className={figure ? 'picture figure' : 'picture ambient'} href={image} target="_blank" rel="noreferrer">
-      <img src={image} alt={figure ? 'figure' : ''} loading="lazy" />
+    <a className="picture figure" href={image} target="_blank" rel="noreferrer">
+      <img src={image} alt="figure" loading="lazy" />
     </a>
   )
 }
@@ -100,6 +125,31 @@ export function WorkSummary() {
         ))}
       </ol>
     </details>
+  )
+}
+
+/**
+ * Play/pause beside a spoken reply. The one being said now gets pause (or
+ * resume — its state is the follow-along's, so the key and the bold agree);
+ * any other with a speech-history row (`line.id`) gets ▶, which replays it
+ * (`replay-id`, as ConversationLog.vue did on a tap). Lines never spoken
+ * have no id and no key.
+ */
+export function MessageSpeechKey() {
+  const { id, live } = useCustom()
+  const { toggle, replayId } = useSpeechActions()
+  if (live) {
+    return (
+      <button className="msg-key on" aria-label={live.paused ? 'Resume' : 'Pause'} onClick={toggle}>
+        {live.paused ? <IconPlay /> : <IconPause />}
+      </button>
+    )
+  }
+  if (!id) return null
+  return (
+    <button className="msg-key" aria-label="Play this reply" onClick={() => replayId(id)}>
+      <IconPlay />
+    </button>
   )
 }
 

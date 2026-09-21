@@ -98,6 +98,9 @@ a { color: var(--accent); }
 .picture img { display: block; border-radius: 8px; background: #fff; }
 .picture.figure { display: block; }
 .picture.figure img { width: 100%; max-width: 560px; }
+/* A figure before it is opened: a thumbnail, a tap away from full width. */
+.picture.figure.thumb { display: inline-block; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; cursor: zoom-in; }
+.picture.figure.thumb img { width: auto; max-width: min(12rem, 100%); max-height: 6.5rem; object-fit: contain; }
 .picture.ambient img { width: 5.867rem; height: 5.867rem; object-fit: cover; opacity: .85; }
 .work { font-size: 0.867rem; color: var(--muted); margin: 0 0 4px 4px; }
 .work summary { cursor: pointer; }
@@ -161,7 +164,75 @@ a { color: var(--accent); }
 .settings legend { padding: 0; margin-bottom: 6px; }
 .text-sizes { display: flex; gap: 6px; flex-wrap: wrap; }
 .text-sizes button[aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
+.settings label.check { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; }
+.settings label.check input { width: 1.3rem; height: 1.3rem; padding: 0; accent-color: var(--accent); }
 .text-sample { margin: 4px 0 0; color: var(--muted); }
+
+/*
+ * Speech bar (components/SpeechBar.tsx). One row, docked above the composer
+ * on a thread (it is in the footer's flow, so the soft keyboard pushes it up
+ * with the composer instead of covering either) and at the foot of the list.
+ * Every key is at least 44 px square, whatever the text size.
+ */
+.dock { position: relative; flex: none; }
+.dock .fab { position: absolute; right: 20px; bottom: calc(100% + 16px); }
+.dock .speech-bar { margin: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); }
+.speech-bar { position: relative; display: flex; align-items: center; gap: 2px; min-height: 48px; padding: 2px 4px 2px .8rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.speech-progress { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.speech-progress i { display: block; height: 100%; background: var(--accent); transition: width 1.5s linear; }
+.speech-bar.paused .speech-progress i { background: var(--muted); }
+.speech-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.speech-title, .speech-sentence { display: block; width: 100%; background: none; border: 0; padding: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.speech-title { font-weight: 600; font-size: .933rem; padding-top: 4px; }
+.speech-sentence { font-size: .8rem; color: var(--muted); padding-bottom: 4px; }
+.speech-sentence.failed, .sheet-sentence.failed { color: var(--bad); }
+.speech-bar.here .speech-title { font-weight: 500; color: var(--muted); padding: 10px 0; }
+.eq { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: var(--muted); margin-right: .45rem; vertical-align: .1em; }
+.eq.on { background: var(--accent); animation: pulse 1.2s infinite; }
+.ico { width: 1.35rem; height: 1.35rem; display: block; flex: none; }
+.skey { flex: none; width: max(44px, 2.6rem); height: max(44px, 2.6rem); display: grid; place-items: center; background: none; border: 0; border-radius: 50%; color: var(--text); font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 0; }
+.skey:disabled { opacity: .3; cursor: default; }
+.skey.main { background: var(--accent); color: #0b1a13; }
+.skey.more { color: var(--muted); }
+.skey.big { width: max(56px, 3.3rem); height: max(56px, 3.3rem); }
+.skey.big .ico { width: 1.8rem; height: 1.8rem; }
+
+/* Shown when the reader scrolled away from the sentence being spoken. */
+.follow-pill { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); min-height: 44px; padding: 0 18px; border-radius: 99px; border: 1px solid var(--accent); background: var(--panel); color: var(--accent); font-weight: 600; box-shadow: 0 4px 14px #0006; cursor: pointer; white-space: nowrap; }
+
+/* Play/pause beside a spoken reply. */
+.msg.agent { max-width: 100%; }
+.bubble-row { display: flex; align-items: flex-end; gap: 2px; min-width: 0; }
+.bubble-row .bubble { min-width: 0; max-width: calc(100% - 46px); }
+.msg-key { flex: none; width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; border-radius: 50%; color: var(--muted); opacity: .75; cursor: pointer; padding: 0; }
+.msg-key .ico { width: 1.1rem; height: 1.1rem; }
+.msg-key.on { color: var(--accent); opacity: 1; }
+
+/* The full set, as a sheet over the page. */
+.speech-sheet-wrap { position: fixed; inset: 0; z-index: 20; background: #0009; display: flex; align-items: flex-end; justify-content: center; }
+.speech-sheet { width: 100%; max-width: 46rem; max-height: calc(var(--vvh, 100dvh) - 12px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; padding: 6px 16px calc(16px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -4px 20px #0006; }
+.sheet-head { display: flex; align-items: center; gap: 4px; }
+.sheet-title { flex: 1; min-width: 0; margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; background: none; border: 0; padding: 10px 0; }
+.sheet-title.link { text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.sheet-cols { display: flex; flex-direction: column; gap: 14px; }
+.sheet-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.sheet-sentence { margin: 0; min-height: calc(3 * 1.45em); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.sheet-progress { display: flex; align-items: center; gap: 10px; }
+.speech-progress.inline { position: static; flex: 1; height: 4px; border-radius: 2px; background: var(--panel-2); overflow: hidden; }
+.sheet-time { font: .8rem ui-monospace, monospace; color: var(--muted); min-width: 5.5em; text-align: right; }
+.transport { display: flex; align-items: center; justify-content: space-between; gap: 2px; }
+/* Seven keys in one row at any text size: they share the width, never below 44 px. */
+.transport .skey { flex: 1 1 0; width: auto; min-width: 44px; max-width: 3.3rem; border-radius: 99px; }
+.transport .skey.big { flex: none; width: max(56px, 3.3rem); max-width: none; border-radius: 50%; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--panel-2); cursor: pointer; font-size: .867rem; }
+.pill .ico { width: 1.1rem; height: 1.1rem; }
+.pill:disabled { opacity: .4; cursor: default; }
+.pill.on { color: var(--warn); border-color: var(--warn); }
+.knob { display: flex; align-items: center; gap: 6px; }
+.knob-label { width: 4.6rem; color: var(--muted); font-size: .867rem; }
+.knob-value { flex: 1; min-height: 44px; display: grid; place-items: center; background: none; border: 0; font: 1rem ui-monospace, monospace; cursor: pointer; }
+.knob-value.quiet { color: var(--muted); cursor: default; }
 
 /*
  * Short screens: a phone in landscape (~412 px tall), and far shorter with
@@ -175,6 +246,15 @@ a { color: var(--accent); }
   .footer { padding: 4px 0 6px; gap: 4px; }
   .viewport { padding-top: 6px; gap: 8px; }
   .fab { bottom: 12px; width: 3rem; height: 3rem; font-size: 1.6rem; }
+  .dock .fab { bottom: calc(100% + 10px); }
+  .dock .speech-bar { margin: 4px 12px calc(4px + env(safe-area-inset-bottom, 0px)); }
+  .speech-bar { min-height: 44px; }
+  .speech-title { padding-top: 2px; }
+  .speech-sentence { padding-bottom: 2px; }
+  /* Landscape: the sheet goes two columns, keys on the left, the rest right. */
+  .speech-sheet { max-width: 60rem; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .sheet-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .sheet-sentence { min-height: 0; -webkit-line-clamp: 2; }
 }
 @media (max-height: 320px) {
   /* Keyboard up in landscape: the composer and the last lines only. */
@@ -182,4 +262,7 @@ a { color: var(--accent); }
   .bar { padding: 0 12px; }
   .footer { padding: 2px 0 4px; }
   .working { padding-bottom: 2px; }
+  /* The bar keeps its keys and title; the sentence waits for more room. */
+  .speech-sentence { display: none; }
+  .speech-title { padding: 10px 0; }
 }

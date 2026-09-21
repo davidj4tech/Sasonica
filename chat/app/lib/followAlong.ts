@@ -103,3 +103,18 @@ export function duration(seconds: number): string {
   if (m < 60) return `${m}m ${s % 60}s`
   return `${Math.floor(m / 60)}h ${m % 60}m`
 }
+
+/**
+ * The live clock as the speech bar says it is, between a tap and the log
+ * poll that confirms it: paused at the moment of the tap (the bold stops
+ * where the voice did), or running on from where it was frozen. Pure in
+ * (clock, paused, atMs), so a memo holds it steady across renders.
+ */
+export function withPaused(clock: LiveClock, paused: boolean, atMs: number): LiveClock {
+  if (clock.paused === paused) return clock
+  if (paused) {
+    const elapsed = clock.elapsed + Math.max(0, atMs - clock.anchorMs) / 1000
+    return { ...clock, paused: true, elapsed, anchorMs: atMs }
+  }
+  return { ...clock, paused: false, anchorMs: atMs }
+}

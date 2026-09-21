@@ -1,0 +1,320 @@
+/**
+ * The voice's player, on every screen (Sasonica's SpeechBar.vue, ported).
+ *
+ * Collapsed, it is one row: what is being said (the conversation's title —
+ * tap to open it — over the current sentence), a progress sliver along its
+ * top edge from `pos`/`dur`, and the keys wanted most: back a sentence,
+ * pause/resume, on a sentence. The chevron (or a tap on the sentence) opens
+ * the full set in a sheet: turns, paragraphs, end of reply, replay, speed,
+ * volume and mute — every key the canvas takes from the app (§6.5).
+ *
+ * In the thread that is speaking, the live line already bolds the sentence,
+ * so the bar leaves it out and says only the time (or "Paused" and the time).
+ *
+ * Shown while a reply is live (speaking or paused); a reply that has just
+ * ended keeps it for a minute as "Finished · replay", since that is when
+ * replay is wanted. State and keys come from the one SpeechProvider poll.
+ */
+import { useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router'
+import type { SessionId } from '../api/types'
+import { useSpeech } from '../hooks/useSpeech'
+
+// ── Icons (currentColor, sized by the button's font-size) ─────────────────
+
+const Svg = ({ children, label }: { children: ReactNode; label?: string }) => (
+  <svg className="ico" viewBox="0 0 24 24" aria-hidden={label ? undefined : true} role={label ? 'img' : undefined} aria-label={label}>
+    {children}
+  </svg>
+)
+export const IconPlay = () => (
+  <Svg>
+    <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor" />
+  </Svg>
+)
+export const IconPause = () => (
+  <Svg>
+    <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" />
+    <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" />
+  </Svg>
+)
+export const IconReplay = () => (
+  <Svg>
+    <path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z" fill="currentColor" />
+  </Svg>
+)
+const IconBackSentence = () => (
+  <Svg>
+    <path d="M11 18V6l-8.5 6L11 18zm.5-6 8.5 6V6l-8.5 6z" fill="currentColor" />
+  </Svg>
+)
+const IconFwdSentence = () => (
+  <Svg>
+    <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" fill="currentColor" />
+  </Svg>
+)
+const IconPrevTurn = () => (
+  <Svg>
+    <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" fill="currentColor" />
+  </Svg>
+)
+const IconNextTurn = () => (
+  <Svg>
+    <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="currentColor" />
+  </Svg>
+)
+const IconParaBack = () => (
+  <Svg>
+    <path d="M17.6 6.4 16.2 5l-7 7 7 7 1.4-1.4L12 12zm-6 0L10.2 5l-7 7 7 7 1.4-1.4L6 12z" fill="currentColor" />
+  </Svg>
+)
+const IconParaFwd = () => (
+  <Svg>
+    <path d="M6.4 6.4 7.8 5l7 7-7 7-1.4-1.4L12 12zm6 0L13.8 5l7 7-7 7-1.4-1.4L18 12z" fill="currentColor" />
+  </Svg>
+)
+const IconEnd = () => (
+  <Svg>
+    <path d="M5.6 7.4 7 6l6 6-6 6-1.4-1.4L10.2 12zM16 6h2v12h-2z" fill="currentColor" />
+  </Svg>
+)
+const IconExpand = ({ open }: { open: boolean }) => (
+  <Svg>
+    <path d={open ? 'M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z' : 'M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z'} fill="currentColor" />
+  </Svg>
+)
+const IconVolume = ({ muted }: { muted: boolean }) => (
+  <Svg>
+    <path d="M4 9v6h4l5 5V4L8 9H4z" fill="currentColor" />
+    {muted ? (
+      <path d="m16 9 5 6m0-6-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+    ) : (
+      <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+    )}
+  </Svg>
+)
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function clock(s: number | null | undefined): string {
+  if (s == null || !isFinite(s)) return ''
+  const t = Math.max(0, Math.round(s))
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
+}
+
+function speedLabel(v: number | null | undefined): string {
+  const n = Number(v)
+  return n ? `${n.toFixed(2).replace(/\.?0+$/, '')}×` : '1×'
+}
+
+/** 0–1, or null when the server gave no position. */
+function progressOf(pos: number | null | undefined, dur: number | null | undefined): number | null {
+  if (pos == null || !dur) return null
+  return Math.max(0, Math.min(1, pos / dur))
+}
+
+// ── The bar ───────────────────────────────────────────────────────────────
+
+export function SpeechBar({ here }: { here?: SessionId }) {
+  const speech = useSpeech()
+  const { now, finished, error } = speech
+  const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
+
+  const live = !!now?.live
+  const visible = live || !!finished || open
+  // Hand the sheet back when the bar goes (no reply, nothing just ended).
+  useEffect(() => {
+    if (!live && !finished) setOpen(false)
+  }, [live, finished])
+
+  if (!visible) return null
+
+  const title = (live ? now?.title : finished?.title) || (live ? 'Speaking' : 'Nothing playing')
+  const session = live ? now?.session : finished?.session
+  const paused = live ? !!now?.paused : true
+  const inHere = !!here && session === here
+  const progress = live ? progressOf(now?.pos, now?.dur) : null
+  const times = live && now?.pos != null ? `${clock(now.pos)}${now.dur ? ` / ${clock(now.dur)}` : ''}` : ''
+
+  const openThread = () => {
+    if (!session || inHere) return
+    setOpen(false)
+    navigate(`/t/${encodeURIComponent(session)}`, { state: { title } })
+  }
+  const expand = () => {
+    speech.resetTurns()
+    setOpen(true)
+  }
+
+  const second = error
+    ? error
+    : !live
+      ? 'Finished · play to hear it again'
+      : inHere
+        ? // Short: the keys take most of the row, and the dot says "speaking".
+          paused ? `Paused${times ? ` · ${times}` : ''}` : times || 'Speaking'
+        : now?.sentence || (paused ? 'Paused' : '…')
+
+  const toggleLabel = !live ? 'Replay' : paused ? 'Resume' : 'Pause'
+
+  return (
+    <>
+      <div className={`speech-bar${inHere ? ' here' : ''}${paused ? ' paused' : ''}`} role="region" aria-label="Speech">
+        {progress !== null && (
+          <div className="speech-progress" aria-hidden="true">
+            <i style={{ width: `${progress * 100}%` }} />
+          </div>
+        )}
+        <div className="speech-text">
+          {inHere ? (
+            // This thread is the one speaking: its live line has the words.
+            <button className="speech-title" onClick={expand}>
+              <span className={live && !paused ? 'eq on' : 'eq'} aria-hidden="true" />
+              {second}
+            </button>
+          ) : (
+            <>
+              <button className="speech-title" onClick={session ? openThread : expand} title={session ? 'Open this conversation' : undefined}>
+                <span className={live && !paused ? 'eq on' : 'eq'} aria-hidden="true" />
+                {title}
+              </button>
+              <button className={error ? 'speech-sentence failed' : 'speech-sentence'} onClick={expand}>
+                {second}
+              </button>
+            </>
+          )}
+        </div>
+        {live && (
+          <button className="skey" aria-label="Back a sentence" onClick={() => void speech.ctl('skip-')}>
+            <IconBackSentence />
+          </button>
+        )}
+        <button className="skey main" aria-label={toggleLabel} aria-pressed={live ? !paused : undefined} onClick={speech.toggle}>
+          {!live ? <IconReplay /> : paused ? <IconPlay /> : <IconPause />}
+        </button>
+        {live && (
+          <button className="skey" aria-label="Next sentence" onClick={() => void speech.ctl('skip+')}>
+            <IconFwdSentence />
+          </button>
+        )}
+        <button className="skey more" aria-label="All speech controls" aria-expanded={open} onClick={() => (open ? setOpen(false) : expand())}>
+          <IconExpand open={open} />
+        </button>
+      </div>
+      {open && typeof document !== 'undefined' && createPortal(<SpeechSheet title={title} session={session || null} inHere={inHere} onOpen={openThread} onClose={() => setOpen(false)} />, document.body)}
+    </>
+  )
+}
+
+// ── The full set ──────────────────────────────────────────────────────────
+
+function SpeechSheet(props: { title: string; session: SessionId | null; inHere: boolean; onOpen: () => void; onClose: () => void }) {
+  const speech = useSpeech()
+  const { now, error } = speech
+  const live = !!now?.live
+  const paused = live ? !!now?.paused : true
+  const progress = live ? progressOf(now?.pos, now?.dur) : null
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [props])
+
+  const sentence = error || now?.sentence || (paused && live ? 'Paused' : live ? '…' : 'The last reply has finished. Replay it, or go back a turn.')
+
+  return (
+    <div className="speech-sheet-wrap" onClick={props.onClose}>
+      <div className="speech-sheet" role="dialog" aria-label="Speech controls" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-head">
+          <span className={live && !paused ? 'eq on' : 'eq'} aria-hidden="true" />
+          {props.session && !props.inHere ? (
+            <button className="sheet-title link" onClick={props.onOpen}>
+              {props.title}
+            </button>
+          ) : (
+            <p className="sheet-title">{props.title}</p>
+          )}
+          <button className="skey" aria-label="Close" onClick={props.onClose}>
+            <IconExpand open />
+          </button>
+        </div>
+
+        <div className="sheet-cols">
+          <div className="sheet-col">
+            <p className={error ? 'sheet-sentence failed' : 'sheet-sentence'}>{sentence}</p>
+            <div className="sheet-progress">
+              <div className="speech-progress inline" aria-hidden="true">
+                <i style={{ width: `${(progress ?? 0) * 100}%` }} />
+              </div>
+              <span className="sheet-time">{live ? `${clock(now?.pos)}${now?.dur ? ` / ${clock(now.dur)}` : ''}` : ''}</span>
+            </div>
+            <div className="transport">
+              <button className="skey" aria-label="Previous turn" onClick={speech.prevTurn}>
+                <IconPrevTurn />
+              </button>
+              <button className="skey" aria-label="Back a paragraph" disabled={!live} onClick={() => void speech.ctl('para-')}>
+                <IconParaBack />
+              </button>
+              <button className="skey" aria-label="Back a sentence" disabled={!live} onClick={() => void speech.ctl('skip-')}>
+                <IconBackSentence />
+              </button>
+              <button className="skey main big" aria-label={!live ? 'Replay' : paused ? 'Resume' : 'Pause'} onClick={speech.toggle}>
+                {paused ? <IconPlay /> : <IconPause />}
+              </button>
+              <button className="skey" aria-label="Next sentence" disabled={!live} onClick={() => void speech.ctl('skip+')}>
+                <IconFwdSentence />
+              </button>
+              <button className="skey" aria-label="Next paragraph" disabled={!live} onClick={() => void speech.ctl('para+')}>
+                <IconParaFwd />
+              </button>
+              <button className="skey" aria-label={speech.histIdx > 1 ? 'Next turn' : 'End of reply'} onClick={speech.nextTurn}>
+                <IconNextTurn />
+              </button>
+            </div>
+          </div>
+
+          <div className="sheet-col">
+            <div className="pills">
+              <button className="pill" onClick={speech.replayLatest}>
+                <IconReplay /> Replay latest
+              </button>
+              <button className="pill" disabled={!live} onClick={() => void speech.ctl('jump-end')}>
+                <IconEnd /> End of reply
+              </button>
+              <button className={now?.muted ? 'pill on' : 'pill'} aria-pressed={!!now?.muted} onClick={() => void speech.ctl('mute')}>
+                <IconVolume muted={!!now?.muted} /> {now?.muted ? 'Muted' : 'Mute'}
+              </button>
+            </div>
+            <div className="knob">
+              <span className="knob-label">Speed</span>
+              <button className="skey" aria-label="Slower" onClick={() => void speech.ctl('speed-')}>
+                −
+              </button>
+              <button className="knob-value" aria-label="Reset speed to 1×" title="Reset to 1×" onClick={() => void speech.ctl('speed0')}>
+                {speedLabel(now?.speed)}
+              </button>
+              <button className="skey" aria-label="Faster" onClick={() => void speech.ctl('speed+')}>
+                +
+              </button>
+            </div>
+            <div className="knob">
+              <span className="knob-label">Volume</span>
+              <button className="skey" aria-label="Quieter" onClick={() => void speech.ctl('vol-')}>
+                −
+              </button>
+              <span className="knob-value quiet" aria-hidden="true">
+                <IconVolume muted={!!now?.muted} />
+              </span>
+              <button className="skey" aria-label="Louder" onClick={() => void speech.ctl('vol+')}>
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -7,14 +7,17 @@
  * once (lib/snapshots.ts), with "updating…" in the header until the first
  * fresh poll — never a spinner over content.
  */
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { answer, ApiError, reply, stopSession } from '../api'
 import type { Approval, AskResponse, ReplyResponse } from '../api/types'
+import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import { useConversationLog } from '../hooks/useConversationLog'
+import { useSpeech } from '../hooks/useSpeech'
 import { knownTitle, useSessionStates, useThreadInfo } from '../hooks/useThreads'
 import { buildItems } from '../lib/convert'
+import { withPaused, type LiveClock } from '../lib/followAlong'
 
 type Status = { text: string; failed?: boolean } | null
 
@@ -37,9 +40,30 @@ function ThreadPage({ session }: { session: string }) {
   const states = useSessionStates()
   const [status, setStatus] = useState<Status>(null)
 
+  // The bar and the live line agree: a pause pressed (on the bar or the
+  // message) stops the bold at once, before the log's next poll confirms
+  // it; and any key re-reads the log straight after, so a skip moves the
+  // bold as soon as the server has moved.
+  const speech = useSpeech()
+  const { refresh } = log
+  useEffect(() => speech.onSettled(refresh), [speech.onSettled, refresh])
+  const speakingHere = speech.now?.live && (speech.now.session === session || !speech.now.session)
+  // The press is held past the bar's own confirmation until the log has
+  // answered once more, so the bold does not step back for a beat between
+  // the two polls.
+  const heldRef = useRef<{ press: { paused: boolean; at: number }; seen?: LiveClock | null } | null>(null)
+  const barPress = speakingHere ? speech.pausePress : null
+  if (barPress) heldRef.current = { press: barPress }
+  else if (heldRef.current) {
+    if (!('seen' in heldRef.current)) heldRef.current.seen = log.live
+    else if (heldRef.current.seen !== log.live) heldRef.current = null
+  }
+  const press = barPress || heldRef.current?.press || null
+  const live = useMemo(() => (log.live && press ? withPaused(log.live, press.paused, press.at) : log.live), [log.live, press])
+
   const items = useMemo(
-    () => buildItems({ session, lines: log.lines, approval: log.approval, live: log.live, optimistic: log.optimistic }),
-    [session, log.lines, log.approval, log.live, log.optimistic]
+    () => buildItems({ session, lines: log.lines, approval: log.approval, live, optimistic: log.optimistic }),
+    [session, log.lines, log.approval, live, log.optimistic]
   )
 
   const onSend = useCallback(
@@ -93,7 +117,7 @@ function ThreadPage({ session }: { session: string }) {
   )
 
   const state = states[session]
-  const live = state ? true : !!info?.live
+  const sessionLive = state ? true : !!info?.live
 
   let empty: React.ReactNode = null
   if (log.lines.length) {
@@ -127,7 +151,7 @@ function ThreadPage({ session }: { session: string }) {
         </Link>
         <h1 className="grow">{title}</h1>
         {log.stale && <span className="updating">updating…</span>}
-        <span className={`badge ${state || ''}`}>{state || (live ? 'live' : info?.resumable ? 'resumable' : 'ended')}</span>
+        <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : info?.resumable ? 'resumable' : 'ended')}</span>
       </header>
       <Thread
         items={items}
@@ -140,7 +164,8 @@ function ThreadPage({ session }: { session: string }) {
         onStop={onStop}
         actions={actions}
         empty={empty}
-        placeholder={info && !live ? 'Session closed. Sending resumes it' : undefined}
+        placeholder={info && !sessionLive ? 'Session closed. Sending resumes it' : undefined}
+        speechBar={<SpeechBar here={session} />}
         status={
           (status || (log.error && log.lines.length > 0)) && (
             <p className={status?.failed || !status ? 'status failed' : 'status'}>{status ? status.text : log.error}</p>

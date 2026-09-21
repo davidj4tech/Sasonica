@@ -27,12 +27,14 @@ import {
 import { useCallback, useMemo, useRef, type ReactNode } from 'react'
 import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
+import { useFollowAlong } from '../hooks/useFollowAlong'
 import { APPROVAL_TOOL, ASK_TOOL, convertItem, type ChatItem } from '../lib/convert'
 import {
   ApprovalToolUI,
   AskToolUI,
   CommandChip,
   LineText,
+  MessageSpeechKey,
   OptimisticMark,
   Picture,
   PictureData,
@@ -79,8 +81,11 @@ function AssistantMessage() {
   return (
     <MessagePrimitive.Root className={running ? 'msg agent speaking' : 'msg agent'}>
       <WorkSummary />
-      <div className="bubble">
-        <MessagePrimitive.Parts components={partComponents} />
+      <div className="bubble-row">
+        <div className="bubble">
+          <MessagePrimitive.Parts components={partComponents} />
+        </div>
+        <MessageSpeechKey />
       </div>
     </MessagePrimitive.Root>
   )
@@ -122,6 +127,8 @@ export interface ThreadProps {
   placeholder?: string
   /** Disable the composer (e.g. no place picked yet). */
   disabled?: boolean
+  /** Docked at the top of the footer, above the composer: the speech bar. */
+  speechBar?: ReactNode
 }
 
 export function Thread(props: ThreadProps) {
@@ -130,6 +137,11 @@ export function Thread(props: ThreadProps) {
   // (hooks/useBottomFirst.ts). Mount one Thread per conversation.
   const viewportRef = useRef<HTMLDivElement>(null)
   const items = useBottomFirst(props.items, viewportRef)
+  // While the live line plays, the view follows its bold sentence instead
+  // of sticking to the bottom (hooks/useFollowAlong.ts).
+  const liveItem = props.items.find((i) => i.kind === 'line' && i.live)
+  const liveClock = liveItem?.kind === 'line' ? liveItem.live : null
+  const follow = useFollowAlong(viewportRef, liveItem?.kind === 'line' && liveClock ? liveItem.line.at : null, !!liveClock && !liveClock.paused)
 
   const onNew = useCallback(
     async (message: AppendMessage) => {
@@ -170,11 +182,17 @@ export function Thread(props: ThreadProps) {
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadActionsContext.Provider value={props.actions}>
         <ThreadPrimitive.Root className="thread">
-          <ThreadPrimitive.Viewport className="viewport" ref={viewportRef}>
+          <ThreadPrimitive.Viewport className="viewport" ref={viewportRef} autoScroll={!follow.following} scrollToBottomOnRunStart={!follow.following}>
             {items.length === 0 && props.empty}
             <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
             <WorkingIndicator working={props.working} workingAt={props.workingAt} thinking={props.thinking} />
             <ThreadPrimitive.ViewportFooter className="footer">
+              {follow.detached && (
+                <button className="follow-pill" onClick={follow.resume}>
+                  Follow along
+                </button>
+              )}
+              {props.speechBar}
               {suggestion && (
                 <ThreadPrimitive.Suggestion className="suggestion" prompt={suggestion} send={false}>
                   {suggestion}

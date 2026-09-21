@@ -8,6 +8,7 @@ import { useCallback, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { askNew } from '../api'
 import type { Agent } from '../api/types'
+import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import { useTargets } from '../hooks/useThreads'
 
@@ -67,6 +68,7 @@ export default function NewThread() {
         onStop={() => {}}
         actions={noAnswer}
         placeholder="Start a new chat…"
+        speechBar={<SpeechBar />}
         empty={
           <div className="new-pickers">
             <p className="picker-label">Where</p>

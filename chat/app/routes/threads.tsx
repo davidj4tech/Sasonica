@@ -5,6 +5,7 @@
  * threads are warmed in the background (hooks/usePrefetch.ts).
  */
 import { Link } from 'react-router'
+import { SpeechBar } from '../components/SpeechBar'
 import { hasToken } from '../api/auth'
 import type { SessionState } from '../api/types'
 import { usePrefetch } from '../hooks/usePrefetch'
@@ -69,9 +70,14 @@ export default function Threads() {
         })}
       </ul>
 
-      <Link to="/new" className="fab" title="New chat">
-        +
-      </Link>
+      {/* The foot of the list: the speech bar when a voice is live, and the
+          + button, which rides above it (app.css .dock). */}
+      <div className="dock">
+        <Link to="/new" className="fab" title="New chat">
+          +
+        </Link>
+        <SpeechBar />
+      </div>
     </div>
   )
 }

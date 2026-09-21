@@ -17,7 +17,10 @@
  * cold and a cached open). Static files and pictures are never delayed.
  *
  * Fixture sessions (all text invented):
- *   speaking  — live, a reply being spoken now (follow-along bold)
+ *   speaking  — live, a reply being spoken now (follow-along bold); it
+ *               ends, rests 10 s ("finished") and is said again. The voice
+ *               is one shared clock: /speech/now, /speech/ctl (every
+ *               _APP_SPEECH_ACTIONS action) and the log's live line agree
  *   approval  — live, stopped on a permission prompt (/session/answer)
  *   asking    — live, an AskUserQuestion on screen, attached to its ask line
  *   working   — live, a turn running (`working` steps advance)
@@ -53,16 +56,25 @@ const agentLine = (text, at, extra = {}) => ({ start: null, end: null, who: 'age
 const youLine = (text, at) => ({ start: null, end: null, who: 'you', text, at: r3(at), key: '', id: 1000 + seq++ })
 const work = (seconds, steps) => ({ seconds, count: steps.length, steps })
 
+// Long on purpose: taller than a phone screen, so the view has to follow
+// the bold sentence down the reply rather than sit at the thread's foot.
 const SPOKEN = [
   'The mock server is speaking this reply right now.',
   'Each sentence turns bold as the voice reaches it, on the local clock between polls.',
   'Offsets come from the server; the page adds however long ago it heard them.',
+  'This reply is long on purpose, taller than a phone screen, so the thread has to follow the voice down the page.',
+  'While it plays, the view keeps the bold sentence in sight instead of sticking to the bottom.',
+  'Scroll by hand and it stops following, and a small pill offers to pick the thread back up.',
+  'Pause, and nothing moves: the page stays where the voice stopped.',
+  'The speech bar above the composer says the same thing as this line, because both read one clock.',
+  'Its keys skip a sentence back or forward, and the bold jumps with them after the next poll.',
+  'Ambient pictures stay hidden unless Settings asks for them; figures show as a thumbnail.',
   'When the reply ends, it keeps the same at, so it replaces itself rather than appearing twice.',
   'Then the loop starts again, so there is always something to watch.'
 ]
 const SPOKEN_TEXT = SPOKEN.join(' ')
-const SPOKEN_OFFSETS = [0, 3.2, 7.9, 12.4, 17.6]
-const SPOKEN_LEN = 21
+const SPOKEN_OFFSETS = [0, 3.2, 7.9, 12.4, 18.2, 23.1, 28.4, 32.6, 38.1, 43.6, 48.9, 54.1]
+const SPOKEN_LEN = 58
 
 function session(id, title, extra) {
   return { session: id, title, pane: null, live: true, item: `mock-item-${id.slice(0, 8)}`, lines: [], pending: false, working: null, approval: null, suggestion: '', ...extra }
@@ -81,10 +93,15 @@ add(
     suggestion: 'what happens when it ends?',
     lines: [
       youLine('Show me the follow-along.', T0 - 120),
-      agentLine('Sure — the next reply is spoken aloud, and the page follows it.', T0 - 110, { work: work(8.2, ['Read the contract', 'Find the live line']) }),
-      youLine('Go on then.', T0 - 30)
-    ],
-    liveAt: r3(T0 - 25)
+      agentLine('Sure — the next reply is spoken aloud, and the page follows it. Here is the shape of it.', T0 - 110, {
+        work: work(8.2, ['Read the contract', 'Find the live line']),
+        images: ['/img/mock-figure.svg'],
+        figure: true
+      }),
+      youLine('Go on then.', T0 - 30),
+      // Ambient art beside the spoken reply: hidden unless Settings says so.
+      agentLine(SPOKEN_TEXT, T0 - 25, { work: work(12.5, ['Read the live line', 'Split into sentences']), images: ['/img/mock-c.svg', '/img/mock-d.svg'], figure: false })
+    ]
   })
 )
 
@@ -218,40 +235,220 @@ function tickSession(s) {
   for (const job of s.jobs || []) if (t >= job.at && !job.done) (job.done = true), job.run()
 }
 
-function liveLine(s) {
-  if (!s.liveAt) return null
-  const t = now()
-  const elapsed = (t - s.liveAt) % SPOKEN_LEN
-  let sentence = 0
-  SPOKEN_OFFSETS.forEach((o, i) => {
-    if (elapsed >= o) sentence = i
-  })
-  return {
-    start: null,
-    end: null,
-    who: 'agent',
-    text: SPOKEN_TEXT,
-    at: s.liveAt,
-    key: '',
-    live: true,
-    sentences: SPOKEN,
-    sentence,
-    offsets: SPOKEN_OFFSETS,
-    elapsed: r3(elapsed),
-    paused: false,
-    server_time: r3(t),
-    delay: 0,
-    work: work(12.5, ['Read the live line', 'Split into sentences'])
+// ── The voice (§6.5) ──────────────────────────────────────────────────────
+//
+// One reply is "being spoken" at a time, shared by /speech/now and the log's
+// live line so the bar and the follow-along agree. The speaking fixture's
+// reply plays on a loop: when it ends, the voice is quiet for SPEECH_REST_S
+// ("finished") and then says it again. Every /speech/ctl action moves it.
+
+// MOCK_SPEECH_REST_S=0 loops the reply without a break (a long test run
+// stays live); jump-end always rests, so "finished" can still be seen.
+const SPEECH_REST_S = Number(process.env.MOCK_SPEECH_REST_S ?? 10)
+const JUMP_END_REST_S = 10
+const SPEED_RUNGS = [1.0, 1.25, 1.5, 2.0, 3.0] // agent_media_core/cli.py _SPEED_RUNGS
+function speedNext(cur, dir) {
+  const eps = 1e-6
+  if (dir > 0) {
+    if (cur < 1 - eps) return Math.min(Math.round((cur + 0.1) * 100) / 100, 1)
+    return SPEED_RUNGS.find((r) => r > cur + eps) ?? 3.0
   }
+  if (cur > 1 + eps) return [...SPEED_RUNGS].reverse().find((r) => r < cur - eps) ?? 1.0
+  return Math.max(Math.round((cur - 0.1) * 100) / 100, 0.3)
+}
+
+/** A reply's sentences and their offsets (the fixture's, or ~0.36 s a word). */
+function speechOf(line) {
+  if (line.text === SPOKEN_TEXT) return { sentences: SPOKEN, offsets: SPOKEN_OFFSETS, len: SPOKEN_LEN }
+  const sentences = line.text.split(/(?<=[.!?])\s+/).filter(Boolean)
+  const offsets = []
+  let t = 0
+  for (const x of sentences) {
+    offsets.push(r3(t))
+    t += Math.max(1.5, x.split(/\s+/).length * 0.36)
+  }
+  return { sentences, offsets, len: r3(t) }
+}
+
+const V = {
+  on: null, // { s, line, sentences, offsets, len } — what is being said
+  anchorT: 0, // wall time of the last anchor
+  anchorPos: 0, // reply seconds at the anchor
+  paused: false,
+  speed: 1.0,
+  muted: false,
+  volume: 80,
+  restUntil: 0, // quiet until then, then the fixture's reply again
+  loop: null // the fixture's reply, said again after a rest
+}
+
+function vPos() {
+  if (!V.on) return 0
+  return V.paused ? V.anchorPos : V.anchorPos + (now() - V.anchorT) * V.speed
+}
+function vSeek(pos) {
+  V.anchorPos = Math.max(0, pos)
+  V.anchorT = now()
+}
+function vSay(s, line, pos = 0) {
+  V.on = { s, line, ...speechOf(line) }
+  V.paused = false
+  vSeek(pos)
+}
+function vStop(rest = SPEECH_REST_S) {
+  V.on = null
+  V.paused = false
+  V.restUntil = now() + rest
+}
+/** Advance the clock: a reply that ran out ends; after a rest, the loop starts again. */
+function vTick() {
+  if (V.on && vPos() >= V.on.len) vStop()
+  if (!V.on && V.loop && now() >= V.restUntil) vSay(V.loop.s, V.loop.line)
+}
+function vSentence() {
+  const pos = vPos()
+  let i = 0
+  V.on.offsets.forEach((o, k) => {
+    if (pos >= o) i = k
+  })
+  return i
+}
+/** Every spoken agent line, newest first — the turns `prev`/`replay N` count. */
+function spokenTurns() {
+  const all = []
+  for (const s of Object.values(S)) for (const l of s.lines) if (l.who === 'agent' && l.id) all.push({ s, line: l })
+  return all.sort((a, b) => b.line.at - a.line.at)
+}
+
+function speechNow() {
+  vTick()
+  if (!V.on) return { ok: true, live: false, speaking: false, paused: false, sentence: '', session: null, title: '', item: null, pos: null, dur: null, speed: null, muted: V.muted }
+  const { s } = V.on
+  return {
+    ok: true,
+    live: true,
+    speaking: !V.paused,
+    paused: V.paused,
+    sentence: V.on.sentences[vSentence()],
+    session: s.session,
+    title: s.title,
+    item: s.item,
+    pos: Math.floor(vPos()),
+    dur: Math.ceil(V.on.len),
+    speed: V.speed,
+    muted: V.muted
+  }
+}
+
+/** Returns `out`, as `media` would print it, or null for an unknown action. */
+function speechCtl(action, arg) {
+  vTick()
+  const n = Math.max(1, Math.min(999, Number(arg) || 1))
+  const turns = spokenTurns()
+  const replayTurn = (k) => {
+    const t = turns[Math.min(k, turns.length) - 1]
+    if (!t) return 'nothing to replay'
+    vSay(t.s, t.line)
+    return String(Math.min(k, turns.length))
+  }
+  const step = (d) => {
+    if (!V.on) return 'nothing playing'
+    const i = vSentence() + d
+    if (i >= V.on.offsets.length) {
+      vStop(Math.max(SPEECH_REST_S, JUMP_END_REST_S))
+      return 'end'
+    }
+    // Back from well into a sentence restarts it first, as the popup's h does.
+    const back = d < 0 && vPos() - V.on.offsets[vSentence()] > 1.5 ? vSentence() : Math.max(0, i)
+    vSeek(V.on.offsets[d < 0 ? back : i])
+    return `sentence ${d < 0 ? back : i}`
+  }
+  switch (action) {
+    case 'toggle':
+      if (!V.on) return replayTurn(1)
+      vSeek(vPos())
+      V.paused = !V.paused
+      return V.paused ? 'paused' : 'playing'
+    case 'skip-':
+      return step(-1)
+    case 'skip+':
+      return step(1)
+    // The fixtures have no paragraphs; two sentences stand in for one.
+    case 'para-':
+      return step(-2)
+    case 'para+':
+      return step(2)
+    case 'jump-end':
+      if (V.on) vStop(Math.max(SPEECH_REST_S, JUMP_END_REST_S))
+      return 'end'
+    case 'prev':
+      // Well into the reply: restart it first; else the turn before `n`.
+      if (V.on && vPos() > 3 && V.on.line.id === turns[n - 1]?.line.id) {
+        vSeek(0)
+        V.paused = false
+        return String(n)
+      }
+      return replayTurn(n + 1)
+    case 'replay':
+      return replayTurn(n)
+    case 'replay-id': {
+      const t = turns.find((x) => x.line.id === Number(arg))
+      if (!t) return `no history row ${arg}`
+      vSay(t.s, t.line)
+      return String(turns.indexOf(t) + 1)
+    }
+    case 'speed-':
+    case 'speed+':
+      vSeek(vPos())
+      V.speed = speedNext(V.speed, action === 'speed+' ? 1 : -1)
+      return `speed ${V.speed}`
+    case 'speed0':
+      vSeek(vPos())
+      V.speed = 1.0
+      return 'speed 1'
+    case 'vol-':
+    case 'vol+':
+      V.volume = Math.max(0, Math.min(100, V.volume + (action === 'vol+' ? 5 : -5)))
+      return `volume ${V.volume}`
+    case 'mute':
+      V.muted = !V.muted
+      return V.muted ? 'muted' : 'unmuted'
+    default:
+      return null
+  }
+}
+
+/** The line being said, marked live in its place (§6.2 "The live line"). */
+function liveLine(line) {
+  const t = now()
+  const pos = vPos()
+  return {
+    ...line,
+    id: undefined, // history_id stays on the server while live
+    live: true,
+    sentences: V.on.sentences,
+    sentence: vSentence(),
+    offsets: V.on.offsets,
+    elapsed: r3(pos),
+    paused: V.paused,
+    server_time: r3(t),
+    delay: 0
+  }
+}
+
+// Mid-way through its reply at start, like a voice already talking.
+{
+  const s = Object.values(S).find((x) => x.title === 'Mock: speaking now')
+  V.loop = { s, line: s.lines[s.lines.length - 1] }
+  vSay(V.loop.s, V.loop.line, 4)
 }
 
 const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane } : { session: s.session, title: s.title, live: false, pane: null, at: s.at })
 
 function logOf(s) {
   tickSession(s)
-  const lines = [...s.lines]
-  const live = liveLine(s)
-  if (live) lines.push(live)
+  vTick()
+  const lines = s.lines.map((l) => (V.on && V.on.s === s && V.on.line === l ? liveLine(l) : l))
   const last = lines[lines.length - 1]
   const pending = s.pending || (!!last && last.who === 'you')
   return { ok: true, session: s.session, lines, pending, working: s.working, approval: s.approval, suggestion: pending ? '' : s.suggestion }
@@ -339,7 +536,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/draft', '/commands'])
+const API = new Set(['/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/draft', '/commands', '/speech/now', '/speech/ctl'])
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://mock')
@@ -486,6 +683,15 @@ async function route(method, path, q, body, res) {
       }
     ]
     return ok({ session: s.session, pane: s.pane, answered: choice, label: picked.label, waiting: false, approval: null })
+  }
+
+  if (method === 'GET' && path === '/speech/now') return ok(speechNow())
+
+  if (method === 'POST' && path === '/speech/ctl') {
+    const out = speechCtl(String(body.action || ''), body.arg)
+    if (out === null) return err(400, 'unknown action')
+    console.log(`  speech ${body.action}${body.arg !== undefined ? ' ' + body.arg : ''} → ${out}`)
+    return ok({ out })
   }
 
   return err(400, 'not in the mock')

@@ -20,6 +20,9 @@ import type {
   SessionId,
   SessionRow,
   SessionsStateResponse,
+  SpeechAction,
+  SpeechCtlResponse,
+  SpeechNow,
   StopRequest,
   StopResponse,
   TargetsResponse
@@ -191,6 +194,21 @@ export async function answer(body: AnswerRequest): Promise<AnswerResult> {
     }
     return { ok: false, changed: false, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+// ── Speech (§6.5) ─────────────────────────────────────────────────────────
+
+/** What the voice is saying now. Polled by the one SpeechProvider. */
+export function getSpeechNow(signal?: AbortSignal) {
+  return request<SpeechNow>('GET', '/speech/now', undefined, signal)
+}
+
+/**
+ * A listening key: `toggle`, `skip-`/`skip+`, `replay-id` + a history row id…
+ * REAL on the canvas: it pauses the voice David is hearing. Test on the mock.
+ */
+export function speechCtl(action: SpeechAction, arg?: number) {
+  return request<SpeechCtlResponse>('POST', '/speech/ctl', arg === undefined ? { action } : { action, arg })
 }
 
 /**
