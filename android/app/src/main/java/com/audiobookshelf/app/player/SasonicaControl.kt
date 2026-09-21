@@ -180,6 +180,25 @@ class SasonicaControl(
     val path = target.substringBefore('?')
     val query = parseQuery(target.substringAfter('?', ""))
 
+    // Sasonica: the companion's plain-text readouts, for the same readers on
+    // the phone (call_guard's /mic, ringer.py's /ringer). Answered even when
+    // the player service is not up: the mic is not the player's business.
+    val plain = if (!authorised(c, auth, query)) null else when (path) {
+      "/mic" -> com.audiobookshelf.app.speech.SasonicaHolds.micLine()
+      "/ringer" -> com.audiobookshelf.app.speech.SasonicaHolds.ringerLine()
+      else -> null
+    }
+    if (plain != null) {
+      val bytes = (plain + "\n").toByteArray()
+      c.getOutputStream().apply {
+        write(("HTTP/1.0 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\n" +
+               "Content-Length: ${bytes.size}\r\nConnection: close\r\n\r\n").toByteArray())
+        write(bytes)
+        flush()
+      }
+      return
+    }
+
     val (status, body) = try {
       loopbackCaller = c.inetAddress.isLoopbackAddress
       if (!authorised(c, auth, query)) 401 to err("token required")
@@ -312,6 +331,10 @@ class SasonicaControl(
       put("chapter", svc.getCurrentBookChapter()?.title ?: JSONObject.NULL)
       // What the mic and voice-session holds are doing, for diagnosis from red5.
       put("holds", com.audiobookshelf.app.speech.SasonicaHolds.why())
+      // `media doctor` asks for these, as it asked the companion.
+      put("dictation_holds_1h", com.audiobookshelf.app.speech.SasonicaHolds.dictationHolds1h())
+      com.audiobookshelf.app.speech.SasonicaHolds.dictationRateProblem().takeIf { it.isNotEmpty() }
+        ?.let { put("dictation_rate", it) }
     }
   }
 

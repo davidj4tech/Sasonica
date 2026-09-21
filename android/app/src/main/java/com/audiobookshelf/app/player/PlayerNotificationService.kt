@@ -216,6 +216,7 @@ class PlayerNotificationService : MediaBrowserServiceCompat() {
     Log.d(tag, "onCreate")
     super.onCreate()
     ctx = this
+    SasonicaRemoteService.ensure(this) // Sasonica: a media-button wake brings the remote service (and the mic holds) back
 
     // Initialize Paper
     DbManager.initialize(ctx)

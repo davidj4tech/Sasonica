@@ -156,6 +156,22 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <!-- Sasonica: the speech-waiting card's buttons, and "Play with
+             agent-media" in the share sheet (both moved from the companion). -->
+        <receiver android:name=".speech.SasonicaSpeechReceiver" android:exported="false" />
+        <activity
+            android:name=".player.SasonicaShareActivity"
+            android:exported="true"
+            android:label="Play with agent-media"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:noHistory="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
 
         <provider
           android:name="androidx.core.content.FileProvider"

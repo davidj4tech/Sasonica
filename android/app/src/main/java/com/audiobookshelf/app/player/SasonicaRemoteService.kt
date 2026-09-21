@@ -63,7 +63,7 @@ class SasonicaRemoteService : Service() {
     /** Start the service if the setting says so — at launch, boot, or update. */
     fun ensure(ctx: Context) {
       attach(ctx)
-      if (enabled) start(ctx)
+      if (enabled && !running) start(ctx)
     }
 
     private fun start(ctx: Context) {
@@ -131,7 +131,14 @@ class SasonicaRemoteService : Service() {
     })
   }
 
-  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    // Every startForegroundService owes a startForeground, even to a service
+    // already running — a start that skips onCreate would otherwise kill the
+    // app ten seconds later (the companion died of this, 2026-08-17).
+    // Re-posting the same notification is idempotent.
+    startForeground(NOTIFICATION_ID, notification())
+    return START_STICKY
+  }
 
   override fun onDestroy() {
     running = false
