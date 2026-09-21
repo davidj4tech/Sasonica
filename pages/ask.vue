@@ -139,7 +139,7 @@ const ITEM_POLL_MS = 3000
 
 // Sasonica: the agents a new chat can run, as agent-media names them
 // (`AGENT_COMMANDS` in its canvas). Tapping the chip goes round them.
-const AGENT_LABELS = { claude: 'Claude', codex: 'Codex', pi: 'pi' }
+const AGENT_LABELS = { claude: 'Claude', codex: 'Codex', pi: 'pi', hermes: 'Hermes' }
 const AGENTS = Object.keys(AGENT_LABELS)
 
 export default {
