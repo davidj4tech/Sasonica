@@ -1,0 +1,256 @@
+/**
+ * The custom part and message renderers the thread uses: the follow-along
+ * text, pictures, the work summary, the slash-command chip, the ask and
+ * approval tool UIs, and the running turn's indicator.
+ */
+import {
+  useAuiState,
+  type DataMessagePartComponent,
+  type ImageMessagePartComponent,
+  type TextMessagePartComponent,
+  type ToolCallMessagePartComponent
+} from '@assistant-ui/react'
+import { createContext, useContext, useEffect, useState } from 'react'
+import type { Approval, Working } from '../api/types'
+import type { ApprovalArgs, AskArgs, LineCustom } from '../lib/convert'
+import { duration, liveParts, sentenceAt, type LiveClock } from '../lib/followAlong'
+
+/** What the tool UIs need from the thread page. */
+export interface ThreadActions {
+  /**
+   * POST /session/answer. Resolves to '' on success, else the sentence to
+   * show and the key of the question it belongs to (after a 409 that is the
+   * NEW question's key, so the message survives the re-render).
+   */
+  answer: (approval: Approval, choice: number) => Promise<{ error: string; key: string }>
+}
+export const ThreadActionsContext = createContext<ThreadActions>({ answer: async (a) => ({ error: 'not wired', key: a.key }) })
+
+function useCustom(): LineCustom {
+  return useAuiState((s) => (s.message.metadata?.custom || {}) as LineCustom)
+}
+
+/** A clock that ticks every `ms` while `on`. */
+function useTick(on: boolean, ms: number) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!on) return
+    const id = window.setInterval(() => setNow(Date.now()), ms)
+    return () => window.clearInterval(id)
+  }, [on, ms])
+  return now
+}
+
+// ── Text ──────────────────────────────────────────────────────────────────
+
+function LiveText({ text, clock }: { text: string; clock: LiveClock }) {
+  // A quarter-second tick is what moves the bold between polls.
+  const now = useTick(!clock.paused, 250)
+  const current = sentenceAt(clock, now)
+  const parts = liveParts(text, clock.sentences)
+  return (
+    <p className="line-text live-text">
+      {parts.map((p, i) => (
+        <span key={i}>
+          {p.lead}
+          <span className={i === current ? 'sentence now' : i < current ? 'sentence said' : 'sentence'}>{p.text}</span>
+        </span>
+      ))}
+    </p>
+  )
+}
+
+/** Text part: plain, or the live line with its sentence in bold (§6.2). */
+export const LineText: TextMessagePartComponent = ({ text }) => {
+  const custom = useCustom()
+  if (custom.live) return <LiveText text={text} clock={custom.live} />
+  return <p className="line-text">{text}</p>
+}
+
+/** A `[[visual:]]` figure gets the width; ambient art stays small. */
+function PictureView({ image }: { image: string }) {
+  const { figure } = useCustom()
+  return (
+    <a className={figure ? 'picture figure' : 'picture ambient'} href={image} target="_blank" rel="noreferrer">
+      <img src={image} alt={figure ? 'figure' : ''} loading="lazy" />
+    </a>
+  )
+}
+
+/** Image part (https / blob / data URLs). */
+export const Picture: ImageMessagePartComponent = ({ image }) => <PictureView image={image} />
+
+/** `data-picture` part: an http picture assistant-ui would not keep as an image. */
+export const PictureData: DataMessagePartComponent<{ src: string }> = ({ data }) => <PictureView image={data.src} />
+
+// ── Message furniture ─────────────────────────────────────────────────────
+
+/** "Worked 3m 38s · 11 steps", folding open to the steps (`line.work`). */
+export function WorkSummary() {
+  const { work } = useCustom()
+  if (!work || !work.count) return null
+  return (
+    <details className="work">
+      <summary>
+        Worked {duration(work.seconds)} · {work.count} step{work.count === 1 ? '' : 's'}
+      </summary>
+      <ol>
+        {work.steps.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ol>
+    </details>
+  )
+}
+
+/** The chip for a slash command typed from the box (`line.command`). */
+export function CommandChip() {
+  const { command } = useCustom()
+  if (!command) return null
+  const label = typeof command.text === 'string' ? command.text : JSON.stringify(command)
+  return <span className="command-chip">{label}</span>
+}
+
+export function OptimisticMark() {
+  const { optimistic } = useCustom()
+  return optimistic ? <span className="sending-mark">sending…</span> : null
+}
+
+// ── Asks and approvals (human tool UI) ────────────────────────────────────
+
+/**
+ * The numbered options of the dialog on screen, each one a button that
+ * presses that number (POST /session/answer {session, choice, key}). A 409
+ * "question has changed" re-renders from the new `approval` via the page.
+ */
+function ApprovalOptions({ approval }: { approval: Approval }) {
+  const { answer } = useContext(ThreadActionsContext)
+  const [busy, setBusy] = useState<number | null>(null)
+  // An error belongs to one question; a different one on screen hides it.
+  const [error, setError] = useState({ error: '', key: '' })
+
+  const press = async (n: number) => {
+    if (busy !== null) return
+    setBusy(n)
+    setError({ error: '', key: '' })
+    setError(await answer(approval, n))
+    setBusy(null)
+  }
+  return (
+    <div className="approval-options">
+      {approval.partial && <p className="hint">Some options scrolled off the screen; the numbers still answer it.</p>}
+      {approval.options.map((o) => (
+        <button key={`${approval.key}:${o.n}`} className="option" disabled={busy !== null} onClick={() => press(o.n)}>
+          <span className="n">{o.n}</span>
+          <span className="label">
+            {o.label}
+            {o.detail && <small>{o.detail}</small>}
+          </span>
+          {busy === o.n && <span className="spinner" aria-label="answering" />}
+        </button>
+      ))}
+      {error.error && error.key === approval.key && <p className="error">{error.error}</p>}
+    </div>
+  )
+}
+
+/** A permission prompt / Codex approval / any dialog, as its own message. */
+export const ApprovalToolUI: ToolCallMessagePartComponent<ApprovalArgs> = ({ args }) => {
+  const approval = args.approval
+  return (
+    <div className="tool-card approval">
+      <p className="tool-title">{approval.question || 'The session is waiting on a question'}</p>
+      <ApprovalOptions approval={approval} />
+    </div>
+  )
+}
+
+/**
+ * An AskUserQuestion, as asked (§14). While it is still the dialog on screen
+ * (`args.approval`), its options are live buttons; otherwise it is answered
+ * and read-only, with the chosen labels marked.
+ */
+export const AskToolUI: ToolCallMessagePartComponent<AskArgs> = ({ args }) => {
+  const { questions, approval, answeredWith } = args
+  const multi = questions.some((q) => q.multiSelect)
+  const chosen = (label: string) => answeredWith.includes(label.trim().toLowerCase())
+  if (approval) {
+    return (
+      <div className="tool-card ask">
+        {multi ? (
+          // v0 gap (§16): a multi-select or free-text answer cannot be pressed
+          // by number. The contract's fallback is /focus ("answer at the desk").
+          <p className="hint">This question takes several answers — answer it at the desk.</p>
+        ) : (
+          <ApprovalOptions approval={approval} />
+        )}
+      </div>
+    )
+  }
+  return (
+    <div className="tool-card ask answered">
+      {questions.map((q, i) => (
+        <div key={i}>
+          {questions.length > 1 && <p className="tool-title">{q.question}</p>}
+          <ul>
+            {q.options.map((o, j) => (
+              <li key={j} className={chosen(o.label) ? 'chosen' : ''}>
+                {o.label}
+                {o.description && <small>{o.description}</small>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export const ToolFallback: ToolCallMessagePartComponent = ({ toolName }) => <div className="tool-card">{toolName}</div>
+
+// ── The running turn ──────────────────────────────────────────────────────
+
+const WORKING_SHOWN = 4
+
+/**
+ * `working` is not a message (§14): it is the thread's in-progress
+ * indicator, where today's clients show the dots — with the step list and a
+ * timer run on the local clock between polls.
+ */
+export function WorkingIndicator({ working, workingAt, thinking }: { working: Working | null; workingAt: number; thinking: boolean }) {
+  const now = useTick(!!working, 1000)
+  const [open, setOpen] = useState(false)
+  if (!working) {
+    if (!thinking) return null
+    return (
+      <div className="working">
+        <span className="dots">
+          <i />
+          <i />
+          <i />
+        </span>
+      </div>
+    )
+  }
+  const seconds = Math.max(0, working.server_time - working.since + (now - workingAt) / 1000)
+  const steps = open ? working.steps : working.steps.slice(-WORKING_SHOWN)
+  return (
+    <div className="working">
+      <button className="working-head" onClick={() => setOpen((o) => !o)}>
+        <span className="dots">
+          <i />
+          <i />
+          <i />
+        </span>
+        Working {duration(seconds)} · {working.count} step{working.count === 1 ? '' : 's'}
+      </button>
+      <ol className="steps" start={Math.max(1, working.count - steps.length + 1)}>
+        {steps.map((s, i) => (
+          <li key={i} className={i === steps.length - 1 ? 'current' : ''}>
+            {s}
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
