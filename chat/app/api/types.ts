@@ -264,6 +264,16 @@ export interface AnswerResponse extends Envelope {
   approval: Approval | null
 }
 
+/** POST /rename {session, title} (§6.4). */
+export interface RenameResponse extends Envelope {
+  session: SessionId
+  title: string
+  /** Typed into the running session as `/rename <title>`. false is NOT a failure: the shelf has the name. */
+  terminal: boolean
+  /** Why the terminal was not renamed (ended, or someone mid-sentence in its box). */
+  why: string | null
+}
+
 // ── §6.5 Speech ───────────────────────────────────────────────────────────
 
 /**

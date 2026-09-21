@@ -47,6 +47,8 @@
  *               stops being the last line
  *   nooffsets — live, `offsets: []` and `sentence: null`, `elapsed` advancing
  *               (the app estimates the sentence)
+ * POST /rename renames any fixture (`terminal: false` with a `why` for an
+ * ended or working one); a title containing FAIL is refused 500.
  * MOCK_REAL_VOICE=1 makes /speech/now speak `real`, with the player's `pos`
  * lagging `elapsed` (pos = 0.75 × elapsed), as red5's phone lane did.
  */
@@ -666,7 +668,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/pair', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/draft', '/commands', '/speech/now', '/speech/ctl'])
+const API = new Set(['/pair', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl'])
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://mock')
@@ -692,6 +694,14 @@ createServer(async (req, res) => {
     for (const x of Object.values(S)) if (x.real) x.real = { start: now() + lead, appended: 0, hold }
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end('ok')
+  }
+  if (path === '/mock/voice') {
+    // Tests: `?loop=0` stops the speaking fixture coming back after it ends
+    // (so "finished" lasts), `?loop=1` restores it.
+    if (url.searchParams.get('loop') === '0') (V.saved = V.loop || V.saved), (V.loop = null)
+    if (url.searchParams.get('loop') === '1') V.loop = V.loop || V.saved || null
+    res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
+    return res.end(V.loop ? 'looping' : 'not looping')
   }
   if (path === '/mock/pair') {
     PAIR.armed = true
@@ -875,6 +885,23 @@ async function route(method, path, q, body, res) {
       }
     ]
     return ok({ session: s.session, pane: s.pane, answered: choice, label: picked.label, waiting: false, approval: null })
+  }
+
+  if (method === 'POST' && path === '/rename') {
+    // §6.4: {session (or item), title} → {session, title, terminal, why}.
+    // A title containing FAIL is refused 500, for the rollback path.
+    const title = String(body.title || '').replace(/\s+/g, ' ').trim()
+    if (!title) return err(400, 'no title')
+    const s = body.session !== undefined ? S[String(body.session)] : byItem(body.item || '')
+    if (!s) return err(404, 'no such session')
+    if (title.includes('FAIL')) return err(500, 'could not rename')
+    s.title = title
+    const why = !s.live
+      ? 'the session has ended; it starts with this name when resumed'
+      : s.state === 'working'
+        ? 'the running session will pick it up when it is free'
+        : null
+    return ok({ session: s.session, title, terminal: !why, why })
   }
 
   if (method === 'GET' && path === '/speech/now') return ok(speechNow())

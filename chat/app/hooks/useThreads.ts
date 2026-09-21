@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { getSessionsState, getTargets } from '../api'
 import type { Place, SessionRow, SessionState, SessionsStateResponse, TargetsResponse } from '../api/types'
 import { loadStates, loadTargets, peekStates, peekTargets, saveStates, saveTargets } from '../lib/snapshots'
+import { confirmTitles } from '../lib/titles'
 import { usePoll } from './usePoll'
 
 /**
@@ -16,6 +17,12 @@ export function knownTitle(session: string): string {
 /** Live per the last /targets seen; undefined when the list never showed it. */
 export function knownLive(session: string): boolean | undefined {
   return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.live
+}
+
+/** A rename the server accepted, for the next page that asks knownTitle. */
+export function noteRenamed(session: string, title: string) {
+  const row = known.get(session)
+  if (row) known.set(session, { ...row, title })
 }
 
 function rowsOf(res: TargetsResponse): SessionRow[] {
@@ -42,6 +49,7 @@ export function useTargets() {
     try {
       const res = await getTargets()
       saveTargets(res)
+      confirmTitles(res.sessions)
       setSessions(rowsOf(res))
       setPlaces(res.places || [])
       setError('')

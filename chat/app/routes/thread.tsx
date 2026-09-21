@@ -18,6 +18,10 @@ import { Thread } from '../components/Thread'
 import { useConversationLog } from '../hooks/useConversationLog'
 import { useSpeech } from '../hooks/useSpeech'
 import { knownLive, knownTitle, useSessionStates } from '../hooks/useThreads'
+import { useRename } from '../hooks/useRename'
+import { RenameSheet } from '../components/RenameSheet'
+import { useTitle } from '../lib/titles'
+import { loadTargets } from '../lib/snapshots'
 import { buildItems } from '../lib/convert'
 import { withPaused, withSkew, type LiveClock } from '../lib/followAlong'
 import type { SpeechNow } from '../api/types'
@@ -36,7 +40,26 @@ export default function ThreadRoute() {
 
 function ThreadPage({ session }: { session: string }) {
   const location = useLocation()
-  const title = (location.state as { title?: string } | null)?.title || knownTitle(session) || session.slice(0, 8)
+  // Where the title comes from: the list that linked here, the list seen in
+  // this page load, else the saved list (a cold start straight into a thread).
+  const [savedTitle, setSavedTitle] = useState('')
+  const serverTitle = (location.state as { title?: string } | null)?.title || knownTitle(session) || savedTitle
+  useEffect(() => {
+    if (serverTitle) return
+    let cancelled = false
+    void loadTargets().then((res) => {
+      const row = res?.sessions.find((r) => r.session === session)
+      if (!cancelled && row?.title) setSavedTitle(row.title)
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session])
+  const title = useTitle(session, serverTitle) || session.slice(0, 8)
+  const [renaming, setRenaming] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const rename = useRename()
 
   const log = useConversationLog(session)
   const states = useSessionStates()
@@ -148,10 +171,43 @@ function ThreadPage({ session }: { session: string }) {
         <Link className="icon" to="/" title="Threads">
           ←
         </Link>
-        <h1 className="grow">{title}</h1>
+        <h1 className="grow">
+          <button className="title-button" onClick={() => setRenaming(true)} title="Rename">
+            {title}
+          </button>
+        </h1>
         {log.stale && <span className="updating">updating…</span>}
         {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
+        <div className="menu-anchor">
+          <button className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+            ⋮
+          </button>
+          {menu && (
+            <div className="menu" role="menu" onMouseLeave={() => setMenu(false)}>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setMenu(false)
+                  setRenaming(true)
+                }}
+              >
+                Rename…
+              </button>
+            </div>
+          )}
+        </div>
       </header>
+      {renaming && (
+        <RenameSheet
+          title={title}
+          onClose={() => setRenaming(false)}
+          onSave={(name) => {
+            setRenaming(false)
+            setStatus({ text: 'Renaming…' })
+            void rename(session, name).then((r) => setStatus({ text: r.message, failed: !r.ok }))
+          }}
+        />
+      )}
       <Thread
         items={items}
         isRunning={log.isRunning}

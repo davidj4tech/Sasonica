@@ -4,10 +4,14 @@
  * Paints from the last saved answer; once the fresh one lands, the top few
  * threads are warmed in the background (hooks/usePrefetch.ts).
  */
+import { useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
+import { RenameSheet } from '../components/RenameSheet'
+import { useRename } from '../hooks/useRename'
+import { useTitle } from '../lib/titles'
 import { SpeechBar } from '../components/SpeechBar'
 import { hasCredential } from '../api/auth'
-import type { SessionState } from '../api/types'
+import type { SessionRow, SessionState } from '../api/types'
 import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
 
@@ -35,6 +39,9 @@ function ThreadList() {
   const { sessions, error, loading, stale, reload } = useTargets()
   const states = useSessionStates()
   usePrefetch(sessions, !stale && !loading && !error)
+  const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
+  const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null)
+  const rename = useRename()
 
   return (
     <div className="page">
@@ -50,26 +57,27 @@ function ThreadList() {
       </header>
 
       {error && <p className="notice error">{error}</p>}
+      {note && <p className={note.failed ? 'notice error' : 'notice'}>{note.text}</p>}
       {loading && !sessions.length && <p className="notice">Loading…</p>}
 
       <ul className="threads">
-        {sessions.map((row) => {
-          const state = states[row.session]
-          return (
-            <li key={row.session}>
-              <Link to={`/t/${encodeURIComponent(row.session)}`} state={{ title: row.title }} className="thread-row">
-                <span className={`dot ${row.live ? state || 'live' : 'shelved'}`} />
-                <span className="title">{row.title || row.session.slice(0, 8)}</span>
-                {row.live ? (
-                  <span className={`badge ${state || ''}`}>{state ? STATE_LABEL[state] : 'live'}</span>
-                ) : (
-                  <span className="when">{ago(row.at)}</span>
-                )}
-              </Link>
-            </li>
-          )
-        })}
+        {sessions.map((row) => (
+          <ThreadRow key={row.session} row={row} state={states[row.session]} onRename={(title) => setRenaming({ session: row.session, title })} />
+        ))}
       </ul>
+
+      {renaming && (
+        <RenameSheet
+          title={renaming.title}
+          onClose={() => setRenaming(null)}
+          onSave={(name) => {
+            const { session } = renaming
+            setRenaming(null)
+            setNote(null)
+            void rename(session, name).then((r) => setNote(r.ok && r.message === 'Renamed.' ? null : { text: r.message, failed: !r.ok }))
+          }}
+        />
+      )}
 
       {/* The foot of the list: the speech bar when a voice is live, and the
           + button, which rides above it (app.css .dock). */}
@@ -80,5 +88,69 @@ function ThreadList() {
         <SpeechBar />
       </div>
     </div>
+  )
+}
+
+/** Held this long, a press on a row is a long press (rename), not a tap. */
+const LONG_PRESS_MS = 550
+
+/**
+ * One row. A long press (touch or mouse held, or the context menu that
+ * Android's long press fires on a link) opens rename instead of the thread.
+ */
+function ThreadRow({ row, state, onRename }: { row: SessionRow; state: SessionState | undefined; onRename: (title: string) => void }) {
+  const title = useTitle(row.session, row.title) || row.session.slice(0, 8)
+  const timer = useRef<number | null>(null)
+  const start = useRef<{ x: number; y: number } | null>(null)
+  const longRef = useRef(false)
+  const cancel = () => {
+    if (timer.current !== null) window.clearTimeout(timer.current)
+    timer.current = null
+  }
+  const long = () => {
+    cancel()
+    longRef.current = true
+    onRename(title)
+  }
+  return (
+    <li>
+      <Link
+        to={`/t/${encodeURIComponent(row.session)}`}
+        state={{ title }}
+        className="thread-row"
+        onPointerDown={(e) => {
+          longRef.current = false
+          start.current = { x: e.clientX, y: e.clientY }
+          cancel()
+          timer.current = window.setTimeout(long, LONG_PRESS_MS)
+        }}
+        onPointerMove={(e) => {
+          const s = start.current
+          if (s && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) cancel()
+        }}
+        onPointerUp={cancel}
+        onPointerCancel={cancel}
+        onPointerLeave={cancel}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          if (!longRef.current) long()
+        }}
+        onClick={(e) => {
+          // The press that opened rename must not also open the thread.
+          if (longRef.current) {
+            e.preventDefault()
+            longRef.current = false
+          }
+        }}
+      >
+        <span className={`dot ${row.live ? state || 'live' : 'shelved'}`} />
+        <span className="title">{title}</span>
+        {row.live ? (
+          <span className={`badge ${state || ''}`}>{state ? STATE_LABEL[state] : 'live'}</span>
+        ) : (
+          <span className="when">{ago(row.at)}</span>
+        )}
+      </Link>
+    </li>
   )
 }

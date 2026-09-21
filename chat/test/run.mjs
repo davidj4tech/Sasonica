@@ -13,6 +13,9 @@
 //   keys    the top play/pause key: one or two by height, in sync, portrait,
 //           landscape, Larger
 //   skew    the bold follows /speech/now's pos when `elapsed` runs ahead
+//   rename  long press / title tap / ⋮ → POST /rename; optimistic
+//           everywhere, rolled back on refusal
+//   finished  the finished bar: full hint 3 times, then compact; ~30 s
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,7 +35,7 @@ const mock = await mockAt(8811, { MOCK_SPEECH_REST_S: '0' })
 const skewMock = await mockAt(8812, { MOCK_REAL_VOICE: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
     failed += (await run(file, env)) ? 1 : 0
   }

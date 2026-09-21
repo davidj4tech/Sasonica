@@ -15,6 +15,7 @@ import type {
   AskResponse,
   Approval,
   ConversationLog,
+  RenameResponse,
   ReplyRequest,
   ReplyResponse,
   SessionId,
@@ -192,6 +193,14 @@ export async function answer(body: AnswerRequest): Promise<AnswerResult> {
     }
     return { ok: false, changed: false, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+/**
+ * Rename a thread, live or ended (§6.4). REAL on the canvas: it types
+ * `/rename <title>` into a running session. Test on the mock.
+ */
+export function renameThread(session: SessionId, title: string) {
+  return request<RenameResponse>('POST', '/rename', { session, title })
 }
 
 // ── Speech (§6.5) ─────────────────────────────────────────────────────────

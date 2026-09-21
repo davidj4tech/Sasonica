@@ -55,6 +55,24 @@ a { color: var(--accent); }
 .bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 2; }
 .bar h1 { font-size: 1.133rem; margin: 0; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon { background: none; border: 0; font-size: 1.333rem; padding: 4px 8px; text-decoration: none; color: var(--text); cursor: pointer; }
+/* The thread title: a tap renames it. */
+.title-button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; text-align: left; }
+.menu-anchor { position: relative; }
+.menu-anchor .icon { min-width: 44px; min-height: 44px; }
+.menu { position: absolute; right: 0; top: 100%; z-index: 10; min-width: 10rem; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px #0006; padding: 4px; }
+.menu button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 12px 14px; border-radius: 8px; color: inherit; font: inherit; cursor: pointer; }
+.menu button:hover { background: var(--panel-2); }
+/* A long press on a list row is rename: no text selection or callout. */
+.thread-row { -webkit-touch-callout: none; user-select: none; }
+.sheet-wrap { position: fixed; inset: 0; z-index: 20; background: #0009; display: flex; align-items: flex-end; justify-content: center; }
+.rename-sheet { width: 100%; max-width: 46rem; background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 -4px 20px #0006; }
+.rename-sheet label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
+.rename-sheet input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.rename-sheet .row { display: flex; justify-content: flex-end; gap: 8px; }
+.rename-sheet button { min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: inherit; font: inherit; cursor: pointer; }
+.rename-sheet button.quiet { background: none; }
+.rename-sheet button.primary { background: var(--accent); color: #0b1a13; border: 0; }
+.rename-sheet button:disabled { opacity: .45; cursor: default; }
 .notice { margin: 12px 16px; color: var(--muted); }
 .error, .notice.error { color: var(--bad); }
 /* A snapshot is on screen and the server has not confirmed it yet. Quiet on
@@ -195,6 +213,8 @@ a { color: var(--accent); }
 .speech-bar.paused .speech-progress i { background: var(--muted); }
 .speech-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .speech-title, .speech-sentence { display: block; width: 100%; background: none; border: 0; padding: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.skey.main.replay-pill { width: auto; border-radius: 99px; padding: 0 16px 0 12px; gap: 6px; display: inline-flex; align-items: center; font: inherit; font-size: .933rem; font-weight: 600; }
+.speech-bar.compact .speech-title { padding: 8px 0; }
 .speech-title { font-weight: 600; font-size: .933rem; padding-top: 4px; }
 .speech-sentence { font-size: .8rem; color: var(--muted); padding-bottom: 4px; }
 .speech-sentence.failed, .sheet-sentence.failed { color: var(--bad); }

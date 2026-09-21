@@ -181,6 +181,13 @@ export function saveTargets(res: TargetsResponse) {
   void idbSet(TARGETS_KEY, res)
 }
 
+/** A rename the server accepted: the saved list says so too, so a cold start paints it. */
+export function renameInTargets(session: SessionId, title: string) {
+  const cur = listMemory.targets
+  if (!cur) return
+  saveTargets({ ...cur, sessions: cur.sessions.map((r) => (r.session === session ? { ...r, title } : r)) })
+}
+
 export function peekStates() {
   return listMemory.states
 }

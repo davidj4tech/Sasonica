@@ -27,7 +27,7 @@ const POLL_FAILING_MS = 15000
 /** The server's answer is the truth; ask for it this soon after a press. */
 const CONFIRM_AFTER_MS = 300
 /** A finished reply keeps the bar (Replay) this long. */
-const FINISHED_HOLD_MS = 60 * 1000
+const FINISHED_HOLD_MS = 30 * 1000
 const ERROR_SHOWN_MS = 4000
 
 /** Speed ladder, as `media speed up|down` (agent_media_core/cli.py _speed_next). */

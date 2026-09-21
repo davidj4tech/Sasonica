@@ -45,7 +45,9 @@ are shaped like red5's real speech (see "Follow-along on real data"): a
 streamed reply whose sentences grow while it plays, starts `paused`, has
 `working` changing under it and lines appended below it; and one with no
 offsets and a null `sentence`. `GET /mock/real/restart?in=N` starts them
-(`&ended=1` holds them finished); `MOCK_REAL_VOICE=1` makes `/speech/now`
+(`&ended=1` holds them finished); `GET /mock/voice?loop=0` stops the
+speaking fixture coming back after it ends (`loop=1` restores it);
+`POST /rename` renames any fixture (a title containing FAIL gets a 500); `MOCK_REAL_VOICE=1` makes `/speech/now`
 speak the streamed one with its `pos` lagging `elapsed`. The speaking thread's long reply
 (with a figure above it and ambient art on it) is one shared voice clock
 for `/speech/now`, `/speech/ctl` (every action) and the live line; it
@@ -63,10 +65,11 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 ```
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
-and runs `test/{pair,follow,keys,skew}.mjs` in headless Chromium at phone
-size: pairing and the one-request thread open, follow-along on the
-real-shaped speech (default and Larger text), the top play/pause key
-(portrait, landscape, Larger) and the skew correction. Playwright is not a
+and runs `test/{pair,follow,keys,skew,rename,finished}.mjs` in headless
+Chromium at phone size: pairing and the one-request thread open,
+follow-along on the real-shaped speech (default and Larger text), the top
+play/pause key (portrait, landscape, Larger), the skew correction, rename,
+and the finished speech bar. Playwright is not a
 dependency; any playwright-core with its browsers in `~/.cache/ms-playwright`
 will do. Screenshots go to `$TMPDIR/sasonica-chat-shots`.
 
@@ -126,6 +129,7 @@ device code and passed through.
 | `app/lib/textSize.ts` | the per-device text size (one root `--text-size`; everything is rem) |
 | `app/hooks/useSpeech.tsx` | the ONE `/speech/now` poll for the app (1.5 s live / 5 s idle / 15 s failing), the `/speech/ctl` keys, optimistic state |
 | `app/components/SpeechBar.tsx` | the speech bar and its full-controls sheet |
+| `app/lib/titles.ts`, `app/hooks/useRename.ts`, `app/components/RenameSheet.tsx` | rename: optimistic title overrides read by every title, the POST and rollback, the sheet |
 | `app/hooks/useFollowAlong.ts` | keeps the bold sentence on screen while the live line plays; holds off assistant-ui's own scrolling while a live line exists; "Follow along" pill, "New messages ↓" |
 | `app/lib/pictures.ts` | the per-device "Show ambient artwork" setting |
 | `app/components/Thread.tsx` | the assistant-ui runtime and thread layout |
@@ -154,7 +158,9 @@ device code and passed through.
 - Text size: Settings → Small / Default (17px) / Large / Larger, per device.
 
 - Speech bar (§6.5), on the list, a thread and new chat, while a reply is
-  live (and for a minute after it ends, as "Finished · replay"). Title opens
+  live, and for 30 s after it ends: "Finished · play to hear it again" the
+  first 3 times on a device (counted in localStorage), then just the title
+  and a compact "▶ Replay". Title opens
   the thread; sentence; progress sliver; back / pause-resume / on a
   sentence. The chevron opens the full set: turns (`prev`/`replay` with the
   hist index, as SpeechBar.vue), paragraphs, end of reply, replay latest,
@@ -209,6 +215,12 @@ It passed the mock and failed on the phone because real live lines differ:
 
 - Thread list from `/targets` (live first, state badges from `/sessions/state`
   polled every 5 s).
+- Rename (§6.4): a long press on a thread in the list, or in the thread a
+  tap on its title or ⋮ → Rename…, opens a sheet prefilled with the title
+  (empty names can't be saved). `POST /rename {session, title}`; the new
+  name shows at once in the list, the header, the speech bar and the saved
+  list (`lib/titles.ts`), and is rolled back if refused. `terminal: false`
+  is not a failure: "Renamed." plus the server's `why`, quietly.
 - Thread view: `/conversation/log?session=` polled adaptively (a 404 "no
   conversation for that session yet" keeps asking every 3 s); ids
   `${session}:${at}`; ended live lines held until the server returns them
@@ -234,7 +246,7 @@ It passed the mock and failed on the phone because real live lines differ:
 - **Stop**: `onCancel` → `stopSession()` in `app/api/index.ts` throws "not
   available yet"; the double-press → `speech: "silence"` logic is in
   `useStop` (Thread.tsx). When §12 exists, only the function body changes.
-- Drafts (`/draft`), slash menu (`/commands`), rename, resume/close, `/focus`
+- Drafts (`/draft`), slash menu (`/commands`), resume/close, `/focus`
   ("answer at the desk" is text only), dictation,
   branch-from-here, `dry: true` routing for words that name a thread, the
   thread-list adapter (routing is React Router instead). Auto-scroll is
