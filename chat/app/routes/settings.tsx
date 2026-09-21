@@ -7,12 +7,14 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { getTargets } from '../api'
 import { hasToken, serverBase, setBaseUrl, setToken, storedBaseUrl } from '../api/auth'
+import { getTextSize, setTextSize, TEXT_SIZES, type TextSizeId } from '../lib/textSize'
 
 export default function Settings() {
   const [url, setUrl] = useState(() => storedBaseUrl())
   const [token, setTok] = useState('')
   const [saved, setSaved] = useState('')
   const [check, setCheck] = useState('')
+  const [size, setSize] = useState<TextSizeId>(() => getTextSize())
 
   const save = () => {
     setBaseUrl(url)
@@ -73,6 +75,25 @@ export default function Settings() {
             Clear token
           </button>
         </div>
+        <fieldset>
+          <legend>Text size</legend>
+          <div className="text-sizes" role="group">
+            {TEXT_SIZES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                aria-pressed={size === s.id}
+                onClick={() => {
+                  setTextSize(s.id)
+                  setSize(s.id)
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <small>On this device only. Applies at once.</small>
+        </fieldset>
         {saved && <p className="status">{saved}</p>}
         {check && <p className="status">{check}</p>}
       </form>

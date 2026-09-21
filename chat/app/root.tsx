@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router'
 import './app.css'
+import { TEXT_SIZE_BOOT } from './lib/textSize'
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -10,6 +11,8 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
         <meta name="color-scheme" content="dark light" />
         <title>Sasonica</title>
+        {/* The saved text size, on the root before first paint (lib/textSize.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: TEXT_SIZE_BOOT }} />
         <Meta />
         <Links />
       </head>
