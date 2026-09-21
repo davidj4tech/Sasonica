@@ -608,6 +608,28 @@ export default {
     },
     // A reply is not a turn until it has been rendered and published, so the
     // log goes looking for it rather than being told what it says.
+    // Sasonica: ⋮ → Rename. Audiobookshelf's own title is what shows here, so
+    // it is set locally too — the server has already patched the item, and a
+    // page that waits for the next scan looks like it did nothing.
+    async renameConversation() {
+      const { value, cancelled } = await Dialog.prompt({
+        title: 'Rename conversation',
+        message: 'What should this be called?',
+        inputText: this.title || ''
+      })
+      if (cancelled || !String(value || '').trim()) return
+      this.processing = true
+      try {
+        const named = await this.$refs.replyBox?.renameConversation(value)
+        if (!named) throw new Error('The rename did not take')
+        this.$set(this.mediaMetadata, 'title', named)
+        this.$toast.success('Renamed')
+      } catch (error) {
+        console.error('[sasonica] rename failed', error)
+        this.$toast.error('Could not rename')
+      }
+      this.processing = false
+    },
     onReplied() {
       this.$refs.conversationLog?.replied()
     },
@@ -618,6 +640,15 @@ export default {
     // conversation away, then leave, in that order and stopping at the first
     // failure, so the page is never left behind for a session still running.
     async onSessionAction(action) {
+      // Sasonica: the two that are about this item rather than its session.
+      if (action === 'skill') {
+        this.$refs.replyBox?.openSlashMenu()
+        return
+      }
+      if (action === 'rename') {
+        await this.renameConversation()
+        return
+      }
       if (action !== 'closeArchive') {
         this.$refs.replyBox?.manage(action)
         return

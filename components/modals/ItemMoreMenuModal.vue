@@ -71,6 +71,11 @@ export default {
           items.push({ text: 'Resume session', value: 'session:resume', icon: 'play_circle' })
         }
       }
+      // Sasonica: name it, and reach the skills without typing a slash.
+      if (this.conversation?.session) {
+        items.push({ text: 'Rename', value: 'session:rename', icon: 'edit' })
+        items.push({ text: 'Run a skill…', value: 'session:skill', icon: 'bolt' })
+      }
       if (this.archiveMenuItem) items.push(this.archiveMenuItem) // Sasonica
 
       // TODO: Implement on iOS

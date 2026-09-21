@@ -391,6 +391,27 @@ export default {
     },
     // Whether the action went through, for a caller with a next step — the
     // menu's Close and archive must not file away a session it failed to end.
+    // Sasonica: ⋮ → Run a skill… — the same menu the slash opens, without
+    // having to know that a slash opens it.
+    openSlashMenu() {
+      this.text = '/'
+      this.$nextTick(() => {
+        const el = this.$refs.input
+        if (el) {
+          el.value = '/'
+          el.focus()
+          el.setSelectionRange(1, 1)
+        }
+        this.onSlashInput('/')
+      })
+    },
+    // Sasonica: ⋮ → Rename. The name is kept by agent-media and given to
+    // Claude Code, so the terminal and the shelf agree; the caller is told
+    // it so the page can show it without waiting for a refresh.
+    async renameConversation(title) {
+      const res = await this.request('POST', '/rename', { session: this.session, item: this.libraryItemId, title })
+      return res?.title || ''
+    },
     async manage(action) {
       if (!this.session) return false
       this.failed = false
