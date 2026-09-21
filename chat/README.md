@@ -25,6 +25,10 @@ Open it, go to Settings, set the server address to `http://127.0.0.1:8793`
 and any token (`bad` gets a 401). Or run `pnpm dev` (Vite on :5173) beside
 `pnpm mock` with the same settings.
 
+`MOCK_DELAY_MS=2500 pnpm mock` holds every app-route answer 2.5 s, like the
+phone→red5 link (`GET /mock/delay?ms=N` changes it while running) — the way to
+see a cached open paint before the network answers.
+
 The mock (`mock/server.mjs`) answers every route the app uses from invented
 fixtures: a reply being spoken (follow-along), a permission prompt whose
 question changes every 45 s (a stale card gets 409 "the question has
@@ -65,11 +69,29 @@ serving from the canvas's machine needs no Settings at all.
 | `app/lib/followAlong.ts` | live-line sentence clock, whitespace-faithful sentence split |
 | `app/hooks/useConversationLog.ts` | the adaptive poll (1 s live / 2 s working or approval / 15 s idle, setTimeout-based) |
 | `app/hooks/useThreads.ts` | `/targets`, `/sessions/state` (5 s), session → item resolution |
+| `app/lib/snapshots.ts`, `app/lib/store.ts` | the last good lines + item per thread, and the list, in memory over IndexedDB (40 threads LRU); best-effort |
+| `app/hooks/usePrefetch.ts` | warms the top 5 threads from the list, one at a time, low priority |
+| `app/hooks/useBottomFirst.ts` | newest 20 messages first, older ones added above, scroll pinned to the bottom |
+| `app/lib/textSize.ts` | the per-device text size (one root `--text-size`; everything is rem) |
 | `app/components/Thread.tsx` | the assistant-ui runtime and thread layout |
 | `app/components/parts.tsx` | follow-along text, pictures, work summary, ask/approval tool UIs, working indicator |
 | `app/routes/*` | thread list, thread, new chat, settings |
 
 ## What works
+
+- Opening a thread feels instant: it paints from its saved snapshot (lines +
+  resolved item) with "updating…" in the header, and a known thread goes
+  straight to the log — one round trip, not two. The list paints from its
+  snapshot too, and warms the top five threads in the background. A cached
+  live line is plain text until fresh data restarts the follow-along.
+  Blocked or private storage just means no cache. `fetchLogTail()` in
+  `api/index.ts` is where the server's coming `?tail=N` switches on.
+- Threads open at the foot, newest 20 messages first, older ones added
+  above without a sweep or jump.
+- Composer: Enter is a new line, Ctrl/Cmd+Enter sends (hint shown only with
+  a real keyboard); grows to 8 rows. Landscape and the soft keyboard keep
+  the header and composer on screen; the column is a centred 46rem.
+- Text size: Settings → Small / Default (17px) / Large / Larger, per device.
 
 - Thread list from `/targets` (live first, state badges from `/sessions/state`
   polled every 5 s).
