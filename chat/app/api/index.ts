@@ -48,7 +48,18 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+/** Per-call fetch options beyond the method and body. */
+export interface CallOptions {
+  signal?: AbortSignal
+  /**
+   * `'low'` for background work (prefetch), so the browser schedules it
+   * behind anything the person is waiting for. A hint; ignored where unsupported.
+   */
+  priority?: 'high' | 'low' | 'auto'
+}
+
+async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, opts: AbortSignal | CallOptions = {}): Promise<T> {
+  const { signal, priority } = opts instanceof AbortSignal ? { signal: opts, priority: undefined } : opts
   const base = serverBase()
   if (!base) throw new ApiError('No server address — set one in Settings', 0)
   let res: Response
@@ -56,6 +67,7 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, 
     res = await fetch(`${base}${path}`, {
       method,
       signal,
+      ...(priority ? ({ priority } as RequestInit) : {}),
       headers: {
         ...authHeaders(),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
@@ -100,13 +112,43 @@ export function getSessionsState(signal?: AbortSignal) {
 // ── One conversation ──────────────────────────────────────────────────────
 
 /** Resolve a session to its ABS item (v0 needs the item for the log). */
-export function getSessionConversation(session: SessionId, signal?: AbortSignal) {
-  return request<SessionConversation>('GET', `/conversation?session=${q(session)}`, undefined, signal)
+export function getSessionConversation(session: SessionId, opts?: AbortSignal | CallOptions) {
+  return request<SessionConversation>('GET', `/conversation?session=${q(session)}`, undefined, opts)
 }
 
 /** v0: keyed by item. v1 (§10): `/conversation/log?session=`. */
-export function getConversationLog(item: ItemId, signal?: AbortSignal) {
-  return request<ConversationLog>('GET', `/conversation/log?item=${q(item)}`, undefined, signal)
+export function getConversationLog(item: ItemId, opts?: AbortSignal | CallOptions) {
+  return request<ConversationLog>('GET', `/conversation/log?item=${q(item)}`, undefined, opts)
+}
+
+/**
+ * A log answer that may hold only the newest lines. `complete: false` means
+ * older lines exist and a full getConversationLog should follow.
+ */
+export type LogTail = ConversationLog & { complete: boolean }
+
+/**
+ * HOOK for the server's future `?tail=N` (newest N lines only) — the cold
+ * open of a thread with nothing cached asks for this first, so the bottom of
+ * the conversation arrives in a fraction of the bytes, and the full log
+ * follows to fill in above it.
+ *
+ * TODAY the server has no `tail`, so this IS the full log and says
+ * `complete: true` (no second request). When the server gains it, the switch
+ * is this function's body:
+ *
+ *   const res = await request<ConversationLog & { truncated?: boolean }>(
+ *     'GET', `/conversation/log?item=${q(item)}&tail=${n}`, undefined, opts)
+ *   return { ...res, complete: !res.truncated }
+ *
+ * (An older server ignores the unknown parameter and returns everything with
+ * no `truncated`, which reads as complete — so the switch is safe to ship
+ * before the server.)
+ */
+export async function fetchLogTail(item: ItemId, n: number, opts?: AbortSignal | CallOptions): Promise<LogTail> {
+  void n
+  const res = await getConversationLog(item, opts)
+  return { ...res, complete: true }
 }
 
 // ── Sending ───────────────────────────────────────────────────────────────

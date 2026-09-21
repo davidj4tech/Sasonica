@@ -2,6 +2,10 @@
  * One thread. The session comes from the URL; v0's log needs its ABS item, so
  * the page first resolves it with /conversation?session= (and keeps asking
  * while the shelf has none: "not on the shelf yet").
+ *
+ * A thread opened before paints from its saved snapshot and saved item at
+ * once (lib/snapshots.ts), with "updating…" in the header until the first
+ * fresh poll — never a spinner over content.
  */
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
@@ -14,13 +18,22 @@ import { buildItems } from '../lib/convert'
 
 type Status = { text: string; failed?: boolean } | null
 
-export default function ThreadPage() {
+/**
+ * Keyed by session: moving from one thread to another (same route) starts
+ * every hook afresh — snapshot, poll, the bottom-first window in Thread —
+ * rather than showing one thread's state under another's title.
+ */
+export default function ThreadRoute() {
   const { session = '' } = useParams()
+  return <ThreadPage key={session} session={session} />
+}
+
+function ThreadPage({ session }: { session: string }) {
   const location = useLocation()
   const title = (location.state as { title?: string } | null)?.title || knownTitle(session) || session.slice(0, 8)
 
   const { info, item, error: infoError } = useThreadInfo(session)
-  const log = useConversationLog(item)
+  const log = useConversationLog(session, item)
   const states = useSessionStates()
   const [status, setStatus] = useState<Status>(null)
 
@@ -83,13 +96,16 @@ export default function ThreadPage() {
   const live = state ? true : !!info?.live
 
   let empty: React.ReactNode = null
-  if (!item) {
+  if (log.lines.length) {
+    // A snapshot is on screen; whatever the item lookup is doing, it is
+    // not a reason to say "Loading…".
+  } else if (!item) {
     empty = (
       <div className="empty">
         {infoError ? (
           <p className="error">{infoError}</p>
         ) : !info ? (
-          <p>Loading…</p>
+          <p className="delayed">Loading…</p>
         ) : info.scanning ? (
           <p>On the shelf, still being built — the transcript will appear shortly.</p>
         ) : (
@@ -100,7 +116,7 @@ export default function ThreadPage() {
   } else if (log.error && !log.lines.length) {
     empty = <p className="empty error">{log.error}</p>
   } else if (!log.loaded) {
-    empty = <p className="empty">Loading…</p>
+    empty = <p className="empty delayed">Loading…</p>
   }
 
   return (
@@ -110,6 +126,7 @@ export default function ThreadPage() {
           ←
         </Link>
         <h1 className="grow">{title}</h1>
+        {log.stale && <span className="updating">updating…</span>}
         <span className={`badge ${state || ''}`}>{state || (live ? 'live' : info?.resumable ? 'resumable' : 'ended')}</span>
       </header>
       <Thread

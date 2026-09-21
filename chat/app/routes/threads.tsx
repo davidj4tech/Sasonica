@@ -1,10 +1,13 @@
 /**
  * The thread list: /targets.sessions (live first, with a live badge) and
  * what each live one is doing from /sessions/state, polled every 5 s.
+ * Paints from the last saved answer; once the fresh one lands, the top few
+ * threads are warmed in the background (hooks/usePrefetch.ts).
  */
 import { Link } from 'react-router'
 import { hasToken } from '../api/auth'
 import type { SessionState } from '../api/types'
+import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
 
 const STATE_LABEL: Record<SessionState, string> = {
@@ -22,13 +25,15 @@ function ago(at?: number): string {
 }
 
 export default function Threads() {
-  const { sessions, error, loading, reload } = useTargets()
+  const { sessions, error, loading, stale, reload } = useTargets()
   const states = useSessionStates()
+  usePrefetch(sessions, !stale && !loading && !error)
 
   return (
     <div className="page">
       <header className="bar">
         <h1>Sasonica</h1>
+        {stale && loading && <span className="updating">updating…</span>}
         <button className="icon" onClick={() => reload()} title="Refresh">
           ↻
         </button>

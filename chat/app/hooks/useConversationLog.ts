@@ -10,11 +10,18 @@
  * When §11 lands, the stream's `snapshot` replaces `apply(res)` wholesale and
  * `line` / `live` / `working` / `approval` / `suggestion` events patch the
  * same state; this poll stays as the fallback.
+ *
+ * Stale-while-revalidate: the thread opens on its last saved lines
+ * (lib/snapshots.ts), marked `stale`, and the first good poll replaces them.
+ * Lines keep their ids (`${session}:${at}`), so the swap updates messages in
+ * place rather than remounting them. Every good poll saves the lines back
+ * (only when they changed).
  */
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { getConversationLog } from '../api'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { fetchLogTail, getConversationLog } from '../api'
 import type { Approval, ConversationLog, Line, Working } from '../api/types'
 import { liveClockOf, type LiveClock } from '../lib/followAlong'
+import { loadThread, peekThread, plainLine, saveThreadLog } from '../lib/snapshots'
 import { usePoll } from './usePoll'
 
 const POLL_IDLE_MS = 15000
@@ -28,6 +35,11 @@ const FAST_WINDOW_MS = 3 * 60 * 1000
 const ENDED_LIVE_HOLD_MS = 30 * 1000
 /** How long an optimistic "you" line waits for its real one. */
 const OPTIMISTIC_HOLD_MS = 60 * 1000
+/**
+ * A cold open (nothing cached) asks for this many newest lines first, once
+ * the server supports `?tail=` (api fetchLogTail); today it gets them all.
+ */
+const COLD_TAIL_LINES = 40
 
 export interface LogState {
   lines: Line[]
@@ -40,6 +52,12 @@ export interface LogState {
   live: LiveClock | null
   error: string
   loaded: boolean
+  /**
+   * The lines are the saved snapshot, not yet confirmed by the server. The
+   * header says "updating…"; nothing live (bold, approval, working) is shown
+   * from a snapshot.
+   */
+  stale: boolean
 }
 
 const EMPTY: LogState = {
@@ -51,11 +69,27 @@ const EMPTY: LogState = {
   suggestion: '',
   live: null,
   error: '',
-  loaded: false
+  loaded: false,
+  stale: false
 }
 
-export function useConversationLog(item: string | null) {
-  const [state, setState] = useState<LogState>(EMPTY)
+function fromSnapshot(lines: Line[]): LogState {
+  // Already plain (snapshots strips live fields); again here so a cached
+  // live line can never start a follow-along clock whatever wrote it.
+  return { ...EMPTY, lines: lines.map(plainLine), loaded: true, stale: true }
+}
+
+/**
+ * Keyed by `session` for the snapshot; `item` is what v0's log needs, and
+ * polling starts when it is known (from the snapshot, or once resolved).
+ * Mount one per thread (the page keys it by session).
+ */
+export function useConversationLog(session: string, item: string | null) {
+  const [state, setState] = useState<LogState>(() => {
+    // Memory hit (moved here from inside the app): paint on the first render.
+    const snap = peekThread(session)
+    return snap?.lines.length ? fromSnapshot(snap.lines) : EMPTY
+  })
   // Sent from here and not yet back as a "you" line.
   const [optimistic, setOptimistic] = useState<{ text: string; at: number }[]>([])
   const [awaiting, setAwaiting] = useState(false)
@@ -67,6 +101,24 @@ export function useConversationLog(item: string | null) {
   const sigRef = useRef('')
   const changedAtRef = useRef(0)
   const endedLiveRef = useRef<{ line: Line; until: number } | null>(null)
+  /** A fresh answer has been applied; the snapshot must not overwrite it. */
+  const freshRef = useRef(false)
+  /** The next poll must fetch the whole log (after a partial tail). */
+  const needFullRef = useRef(false)
+
+  // Disk hit (a cold start of the app): paint as soon as IndexedDB answers,
+  // which is milliseconds, unless the network somehow beat it.
+  useEffect(() => {
+    let cancelled = false
+    if (stateRef.current.loaded) return
+    void loadThread(session).then((snap) => {
+      if (cancelled || freshRef.current || !snap?.lines.length) return
+      setState((s) => (s.loaded ? s : fromSnapshot(snap.lines)))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [session])
 
   /**
    * A reply stops being live a beat before it lands in history; a poll in
@@ -125,7 +177,8 @@ export function useConversationLog(item: string | null) {
         suggestion: res.pending ? '' : res.suggestion || '',
         live: liveLine ? liveClockOf(liveLine, now, now - askedAt) : null,
         error: '',
-        loaded: true
+        loaded: true,
+        stale: false
       })
     },
     [carryEndedLive]
@@ -135,16 +188,32 @@ export function useConversationLog(item: string | null) {
     if (!item) return
     const askedAt = Date.now()
     try {
-      apply(await getConversationLog(item), askedAt)
+      let res: ConversationLog
+      if (!freshRef.current && !stateRef.current.lines.length && !needFullRef.current) {
+        // Cold open with nothing to show: the newest lines first (see
+        // COLD_TAIL_LINES), the rest on the very next tick.
+        const tail = await fetchLogTail(item, COLD_TAIL_LINES)
+        needFullRef.current = !tail.complete
+        res = tail
+      } else {
+        res = await getConversationLog(item)
+        needFullRef.current = false
+      }
+      freshRef.current = true
+      apply(res, askedAt)
+      // A partial tail must not replace a fuller snapshot on disk.
+      if (!needFullRef.current) saveThreadLog(session, item, res)
     } catch (err) {
       // Keep the lines: blanking a transcript over a blinked network is
       // worse than showing one a few seconds old.
       setState((s) => ({ ...s, error: err instanceof Error ? err.message : String(err), loaded: true }))
     }
-  }, [item, apply])
+  }, [session, item, apply])
 
   const nextDelay = useCallback(() => {
     const s = stateRef.current
+    // A tail arrived; fetch the older lines above it straight away.
+    if (needFullRef.current) return 0
     if (s.live) return POLL_FAST_MS
     if (s.working || s.approval) return POLL_WORKING_MS
     const since = Date.now() - changedAtRef.current
