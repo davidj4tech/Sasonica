@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router'
 import './app.css'
 import { TEXT_SIZE_BOOT } from './lib/textSize'
@@ -30,6 +30,31 @@ export function HydrateFallback() {
   return <div className="boot">Sasonica</div>
 }
 
+/**
+ * --vvh: the visible height, for browsers whose soft keyboard overlays the
+ * page rather than resizing it (app.css .page). Where the keyboard resizes
+ * the layout (Chrome on Android, per the viewport meta) this equals 100dvh.
+ */
+function useVisualViewportHeight() {
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const root = document.documentElement
+    const set = () => {
+      // Pinch-zoom shrinks the visual viewport too; that is not a keyboard.
+      if (vv.scale > 1.01) return
+      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`)
+    }
+    set()
+    vv.addEventListener('resize', set)
+    return () => {
+      vv.removeEventListener('resize', set)
+      root.style.removeProperty('--vvh')
+    }
+  }, [])
+}
+
 export default function App() {
+  useVisualViewportHeight()
   return <Outlet />
 }
