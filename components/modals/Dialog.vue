@@ -12,7 +12,8 @@
           <template v-for="item in itemsToShow">
             <slot :name="item.value" :item="item" :selected="item.value === selected">
               <li :key="item.value" :ref="`item-${item.value}`" class="text-fg select-none relative cursor-pointer hover:bg-black-400" :class="selected === item.value ? 'bg-success bg-opacity-10' : ''" :style="{ paddingTop: itemPaddingY, paddingBottom: itemPaddingY }" role="option" @click="clickedOption(item.value)">
-                <div class="relative flex items-center px-3">
+                <div class="relative flex items-center px-3" :class="{ 'pl-9': item.indent }">
+                  <!-- Sasonica: a child of the item above -->
                   <span v-if="item.icon" class="material-symbols text-xl mr-2 text-fg text-opacity-80">{{ item.icon }}</span>
                   <p class="font-normal block truncate text-base text-fg text-opacity-80">{{ item.text }}</p>
                 </div>

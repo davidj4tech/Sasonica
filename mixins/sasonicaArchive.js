@@ -22,26 +22,42 @@ export function libraryArchives(store) {
 }
 
 // The bookshelf's Show menu (BookshelfToolbar): archived conversations are
-// shown or not, and the list can be narrowed to live sessions, or to what
-// they are doing — the canvas's /sessions/state, polled while the shelf is
-// on screen. With none of the narrowing ones on, nothing is narrowed.
+// shown or not, and the list can be narrowed to live sessions. Live is the
+// parent: the three states a session can be in — the canvas's
+// /sessions/state, polled while the shelf is on screen — are a narrowing
+// *within* live, and only appear once Live is ticked. With Live off, nothing
+// is narrowed; with Live on and no state ticked, every live conversation.
 export const SHOW_ARCHIVED = 'sasonicaShowArchived'
-export const NARROWING = [
-  { key: 'sasonicaOnlyLive', text: 'Live', state: null },
+export const LIVE = 'sasonicaOnlyLive'
+export const STATES = [
   { key: 'sasonicaOnlyWorking', text: 'Working', state: 'working' },
   { key: 'sasonicaOnlyWaiting', text: 'Waiting on you', state: 'waiting' },
   { key: 'sasonicaOnlyApproval', text: 'Needs approval', state: 'approval' }
 ]
 
+export function isNarrowing(settings) {
+  return !!settings?.[LIVE]
+}
+
+// null = nothing narrowed; [] = all live; otherwise the states to keep.
+export function narrowingStates(settings) {
+  if (!isNarrowing(settings)) return null
+  return STATES.filter((f) => settings[f.key]).map((f) => f.state)
+}
+
 export function showMenuItems(settings, archives) {
   const box = (on) => (on ? 'check_box' : 'check_box_outline_blank')
-  const items = NARROWING.map((f) => ({ text: f.text, value: `sasonica:${f.key}`, icon: box(settings[f.key]) }))
+  const items = [{ text: 'Live', value: `sasonica:${LIVE}`, icon: box(settings[LIVE]) }]
+  if (settings[LIVE]) {
+    items.push(...STATES.map((f) => ({ text: f.text, value: `sasonica:${f.key}`, icon: box(settings[f.key]), indent: true })))
+  }
   if (archives) items.push({ text: 'Archived', value: `sasonica:${SHOW_ARCHIVED}`, icon: box(settings[SHOW_ARCHIVED]) })
   return items
 }
 
 function showSignature(settings) {
-  return [SHOW_ARCHIVED, ...NARROWING.map((f) => f.key)].map((k) => (settings?.[k] ? 1 : 0)).join('')
+  const states = narrowingStates(settings)
+  return [settings?.[SHOW_ARCHIVED] ? 1 : 0, states ? states.join(',') : '-'].join('|')
 }
 
 const STATES_POLL_MS = 5000
@@ -64,10 +80,9 @@ export default {
     sasonicaIsConversations() {
       return this.$store.getters['libraries/getCurrentLibraryIsConversations']
     },
-    sasonicaNarrowing() {
-      if (!this.sasonicaIsConversations) return []
-      const settings = this.$store.state.user.settings
-      return NARROWING.filter((f) => settings[f.key])
+    sasonicaStates() {
+      if (!this.sasonicaIsConversations) return null
+      return narrowingStates(this.$store.state.user.settings)
     },
     sasonicaHidesArchived() {
       if (!libraryArchives(this.$store)) return false
@@ -76,7 +91,7 @@ export default {
     },
     hidesArchived() {
       if (!['books', 'series-books', 'series'].includes(this.entityName)) return false
-      return this.sasonicaHidesArchived || this.sasonicaNarrowing.length > 0
+      return this.sasonicaHidesArchived || this.sasonicaStates !== null
     },
     sessionStates() {
       return this.$store.state.sasonica.sessionStates
@@ -84,7 +99,7 @@ export default {
   },
   watch: {
     sessionStates() {
-      if (!this.sasonicaNarrowing.length || !this.initialized || !this.sasonicaAll) return
+      if (this.sasonicaStates === null || !this.initialized || !this.sasonicaAll) return
       const want = this.sasonicaFilter(this.sasonicaAll).map((e) => e.id)
       const have = this.entities.map((e) => e && e.id)
       if (want.join() !== have.join()) this.sasonicaRefilter()
@@ -93,16 +108,17 @@ export default {
   methods: {
     sasonicaKeepBook(book) {
       if (this.sasonicaHidesArchived && isArchived(book)) return false
-      if (!this.sasonicaNarrowing.length) return true
+      const states = this.sasonicaStates
+      if (states === null) return true
       const state = this.$store.getters['sasonica/getSessionState'](book.path)
-      const live = !!state || (book.media?.tags || []).includes('live')
-      return this.sasonicaNarrowing.some((f) => (f.state ? state === f.state : live))
+      if (states.length) return states.includes(state)
+      return !!state || (book.media?.tags || []).includes('live')
     },
     sasonicaFilter(results) {
       if (this.entityName !== 'series') return results.filter(this.sasonicaKeepBook)
       return results.filter((series) => {
         if (this.sasonicaHidesArchived && seriesIsArchived(series)) return false
-        return !this.sasonicaNarrowing.length || (series.books || []).some(this.sasonicaKeepBook)
+        return this.sasonicaStates === null || (series.books || []).some(this.sasonicaKeepBook)
       })
     },
     // Filter again what was fetched: a session changing what it is doing is

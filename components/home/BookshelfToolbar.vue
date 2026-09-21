@@ -29,7 +29,7 @@
 </template>
 
 <script>
-import { showMenuItems, libraryArchives, NARROWING } from '@/mixins/sasonicaArchive' // Sasonica
+import { showMenuItems, libraryArchives, isNarrowing } from '@/mixins/sasonicaArchive' // Sasonica
 
 export default {
   data() {
@@ -101,7 +101,7 @@ export default {
     },
     // Sasonica
     showNarrows() {
-      return NARROWING.some((f) => this.settings[f.key])
+      return isNarrowing(this.settings)
     },
     menuItems() {
       if (!this.isBookLibrary) return []
