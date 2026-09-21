@@ -28,6 +28,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.audiobookshelf.app.speech.SasonicaHolds
 import com.audiobookshelf.app.speech.SasonicaSpeech
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -118,6 +119,16 @@ class SasonicaRemoteService : Service() {
     // agent-media's speech, answered in this app on :6613 (speech/SasonicaSpeech.java).
     SasonicaSpeech.start(applicationContext)
     SasonicaSpeech.onReplies(SasonicaSpeechHold { player })
+    // The book, for the voice-session hold (speech/SasonicaHolds.java).
+    SasonicaHolds.onBook(object : SasonicaHolds.Book {
+      override fun audible(): Boolean {
+        val svc = player ?: return false
+        return svc.currentPlayer == svc.mPlayer && svc.mPlayer.isPlaying &&
+          !SasonicaControl.isUrlSession(svc.currentPlaybackSession)
+      }
+      override fun pause() { player?.pause() }
+      override fun resume() { player?.play() }
+    })
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -126,6 +137,7 @@ class SasonicaRemoteService : Service() {
     running = false
     control?.stop(); control = null
     SasonicaSpeech.onReplies(null)
+    SasonicaHolds.onBook(null)
     SasonicaSpeech.stop()
     try { unbindService(connection) } catch (_: Exception) {}
     super.onDestroy()

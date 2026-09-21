@@ -66,6 +66,14 @@ public final class SasonicaSpeech {
 
     public static void onReplies(Replies r) { replies = r; }
 
+    /** The speech player's state, for the holds; null before start. */
+    static MpvState state() { return player == null ? null : state; }
+
+    /** Pause or carry on the speech player, for the holds. */
+    static synchronized void pause(boolean wanted) {
+        if (player != null) player.pause(wanted);
+    }
+
     /** Is a reply being spoken (red5's flag, held for the whole reply)? */
     public static synchronized boolean speaking() { return speaking; }
 
@@ -115,6 +123,7 @@ public final class SasonicaSpeech {
             player = new BuiltinSpeech(context, line -> Log.i(TAG, line));
             bind();
             player.mirrorInto(state, SasonicaSpeech::stateChanged);
+            SasonicaHolds.start(context);
             rebinder = Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "speech-rebind");
                 t.setDaemon(true);
@@ -129,6 +138,7 @@ public final class SasonicaSpeech {
     }
 
     public static synchronized void stop() {
+        SasonicaHolds.stop();
         if (rebinder != null) rebinder.shutdownNow();
         rebinder = null;
         if (server != null) server.stop();

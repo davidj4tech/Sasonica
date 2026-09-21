@@ -310,6 +310,8 @@ class SasonicaControl(
       put("paused", !playing)
       put("rate", rate.toDouble())
       put("chapter", svc.getCurrentBookChapter()?.title ?: JSONObject.NULL)
+      // What the mic and voice-session holds are doing, for diagnosis from red5.
+      put("holds", com.audiobookshelf.app.speech.SasonicaHolds.why())
     }
   }
 
