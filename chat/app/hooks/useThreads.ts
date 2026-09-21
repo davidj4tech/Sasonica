@@ -1,17 +1,25 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ApiError, getSessionConversation, getSessionsState, getTargets } from '../api'
-import type { Place, SessionConversation, SessionRow, SessionState, SessionsStateResponse, TargetsResponse } from '../api/types'
-import { loadStates, loadTargets, loadThread, peekStates, peekTargets, peekThread, saveStates, saveTargets, saveThreadItem } from '../lib/snapshots'
+import { getSessionsState, getTargets } from '../api'
+import type { Place, SessionRow, SessionState, SessionsStateResponse, TargetsResponse } from '../api/types'
+import { loadStates, loadTargets, peekStates, peekTargets, saveStates, saveTargets } from '../lib/snapshots'
 import { usePoll } from './usePoll'
 
-/** Titles seen in /targets, so a thread page has a heading before it asks. */
-const titles = new Map<string, string>()
+/**
+ * Rows seen in /targets, so a thread page has a heading (and knows whether
+ * the session is live) before it asks anything — the page itself asks only
+ * for the log (§10).
+ */
+const known = new Map<string, SessionRow>()
 export function knownTitle(session: string): string {
-  return titles.get(session) || ''
+  return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.title || ''
+}
+/** Live per the last /targets seen; undefined when the list never showed it. */
+export function knownLive(session: string): boolean | undefined {
+  return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.live
 }
 
 function rowsOf(res: TargetsResponse): SessionRow[] {
-  for (const row of res.sessions) titles.set(row.session, row.title)
+  for (const row of res.sessions) known.set(row.session, row)
   // Live first (the server already orders them so; kept explicit).
   return [...res.sessions].sort((a, b) => Number(b.live) - Number(a.live))
 }
@@ -96,65 +104,4 @@ export function useSessionStates(enabled = true) {
     enabled
   )
   return states
-}
-
-/** How long to wait for the shelf to catch up with a new session (S: ask.vue). */
-const ITEM_WAIT_MS = 5 * 60 * 1000
-const ITEM_POLL_MS = 3000
-
-/**
- * GET /conversation?session= — what this thread is, and its ABS item once
- * the library has built one. v0's log is keyed by item, so until it arrives
- * the thread has no transcript to show ("not on the shelf yet"). Polled every
- * 3 s for up to 5 minutes while the item is missing or still scanning.
- *
- * The resolved item is saved (lib/snapshots.ts): a thread opened before
- * starts its log request at once with the saved item instead of waiting a
- * round trip for this one. This one still runs, beside the log, to refresh
- * live/resumable and to correct the item if it ever changed.
- */
-export function useThreadInfo(session: string) {
-  const [info, setInfo] = useState<SessionConversation | null>(null)
-  const [cachedItem, setCachedItem] = useState<string | null>(() => peekThread(session)?.item || null)
-  const [error, setError] = useState('')
-  const [asked, setAsked] = useState(false)
-  const [startedAt] = useState(() => Date.now())
-
-  useEffect(() => {
-    if (cachedItem) return
-    let cancelled = false
-    void loadThread(session).then((snap) => {
-      if (!cancelled && snap?.item) setCachedItem((c) => c || snap.item)
-    })
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session])
-
-  const waiting = !info || !info.item || info.scanning
-  usePoll(
-    async () => {
-      try {
-        const res = await getSessionConversation(session)
-        setInfo(res)
-        setError('')
-        if (res.item && !res.scanning) saveThreadItem(session, res.item)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
-        if (err instanceof ApiError && err.status === 400) setInfo(null)
-      } finally {
-        setAsked(true)
-      }
-    },
-    () => ITEM_POLL_MS,
-    !!session && (!asked || waiting) && Date.now() - startedAt < ITEM_WAIT_MS,
-    [session]
-  )
-
-  // A usable item: the server's, once it has answered (present and not
-  // scanning, §6.2); until then the saved one.
-  const fresh = info && info.item && !info.scanning ? info.item : null
-  const item = info ? fresh : cachedItem
-  return { info, item, error }
 }

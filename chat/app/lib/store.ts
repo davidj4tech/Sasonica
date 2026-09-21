@@ -14,6 +14,13 @@
 
 const DB_NAME = 'sasonica-chat'
 const STORE = 'kv'
+/**
+ * The cache's shape version. Bump it when what is stored changes shape: the
+ * upgrade drops the whole store and starts it empty, so old entries never
+ * have to be read by new code. (v2, 22 Sep 2026: threads keyed by session
+ * alone — the v1 entries carried an ABS item.)
+ */
+const CACHE_VERSION = 2
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
@@ -22,12 +29,15 @@ function open(): Promise<IDBDatabase | null> {
   dbPromise = new Promise<IDBDatabase | null>((resolve) => {
     try {
       if (typeof indexedDB === 'undefined') return resolve(null)
-      const req = indexedDB.open(DB_NAME, 1)
+      const req = indexedDB.open(DB_NAME, CACHE_VERSION)
       req.onupgradeneeded = () => {
+        const db = req.result
         try {
-          req.result.createObjectStore(STORE)
+          // Everything is a cache: drop the old shape, start empty.
+          if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE)
+          db.createObjectStore(STORE)
         } catch {
-          // Already there.
+          // An upgrade that fails aborts the open → onerror → no cache.
         }
       }
       req.onsuccess = () => {

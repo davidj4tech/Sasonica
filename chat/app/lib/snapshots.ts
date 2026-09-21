@@ -4,12 +4,10 @@
  * stale-while-revalidate.
  *
  * Why: from the phone to red5 one round trip is ~0.43 s and a 39-line log
- * takes 2–2.5 s, and v0 opens a thread with two sequential requests (session
- * → item, then the log). That was 3–4 s of "Loading…" per thread.
+ * takes 2–2.5 s. (v0 also needed a session → item lookup before the log;
+ * since §10 the log is asked by session, so opening a thread is ONE request.)
  *
- * What is kept, per session: the resolved ABS item (so a known thread goes
- * straight to the log — one round trip instead of two) and the log envelope's
- * lines. Not kept: `working`, `approval`, `pending`, `suggestion` — those are
+ * What is kept, per session: the log envelope's lines. Not kept: `working`, `approval`, `pending`, `suggestion` — those are
  * "what is happening right now", and a stale approval card or a stale step
  * timer would be a lie. They arrive with the first fresh poll.
  *
@@ -21,7 +19,7 @@
  * Bounded: at most MAX_THREADS threads (least recently opened or refreshed
  * goes first) and MAX_LINES lines each.
  */
-import type { ConversationLog, ItemId, Line, SessionId, SessionsStateResponse, TargetsResponse } from '../api/types'
+import type { ConversationLog, Line, SessionId, SessionsStateResponse, TargetsResponse } from '../api/types'
 import { idbDel, idbGet, idbSet } from './store'
 
 const MAX_THREADS = 40
@@ -36,7 +34,6 @@ const STATES_KEY = 'list:states'
 /** What the thread page gets back. */
 export interface ThreadSnapshot {
   session: SessionId
-  item: ItemId | null
   /** Lines as last seen, with any live marking removed (see plainLine). */
   lines: Line[]
   /** Local ms the lines were last saved. */
@@ -46,7 +43,6 @@ export interface ThreadSnapshot {
 /** On disk: the lines as a JSON string, which doubles as the change signature. */
 interface Stored {
   session: SessionId
-  item: ItemId | null
   json: string
   savedAt: number
 }
@@ -120,7 +116,7 @@ function parse(stored: Stored | undefined): ThreadSnapshot | undefined {
   try {
     const lines = JSON.parse(stored.json) as Line[]
     if (!Array.isArray(lines)) return undefined
-    return { session: stored.session, item: stored.item, lines: lines.map(plainLine), savedAt: stored.savedAt }
+    return { session: stored.session, lines: lines.map(plainLine), savedAt: stored.savedAt }
   } catch {
     return undefined
   }
@@ -143,22 +139,12 @@ export async function loadThread(session: SessionId): Promise<ThreadSnapshot | u
   return parse(stored)
 }
 
-/** The item a session resolved to — v0's log is keyed by it. */
-export function saveThreadItem(session: SessionId, item: ItemId | null) {
-  const prev = memory.get(session)
-  if (prev && prev.item === item) return
-  const stored: Stored = { session, item, json: prev?.json || '[]', savedAt: prev?.savedAt || 0 }
-  memory.set(session, stored)
-  touch(session, { used: true })
-  void idbSet(threadKey(session), stored).then(evict)
-}
-
 /**
  * A good /conversation/log answer. Written only when the lines changed —
  * a live reply is re-polled every second, but with its live fields stripped
  * the text is the same until the next line lands, so nothing is written.
  */
-export function saveThreadLog(session: SessionId, item: ItemId, log: ConversationLog) {
+export function saveThreadLog(session: SessionId, log: ConversationLog) {
   touch(session, { used: true, checked: true })
   let json: string
   try {
@@ -167,8 +153,8 @@ export function saveThreadLog(session: SessionId, item: ItemId, log: Conversatio
     return
   }
   const prev = memory.get(session)
-  if (prev && prev.item === item && prev.json === json) return
-  const stored: Stored = { session, item, json, savedAt: Date.now() }
+  if (prev && prev.json === json) return
+  const stored: Stored = { session, json, savedAt: Date.now() }
   memory.set(session, stored)
   void idbSet(threadKey(session), stored).then(evict)
 }

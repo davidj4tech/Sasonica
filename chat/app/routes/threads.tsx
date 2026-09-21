@@ -4,9 +4,9 @@
  * Paints from the last saved answer; once the fresh one lands, the top few
  * threads are warmed in the background (hooks/usePrefetch.ts).
  */
-import { Link } from 'react-router'
+import { Link, Navigate } from 'react-router'
 import { SpeechBar } from '../components/SpeechBar'
-import { hasToken } from '../api/auth'
+import { hasCredential } from '../api/auth'
 import type { SessionState } from '../api/types'
 import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
@@ -26,6 +26,12 @@ function ago(at?: number): string {
 }
 
 export default function Threads() {
+  // First run: nothing to prove who we are yet — pair first.
+  if (!hasCredential()) return <Navigate to="/pairing" replace />
+  return <ThreadList />
+}
+
+function ThreadList() {
   const { sessions, error, loading, stale, reload } = useTargets()
   const states = useSessionStates()
   usePrefetch(sessions, !stale && !loading && !error)
@@ -43,11 +49,6 @@ export default function Threads() {
         </Link>
       </header>
 
-      {!hasToken() && (
-        <p className="notice">
-          No token set. <Link to="/settings">Settings</Link>
-        </p>
-      )}
       {error && <p className="notice error">{error}</p>}
       {loading && !sessions.length && <p className="notice">Loading…</p>}
 

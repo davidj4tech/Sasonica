@@ -1,10 +1,11 @@
 /**
  * Every call the chat front end makes to the canvas, in one place.
  *
- * Shapes are in ./types.ts; credentials are ./auth.ts's business. When the v1
- * routes land (server-contract.md §8), the changes are here: `item` becomes
- * `session` on the log and reply, the stream replaces the poll, stop becomes
- * real, and errors gain a `code`.
+ * Shapes are in ./types.ts; credentials are ./auth.ts's business. Threads
+ * are keyed by session throughout (server-contract.md §10, built 22 Sep
+ * 2026): the log and /reply take the session, so no ABS item is ever looked
+ * up. Still to come (§8): the stream replaces the poll, stop becomes real,
+ * and errors gain a `code`.
  */
 import { authHeaders, serverBase } from './auth'
 import type {
@@ -14,9 +15,8 @@ import type {
   AskResponse,
   Approval,
   ConversationLog,
-  ItemId,
+  ReplyRequest,
   ReplyResponse,
-  SessionConversation,
   SessionId,
   SessionRow,
   SessionsStateResponse,
@@ -114,14 +114,14 @@ export function getSessionsState(signal?: AbortSignal) {
 
 // ── One conversation ──────────────────────────────────────────────────────
 
-/** Resolve a session to its ABS item (v0 needs the item for the log). */
-export function getSessionConversation(session: SessionId, opts?: AbortSignal | CallOptions) {
-  return request<SessionConversation>('GET', `/conversation?session=${q(session)}`, undefined, opts)
-}
-
-/** v0: keyed by item. v1 (§10): `/conversation/log?session=`. */
-export function getConversationLog(item: ItemId, opts?: AbortSignal | CallOptions) {
-  return request<ConversationLog>('GET', `/conversation/log?item=${q(item)}`, undefined, opts)
+/**
+ * The thread's transcript, by session (§10). Answers from speech history
+ * even before the conversation is on the shelf, so a thread started seconds
+ * ago is readable at once. 404 "no conversation for that session yet" only
+ * when there is no manifest, no line, no pane and no transcript.
+ */
+export function getConversationLog(session: SessionId, opts?: AbortSignal | CallOptions) {
+  return request<ConversationLog>('GET', `/conversation/log?session=${q(session)}`, undefined, opts)
 }
 
 /**
@@ -141,30 +141,28 @@ export type LogTail = ConversationLog & { complete: boolean }
  * is this function's body:
  *
  *   const res = await request<ConversationLog & { truncated?: boolean }>(
- *     'GET', `/conversation/log?item=${q(item)}&tail=${n}`, undefined, opts)
+ *     'GET', `/conversation/log?session=${q(session)}&tail=${n}`, undefined, opts)
  *   return { ...res, complete: !res.truncated }
  *
  * (An older server ignores the unknown parameter and returns everything with
  * no `truncated`, which reads as complete — so the switch is safe to ship
  * before the server.)
  */
-export async function fetchLogTail(item: ItemId, n: number, opts?: AbortSignal | CallOptions): Promise<LogTail> {
+export async function fetchLogTail(session: SessionId, n: number, opts?: AbortSignal | CallOptions): Promise<LogTail> {
   void n
-  const res = await getConversationLog(item, opts)
+  const res = await getConversationLog(session, opts)
   return { ...res, complete: true }
 }
 
 // ── Sending ───────────────────────────────────────────────────────────────
 
 /**
- * A reply into an existing thread. v0's /reply takes an item; a thread that is
- * not on the shelf yet has none, so it goes through /ask with the session as
- * the picked target instead (`how: "picked"`), which needs no item.
- * v1 (§10): `POST /reply {session, text}` for both.
+ * A reply into an existing thread: `POST /reply {session, text}` (§10),
+ * shelved or not. A closed session is reopened (`opened: true`); one with
+ * no pane and no transcript is 404 "no such session".
  */
-export async function reply(thread: { session: SessionId; item: ItemId | null }, text: string): Promise<ReplyResponse | AskResponse> {
-  if (thread.item) return request<ReplyResponse>('POST', '/reply', { item: thread.item, text })
-  return request<AskResponse>('POST', '/ask', { text, target: thread.session, parse: false } satisfies AskRequest)
+export function reply(session: SessionId, text: string) {
+  return request<ReplyResponse>('POST', '/reply', { session, text } satisfies ReplyRequest)
 }
 
 /** A fresh session: `POST /ask {text, target: "new", cwd?, agent?}`. */

@@ -18,7 +18,7 @@
  * (only when they changed).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchLogTail, getConversationLog } from '../api'
+import { ApiError, fetchLogTail, getConversationLog } from '../api'
 import type { Approval, ConversationLog, Line, Working } from '../api/types'
 import { liveClockOf, type LiveClock } from '../lib/followAlong'
 import { loadThread, peekThread, plainLine, saveThreadLog } from '../lib/snapshots'
@@ -27,6 +27,8 @@ import { usePoll } from './usePoll'
 const POLL_IDLE_MS = 15000
 const POLL_FAST_MS = 1000
 const POLL_WORKING_MS = 2000
+/** A session the server knows nothing about yet (404): ask again soon. */
+const POLL_MISSING_MS = 3000
 /** Keep the fast cadence this long after the transcript last changed. */
 const FAST_LINGER_MS = 20 * 1000
 /** Ceiling on the fast cadence while merely waiting for an answer. */
@@ -53,6 +55,12 @@ export interface LogState {
   error: string
   loaded: boolean
   /**
+   * 404 "no conversation for that session yet" (§10): nothing at all is
+   * known about it — no line, no pane, no transcript. Rare (a session the
+   * app just started has a pane); the poll keeps asking.
+   */
+  missing: boolean
+  /**
    * The lines are the saved snapshot, not yet confirmed by the server. The
    * header says "updating…"; nothing live (bold, approval, working) is shown
    * from a snapshot.
@@ -70,6 +78,7 @@ const EMPTY: LogState = {
   live: null,
   error: '',
   loaded: false,
+  missing: false,
   stale: false
 }
 
@@ -80,11 +89,11 @@ function fromSnapshot(lines: Line[]): LogState {
 }
 
 /**
- * Keyed by `session` for the snapshot; `item` is what v0's log needs, and
- * polling starts when it is known (from the snapshot, or once resolved).
- * Mount one per thread (the page keys it by session).
+ * Keyed by `session`, for the snapshot and the log itself (§10) — polling
+ * starts at once, with no lookup in front of it. Mount one per thread (the
+ * page keys it by session).
  */
-export function useConversationLog(session: string, item: string | null) {
+export function useConversationLog(session: string) {
   const [state, setState] = useState<LogState>(() => {
     // Memory hit (moved here from inside the app): paint on the first render.
     const snap = peekThread(session)
@@ -178,6 +187,7 @@ export function useConversationLog(session: string, item: string | null) {
         live: liveLine ? liveClockOf(liveLine, now, now - askedAt) : null,
         error: '',
         loaded: true,
+        missing: false,
         stale: false
       })
     },
@@ -185,35 +195,40 @@ export function useConversationLog(session: string, item: string | null) {
   )
 
   const fetchOnce = useCallback(async () => {
-    if (!item) return
+    if (!session) return
     const askedAt = Date.now()
     try {
       let res: ConversationLog
       if (!freshRef.current && !stateRef.current.lines.length && !needFullRef.current) {
         // Cold open with nothing to show: the newest lines first (see
         // COLD_TAIL_LINES), the rest on the very next tick.
-        const tail = await fetchLogTail(item, COLD_TAIL_LINES)
+        const tail = await fetchLogTail(session, COLD_TAIL_LINES)
         needFullRef.current = !tail.complete
         res = tail
       } else {
-        res = await getConversationLog(item)
+        res = await getConversationLog(session)
         needFullRef.current = false
       }
       freshRef.current = true
       apply(res, askedAt)
       // A partial tail must not replace a fuller snapshot on disk.
-      if (!needFullRef.current) saveThreadLog(session, item, res)
+      if (!needFullRef.current) saveThreadLog(session, res)
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setState((s) => ({ ...s, error: '', loaded: true, missing: true }))
+        return
+      }
       // Keep the lines: blanking a transcript over a blinked network is
       // worse than showing one a few seconds old.
       setState((s) => ({ ...s, error: err instanceof Error ? err.message : String(err), loaded: true }))
     }
-  }, [session, item, apply])
+  }, [session, apply])
 
   const nextDelay = useCallback(() => {
     const s = stateRef.current
     // A tail arrived; fetch the older lines above it straight away.
     if (needFullRef.current) return 0
+    if (s.missing) return POLL_MISSING_MS
     if (s.live) return POLL_FAST_MS
     if (s.working || s.approval) return POLL_WORKING_MS
     const since = Date.now() - changedAtRef.current
@@ -222,7 +237,7 @@ export function useConversationLog(session: string, item: string | null) {
     return POLL_IDLE_MS
   }, [])
 
-  const kick = usePoll(fetchOnce, nextDelay, !!item, [item])
+  const kick = usePoll(fetchOnce, nextDelay, !!session, [session])
 
   /** A reply was accepted: show it at once and poll fast until it lands. */
   const sent = useCallback(

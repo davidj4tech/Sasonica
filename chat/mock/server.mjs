@@ -1,15 +1,24 @@
 #!/usr/bin/env node
 /**
- * A tiny stand-in for agent-media's canvas, answering the v0 app routes
- * (server-contract.md §6) from in-memory fixtures. Every write path the chat
- * front end has is exercised here, never against the real canvas: a real
- * POST types into a running agent session.
+ * A tiny stand-in for agent-media's canvas, answering the app routes
+ * (server-contract.md §6, with §9 pairing and §10 session keys) from
+ * in-memory fixtures. Every write path the chat front end has is exercised
+ * here, never against the real canvas: a real POST types into a running
+ * agent session.
  *
  *   node mock/server.mjs [--port 8793] [--static build/client]
  *
- * Any non-empty bearer is accepted, except "bad" (→ 401, §4.1). With
- * --static (default: build/client if it exists) it also serves the built SPA
- * on the same port, so Settings can be left blank.
+ * Auth, both kinds the canvas takes (§9 "Migration"):
+ *  - a DEVICE token from `POST /pair {code, device}`. The pairing code is
+ *    fixed, MOCK_PAIR_CODE (default `c0ffee42`); like the real one it dies on
+ *    its first success (a wrong code does not burn it), and
+ *    `GET /mock/pair` re-arms it. Paired tokens start `mock-dev-`; one that
+ *    is not (or no longer) paired is refused 401, as a revoked one is.
+ *    `GET /mock/devices` lists them, `?revoke=<id>` forgets one.
+ *  - any other non-empty bearer, as an ABS token (legacy), except "bad"
+ *    (→ 401, §4.1).
+ * With --static (default: build/client if it exists) it also serves the
+ * built SPA on the same port, so Settings can be left blank.
  *
  * Slow link: MOCK_DELAY_MS=2500 (or --delay 2500) holds every app-route
  * answer that long, like the phone→red5 hop (a 39-line log took 2.1–2.5 s).
@@ -24,7 +33,8 @@
  *   approval  — live, stopped on a permission prompt (/session/answer)
  *   asking    — live, an AskUserQuestion on screen, attached to its ask line
  *   working   — live, a turn running (`working` steps advance)
- *   fresh     — live, not on the shelf yet (item: null)
+ *   fresh     — live, not on the shelf yet (item: null): readable and
+ *               repliable by session all the same (§10)
  *   shelved   — ended, resumable, with pictures and a work summary
  *   long      — ended, 90 lines, for the bottom-first window and scrolling
  */
@@ -506,6 +516,10 @@ function readBody(req) {
   })
 }
 
+/** §9: the one pairing code, and the devices it has paired (token → row). */
+const PAIR = { code: process.env.MOCK_PAIR_CODE || 'c0ffee42', armed: true }
+const DEVICES = new Map()
+
 const SESSION_RE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{8}_\d{6}_[0-9a-f]+)$/
 const byItem = (item) => Object.values(S).find((s) => s.item && s.item === item)
 
@@ -536,7 +550,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/draft', '/commands', '/speech/now', '/speech/ctl'])
+const API = new Set(['/pair', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/draft', '/commands', '/speech/now', '/speech/ctl'])
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://mock')
@@ -554,6 +568,18 @@ createServer(async (req, res) => {
     return res.end(svg(path.slice(5)))
   }
   if (path === '/healthz') return res.writeHead(200).end('ok')
+  if (path === '/mock/pair') {
+    PAIR.armed = true
+    console.log(`pairing code ${PAIR.code} armed`)
+    res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
+    return res.end(PAIR.code)
+  }
+  if (path === '/mock/devices') {
+    const revoke = url.searchParams.get('revoke')
+    if (revoke) for (const [tok, d] of DEVICES) if (d.id === revoke) DEVICES.delete(tok)
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify([...DEVICES.values()]))
+  }
   if (path === '/mock/delay') {
     DELAY_MS = Number(url.searchParams.get('ms')) || 0
     console.log(`delay now ${DELAY_MS} ms`)
@@ -566,12 +592,36 @@ createServer(async (req, res) => {
     return fail(res, 404, 'no such route')
   }
 
-  // §4.1 — any bearer passes, except "bad".
+  // §9 — POST /pair needs no credential.
+  if (path === '/pair') {
+    if (req.method !== 'POST') return fail(res, 405, 'POST only')
+    const body = await readBody(req)
+    if (DELAY_MS) await sleep(DELAY_MS)
+    const code = String(body.code || '').trim()
+    if (!PAIR.armed || code !== PAIR.code) {
+      log(403)
+      return fail(res, 403, 'invalid or expired pairing code', { code: 'bad_pairing_code' })
+    }
+    PAIR.armed = false // dies on its first success, never on a failure
+    const token = `mock-dev-${randomUUID().replace(/-/g, '')}`
+    const id = `d_${randomUUID().replace(/-/g, '').slice(0, 12)}`
+    const name = String(body.device || '').trim().slice(0, 80) || 'device'
+    DEVICES.set(token, { id, name, created: r3(now()) })
+    log(200)
+    console.log(`  paired ${id} (${name})`)
+    return send(res, 200, { ok: true, token, device_id: id, server: { name: 'mock', base: `http://${req.headers.host}` } })
+  }
+
+  // §9: a paired device token first; else §4.1, any bearer passes as an
+  // ABS token except "bad". An unknown device token is refused, as a
+  // revoked one falls through to ABS and is refused there.
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
-  if (!bearer || bearer === 'bad') {
+  const device = DEVICES.get(bearer)
+  if (!bearer || bearer === 'bad' || (bearer.startsWith('mock-dev-') && !device)) {
     log(401)
     return fail(res, 401, 'Audiobookshelf rejected that login')
   }
+  if (device) device.last_seen = r3(now())
 
   const body = req.method === 'POST' ? await readBody(req) : {}
   if (DELAY_MS) await sleep(DELAY_MS)
@@ -616,10 +666,18 @@ async function route(method, path, q, body, res) {
     const s = S[sid]
     if (!s) return err(404, 'no such session')
     tickSession(s)
-    return ok({ session: s.session, item: s.item, scanning: false, live: s.live, pane: s.pane, resumable: true })
+    return ok({ session: s.session, item: s.item, scanning: false, live: s.live, pane: s.pane, resumable: true, suggestion: s.suggestion })
   }
 
   if (method === 'GET' && path === '/conversation/log') {
+    // §10: `session` wins when both are given.
+    const sid = q.get('session')
+    if (sid !== null) {
+      if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
+      const s = S[sid]
+      if (!s) return err(404, 'no conversation for that session yet')
+      return (send(res, 200, logOf(s)), 200)
+    }
     const s = byItem(q.get('item') || '')
     if (!s) return err(404, 'no such item')
     return (send(res, 200, logOf(s)), 200)
@@ -628,9 +686,19 @@ async function route(method, path, q, body, res) {
   if (method === 'POST' && path === '/reply') {
     const text = String(body.text || '').trim()
     if (!text) return err(400, 'empty reply')
-    const s = byItem(body.item || '')
-    if (!s) return err(404, 'not a conversation (no session behind it)')
+    let s
+    if (body.session !== undefined) {
+      // §10: by session (wins over item).
+      const sid = String(body.session || '')
+      if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
+      s = S[sid]
+      if (!s) return err(404, `no such session ${sid.slice(0, 8)}`)
+    } else {
+      s = byItem(body.item || '')
+      if (!s) return err(404, 'not a conversation (no session behind it)')
+    }
     const opened = !s.live
+
     receive(s, text)
     return ok({ session: s.session, pane: s.pane, opened, submitted: true })
   }

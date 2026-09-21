@@ -15,9 +15,9 @@
  *    requests are not queued behind a prefetch.
  */
 import { useEffect } from 'react'
-import { getConversationLog, getSessionConversation } from '../api'
+import { getConversationLog } from '../api'
 import type { SessionRow } from '../api/types'
-import { lastChecked, loadThread, saveThreadItem, saveThreadLog } from '../lib/snapshots'
+import { lastChecked, saveThreadLog } from '../lib/snapshots'
 
 const PREFETCH_COUNT = 5
 const FRESH_ENOUGH_MS = 3 * 60 * 1000
@@ -29,16 +29,10 @@ let lastRunAt = 0
 
 async function prefetchOne(session: string, signal: AbortSignal) {
   if (Date.now() - (await lastChecked(session)) < FRESH_ENOUGH_MS) return
-  let item = (await loadThread(session))?.item || null
-  if (!item) {
-    const info = await getSessionConversation(session, { signal, priority: 'low' })
-    if (!info.item || info.scanning) return // not on the shelf yet: nothing to warm
-    item = info.item
-    saveThreadItem(session, item)
-  }
   if (signal.aborted) return
-  const log = await getConversationLog(item, { signal, priority: 'low' })
-  saveThreadLog(session, item, log)
+  // One request per thread, shelved or not (§10: the log is keyed by session).
+  const log = await getConversationLog(session, { signal, priority: 'low' })
+  saveThreadLog(session, log)
 }
 
 /** `ready`: the list holds the server's fresh answer (not a snapshot). */

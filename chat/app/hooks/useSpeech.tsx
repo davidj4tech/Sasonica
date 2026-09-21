@@ -17,7 +17,7 @@
  */
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
 import { getSpeechNow, speechCtl } from '../api'
-import { hasToken, serverBase } from '../api/auth'
+import { hasCredential, serverBase } from '../api/auth'
 import type { SessionId, SpeechAction, SpeechCtlResponse, SpeechNow } from '../api/types'
 import { usePoll } from './usePoll'
 
@@ -113,7 +113,7 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
   const errorTimerRef = useRef<number | null>(null)
 
   const poll = useCallback(async () => {
-    if (!hasToken() || !serverBase()) {
+    if (!hasCredential() || !serverBase()) {
       setServer(null)
       return
     }

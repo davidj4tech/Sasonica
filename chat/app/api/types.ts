@@ -3,8 +3,11 @@
  * agent-media/docs/server-contract.md §6 (21 Sep 2026).
  *
  * Every v1 change (§8–§13) lands here and in ./index.ts:
- *  - `item` → `session` on /conversation/log, /reply, /commands, /rename (§10)
- *  - the ABS-shaped fields (`start`/`end`, `item`, `scanning`, `tail`) go
+ *  - DONE (§10, built 22 Sep 2026): threads keyed by session on
+ *    /conversation/log, /reply, /ask (`player_session`); the app sends no item
+ *  - DONE (§9): device tokens (`POST /pair`, see ./auth.ts)
+ *  - the ABS-shaped fields (`start`/`end`, `item`, `scanning`, `tail`) go at
+ *    the ABS exit; they are kept here, unread, until then
  *  - a machine `code` on every error (§13)
  *
  * Notes against the live canvas (red5, read-only GETs, 21 Sep 2026) are
@@ -66,7 +69,7 @@ export interface SessionsStateResponse extends Envelope {
 
 // ── §6.2 One conversation ─────────────────────────────────────────────────
 
-/** GET /conversation?session= */
+/** GET /conversation?session= — not asked by the app since §10 (the log answers by session). */
 export interface SessionConversation extends Envelope {
   session: SessionId
   /** Fills in once ABS has the item AND has built its tracks. */
@@ -76,6 +79,8 @@ export interface SessionConversation extends Envelope {
   live: boolean
   pane: string | null
   resumable: boolean
+  /** §10: the ghost suggestion, as on /conversation?item=. */
+  suggestion?: string
 }
 
 /** GET /conversation?item= */
@@ -114,7 +119,7 @@ export interface Line {
   at: number
   /** The reply's dedup key; `""` for the listener. */
   key: string
-  /** Seconds into the ABS audio item, or null — ABS-specific. */
+  /** Seconds into the ABS audio item — ABS-specific; always null on `?session=` (§10). */
   start: number | null
   end: number | null
   /** Speech-history row id, only on lines that were spoken. */
@@ -182,8 +187,9 @@ export interface ConversationLog extends Envelope {
 
 // ── §6.3 Sending ──────────────────────────────────────────────────────────
 
+/** POST /reply — by session (§10). `item` is the v0 form, no longer sent. */
 export interface ReplyRequest {
-  item: ItemId
+  session: SessionId
   text: string
   quote?: string
   mode?: 'continue' | 'branch'
@@ -205,8 +211,8 @@ export interface AskRequest {
   text: string
   /** A session id, or "new" to force a fresh session. */
   target?: SessionId | 'new'
-  /** ABS-specific; v1 renames it `player_session`. */
-  player_item?: ItemId
+  /** §10: the session the player is on; routes as `how: "player"`. */
+  player_session?: SessionId
   sticky?: SessionId
   parse?: boolean
   dry?: boolean
@@ -310,6 +316,15 @@ export interface SpeechCtlRequest {
 /** `ok: true` means the command ran, not that it did anything — read `out`. */
 export interface SpeechCtlResponse extends Envelope {
   out: string
+}
+
+// ── §9 Pairing ────────────────────────────────────────────────────────────
+
+/** POST /pair {code, device} — no auth. */
+export interface PairResponse extends Envelope {
+  token: string
+  device_id: string
+  server: { name: string; base: string }
 }
 
 // ── §12 (v1, NOT BUILT) ───────────────────────────────────────────────────

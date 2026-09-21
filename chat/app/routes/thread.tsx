@@ -1,21 +1,23 @@
 /**
- * One thread. The session comes from the URL; v0's log needs its ABS item, so
- * the page first resolves it with /conversation?session= (and keeps asking
- * while the shelf has none: "not on the shelf yet").
+ * One thread. The session comes from the URL, and it is all the page needs:
+ * the log is asked by session (/conversation/log?session=, §10) — ONE
+ * request to open a thread, shelved or not — and replies go to
+ * /reply {session}. A thread that is not on the shelf yet is as readable
+ * and repliable as any other.
  *
- * A thread opened before paints from its saved snapshot and saved item at
- * once (lib/snapshots.ts), with "updating…" in the header until the first
- * fresh poll — never a spinner over content.
+ * A thread opened before paints from its saved snapshot at once
+ * (lib/snapshots.ts), with "updating…" in the header until the first fresh
+ * poll — never a spinner over content.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { answer, ApiError, reply, stopSession } from '../api'
-import type { Approval, AskResponse, ReplyResponse } from '../api/types'
+import type { Approval } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import { useConversationLog } from '../hooks/useConversationLog'
 import { useSpeech } from '../hooks/useSpeech'
-import { knownTitle, useSessionStates, useThreadInfo } from '../hooks/useThreads'
+import { knownLive, knownTitle, useSessionStates } from '../hooks/useThreads'
 import { buildItems } from '../lib/convert'
 import { withPaused, type LiveClock } from '../lib/followAlong'
 
@@ -35,8 +37,7 @@ function ThreadPage({ session }: { session: string }) {
   const location = useLocation()
   const title = (location.state as { title?: string } | null)?.title || knownTitle(session) || session.slice(0, 8)
 
-  const { info, item, error: infoError } = useThreadInfo(session)
-  const log = useConversationLog(session, item)
+  const log = useConversationLog(session)
   const states = useSessionStates()
   const [status, setStatus] = useState<Status>(null)
 
@@ -70,7 +71,7 @@ function ThreadPage({ session }: { session: string }) {
     async (text: string) => {
       setStatus({ text: 'Sending…' })
       try {
-        const res: ReplyResponse | AskResponse = await reply({ session, item }, text)
+        const res = await reply(session, text)
         // A revived session reads the reply once it has loaded, which can
         // take a minute — "sent" there would be a small lie (§6.3).
         setStatus({ text: res.opened ? 'Session reopened — it will pick this up shortly.' : 'Sent.' })
@@ -86,7 +87,7 @@ function ThreadPage({ session }: { session: string }) {
         throw err
       }
     },
-    [session, item, log]
+    [session, log]
   )
 
   const onStop = useCallback(
@@ -116,31 +117,24 @@ function ThreadPage({ session }: { session: string }) {
     [session, log]
   )
 
+  // Live: /sessions/state lists it (polled), else the list said so, else
+  // a pane-less live line in the log itself. `closed` only when we know.
   const state = states[session]
-  const sessionLive = state ? true : !!info?.live
+  const listLive = knownLive(session)
+  const sessionLive = !!state || listLive === true || !!log.live
+  const closed = !sessionLive && listLive === false
 
   let empty: React.ReactNode = null
   if (log.lines.length) {
-    // A snapshot is on screen; whatever the item lookup is doing, it is
-    // not a reason to say "Loading…".
-  } else if (!item) {
-    empty = (
-      <div className="empty">
-        {infoError ? (
-          <p className="error">{infoError}</p>
-        ) : !info ? (
-          <p className="delayed">Loading…</p>
-        ) : info.scanning ? (
-          <p>On the shelf, still being built — the transcript will appear shortly.</p>
-        ) : (
-          <p>Not on the shelf yet. The first reply is published a minute after it is spoken; this page keeps checking.</p>
-        )}
-      </div>
-    )
-  } else if (log.error && !log.lines.length) {
+    // A snapshot or the log is on screen.
+  } else if (log.error) {
     empty = <p className="empty error">{log.error}</p>
   } else if (!log.loaded) {
     empty = <p className="empty delayed">Loading…</p>
+  } else if (log.missing) {
+    empty = <p className="empty">Nothing from this session yet — this page keeps checking.</p>
+  } else {
+    empty = <p className="empty">No messages yet.</p>
   }
 
   return (
@@ -151,7 +145,7 @@ function ThreadPage({ session }: { session: string }) {
         </Link>
         <h1 className="grow">{title}</h1>
         {log.stale && <span className="updating">updating…</span>}
-        <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : info?.resumable ? 'resumable' : 'ended')}</span>
+        {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
       </header>
       <Thread
         items={items}
@@ -164,7 +158,7 @@ function ThreadPage({ session }: { session: string }) {
         onStop={onStop}
         actions={actions}
         empty={empty}
-        placeholder={info && !sessionLive ? 'Session closed. Sending resumes it' : undefined}
+        placeholder={closed ? 'Session closed. Sending resumes it' : undefined}
         speechBar={<SpeechBar here={session} />}
         status={
           (status || (log.error && log.lines.length > 0)) && (
@@ -175,3 +169,4 @@ function ThreadPage({ session }: { session: string }) {
     </div>
   )
 }
+

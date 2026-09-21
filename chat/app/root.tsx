@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router'
+import { Links, Meta, Navigate, Outlet, Scripts, ScrollRestoration, useLocation } from 'react-router'
 import './app.css'
 import { SpeechProvider } from './hooks/useSpeech'
 import { TEXT_SIZE_BOOT } from './lib/textSize'
@@ -57,6 +57,13 @@ function useVisualViewportHeight() {
 
 export default function App() {
   useVisualViewportHeight()
+  // A pairing link opened straight into the app (`/?pair=<code>&server=<base>`,
+  // e.g. the preview server's redirect): hand it to the pairing screen, which
+  // pairs at once.
+  const location = useLocation()
+  if (location.pathname !== '/pairing' && new URLSearchParams(location.search).has('pair')) {
+    return <Navigate to={`/pairing${location.search}`} replace />
+  }
   // One /speech/now poll for every screen (hooks/useSpeech.tsx).
   return (
     <SpeechProvider>
