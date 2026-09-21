@@ -9,7 +9,6 @@
       <p v-else class="text-sm text-fg flex-shrink-0">/{{ command.name }}<span v-if="command.aliases && command.aliases.length" class="text-fg-muted"> ({{ command.aliases.join(', ') }})</span></p>
       <p v-if="command.description && !command.unavailable" class="text-xs text-fg-muted pl-2 truncate">{{ command.description }}</p>
       <div class="flex-grow" />
-      <span v-if="command.terminal" class="material-symbols text-sm text-fg-muted pl-1" title="terminal only">terminal</span>
     </div>
   </div>
 </template>

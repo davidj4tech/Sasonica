@@ -1,31 +1,36 @@
 /**
- * Sasonica: the projects a new chat can open in.
+ * Sasonica: what a new chat can be pointed at.
  *
- * A project is a series in the Conversations library — the directory its
- * conversations ran in. Asked for by name, not id: that is what `/ask` takes.
+ * The canvas answers this in one call (`GET /targets`): `places` are the
+ * directories sessions have actually run in — newest first, the one a session
+ * is running in right now ahead of the rest — and `sessions` are the
+ * conversations running or lately shelved.
  *
- * There are more of them than belong in a menu, and the interesting ones are
- * the ones lately talked in, so they come back newest-first by their most
- * recently touched conversation (a live one is touched all the time) and only
- * the first few are handed back. The rest are on the Projects shelf.
+ * It used to be worked out here, from the series of an Audiobookshelf library
+ * that had to be named Conversations. That was this desk's setup, not the
+ * app's business: another canvas answers with its own directories and nothing
+ * here changes.
  *
- * @param {Vue} vm - any component (for `$store` and `$nativeHttp`)
- * @param {number} [limit=6] - how many to keep; 0 for all of them
- * @returns {Promise<string[]>} project names, or [] when there is no such library
+ * @param {Vue} vm - any component (for `$store`, `$localStore`, `$nativeHttp`)
+ * @param {number} [limit=6] - how many places to keep; 0 for all of them
+ * @returns {Promise<{places: object[], sessions: object[]}>} empty lists when
+ *          there is no canvas configured, or it cannot be reached
  */
-export async function fetchProjects(vm, limit = 6) {
-  const library = (vm.$store.state.libraries.libraries || []).find((lib) => (lib.name || '').trim().toLowerCase() === 'conversations')
-  if (!library) return []
-  const payload = await vm.$nativeHttp.get(`/api/libraries/${library.id}/series?limit=200&page=0&minified=1`).catch((error) => {
-    console.error('[sasonica] failed to fetch projects', error)
-    return null
-  })
-  const series = (payload?.results || []).filter((s) => !!s.name)
-  series.sort((a, b) => lastTouched(b) - lastTouched(a))
-  const names = series.map((s) => s.name)
-  return limit > 0 ? names.slice(0, limit) : names
-}
-
-function lastTouched(series) {
-  return (series.books || []).reduce((latest, book) => Math.max(latest, book.updatedAt || book.addedAt || 0), series.updatedAt || 0)
+export async function fetchTargets(vm, limit = 6) {
+  const empty = { places: [], sessions: [] }
+  const token = vm.$store.getters['user/getToken']
+  if (!token) return empty
+  const base = await vm.$localStore.agentMediaBaseUrl(vm.$store.state.user.serverConnectionConfig?.address)
+  if (!base) return empty
+  try {
+    const res = await vm.$nativeHttp.request('GET', `${base}/targets`, null, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    const places = res?.places || []
+    return { places: limit > 0 ? places.slice(0, limit) : places, sessions: res?.sessions || [] }
+  } catch (error) {
+    // No canvas, or one too old to know the route: the list is simply empty.
+    console.error('[sasonica] failed to fetch targets', error)
+    return empty
+  }
 }

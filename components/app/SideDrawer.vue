@@ -27,10 +27,10 @@
               </button>
             </div>
             <div v-if="targetsOpen" class="w-full pb-1">
-              <button v-for="name in projects" :key="`project-${name}`" type="button" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-2 pl-14 pr-6 text-fg-muted" @click="newChatIn(name)">
-                <p class="text-sm truncate">{{ name }}</p>
+              <button v-for="place in projects" :key="`place-${place.path}`" type="button" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-2 pl-14 pr-6 text-fg-muted" @click="newChatIn(place)">
+                <p class="text-sm truncate">{{ place.name }}</p>
               </button>
-              <nuxt-link v-if="projects.length" to="/bookshelf/series" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-2 pl-14 pr-6 text-fg-muted/70">
+              <nuxt-link v-if="projects.length && isConversations" to="/bookshelf/series" :tabindex="show ? 0 : -1" class="w-full hover:bg-bg/60 flex items-center py-2 pl-14 pr-6 text-fg-muted/70">
                 <p class="text-sm truncate">All projects…</p>
               </nuxt-link>
               <template v-if="liveSessions.length">
@@ -69,7 +69,7 @@
 
 <script>
 import TouchEvent from '@/objects/TouchEvent'
-import { fetchProjects } from '@/utils/sasonicaProjects' // Sasonica
+import { fetchTargets } from '@/utils/sasonicaProjects' // Sasonica
 
 export default {
   data() {
@@ -202,12 +202,16 @@ export default {
     },
     currentRoutePath() {
       return this.$route.path
+    },
+    // Sasonica: the shelf of projects only exists where the library does.
+    isConversations() {
+      return (this.$store.state.libraries.libraries || []).some((lib) => (lib.name || '').trim().toLowerCase() === 'conversations')
     }
   },
   methods: {
-    // Sasonica: the projects are the Conversations library's series, and the
-    // running sessions come from the canvas. Both are read again each time
-    // the list is opened — a session list goes stale in minutes.
+    // Sasonica: the canvas answers both halves — the directories a fresh
+    // chat can open in, and the sessions already running. Read again each
+    // time the list is opened; a session list goes stale in minutes.
     async toggleTargets() {
       await this.$hapticsImpact()
       this.targetsOpen = !this.targetsOpen
@@ -215,33 +219,15 @@ export default {
     },
     async loadTargets() {
       this.targetsLoading = true
-      await Promise.all([this.loadProjects(), this.loadSessions()])
+      const { places, sessions } = await fetchTargets(this)
+      this.projects = places
+      this.liveSessions = sessions.filter((row) => row.live)
       this.targetsLoading = false
     },
-    async loadProjects() {
-      this.projects = await fetchProjects(this)
-    },
-    async loadSessions() {
-      const token = this.$store.getters['user/getToken']
-      const base = token ? await this.$localStore.agentMediaBaseUrl(this.serverConnectionConfig?.address) : ''
-      if (!base) {
-        this.liveSessions = []
-        return
-      }
-      try {
-        const res = await this.$nativeHttp.request('GET', `${base}/conversations`, null, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        this.liveSessions = (res?.sessions || []).filter((row) => row.live)
-      } catch (error) {
-        // No canvas, or an older one: the projects stand on their own.
-        this.liveSessions = []
-      }
-    },
-    // A project: a fresh session in the directory its conversations run in.
-    newChatIn(project) {
+    // A place: a fresh session in that directory.
+    newChatIn(place) {
       this.show = false
-      this.$router.push({ path: '/ask', query: { project } }).catch(() => {})
+      this.$router.push({ path: '/ask', query: { cwd: place.path } }).catch(() => {})
     },
     // A session already running: the words go to it, not to a new one.
     goToSession(row) {
