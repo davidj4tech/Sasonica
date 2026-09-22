@@ -126,3 +126,8 @@ button.done-key:hover, button.done-key:focus-visible { color: var(--accent); }
 .dash-agenda .agenda-empty { color: var(--muted); margin: .3rem 0; }
 .dash-agenda .note-toast { margin: 8px 0 0; }
 .dash-agenda .open-organiser { display: inline-block; margin-top: 8px; }
+
+/* The chat box at the foot of a note (components/NoteAsk.tsx): a thread's composer, with the item's chats above it. */
+.note-ask { display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 10px; }
+.note-chats { display: flex; flex-wrap: wrap; gap: 6px; }
+.note-chats a { font-size: .867rem; color: var(--text); background: var(--panel-2); border-radius: 999px; padding: 3px 10px; text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

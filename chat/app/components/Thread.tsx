@@ -50,7 +50,7 @@ import {
 } from './parts'
 
 /** "⌘+Enter" on Apple keyboards, "Ctrl+Enter" elsewhere. */
-const SEND_KEYS =
+export const SEND_KEYS =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘+Enter' : 'Ctrl+Enter'
 
 const partComponents = {

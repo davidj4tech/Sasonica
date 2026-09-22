@@ -23,7 +23,9 @@ function fixtures() {
 
 let FILES = fixtures()
 const SETUP = { unset: false, synced: true, paragtd: false }
-export const NOTES_LOG = { captures: [], said: [], setup: [], edits: [] }
+export const NOTES_LOG = { captures: [], said: [], setup: [], edits: [], asked: [] }
+/** Chats started about an item (POST /notes/ask), by `path\ttitle`, newest first. */
+const CHATS = {}
 
 const STATES = ['TODO', 'NEXT', 'WAITING', 'SOMEDAY', 'DONE', 'CANCELLED']
 const HEAD = new RegExp(`^(\\*+)\\s+(?:(${STATES.join('|')})\\s+)?(?:\\[#([A-C])\\]\\s+)?(.*?)(?:\\s+(:[\\w@:]+:))?\\s*$`)
@@ -104,7 +106,7 @@ export async function notesRoute(method, path, q, body, ok, err) {
     }
     const ids = { 'seeds-id': 'roam/projects/seeds.org', 'garden-id': 'roam/projects/garden.org' }
     const links = [...text.matchAll(/\[\[id:([^\]]+)\](?:\[([^\]]*)\])?\]/g)].filter((m) => ids[m[1]]).map((m) => ({ label: m[2] || m[1], path: ids[m[1]] }))
-    return ok({ path: p, at, title, text, links })
+    return ok({ path: p, at, title, text, links, chats: CHATS[`${p}\t${title}`] || [] })
   }
   if (method === 'GET' && path === '/notes/search') {
     const needle = (q.get('q') || '').toLowerCase()
@@ -245,14 +247,43 @@ export function setupWindowRoute(method, path, q, body, ok, err) {
   return 0
 }
 
+/**
+ * POST /notes/ask, the notes half: the item it is about, and the first
+ * message the server would type. mock/server.mjs opens the session, then
+ * hands it back to `noteChatStarted`.
+ */
+export function noteAsk(body) {
+  const p = String(body.path || '')
+  const at = Number(body.at || 0)
+  const text = String(body.text || '').trim()
+  if (!text) return { status: 400, error: 'empty message' }
+  if (!(p in FILES)) return { status: 404, error: 'no such note' }
+  let title = titleOf(p)
+  let where = `~/org/${p}`
+  if (at) {
+    const m = HEAD.exec(FILES[p].split('\n')[at - 1] || '')
+    if (!m) return { status: 409, error: 'no heading on that line (the file changed?)' }
+    title = m[4]
+    where += `, line ${at}${m[2] ? `, ${m[2]}` : ''}`
+  }
+  return { path: p, at, title, prompt: `About "${title}" in my Org notes (${where}): ${text}`, text }
+}
+
+export function noteChatStarted(got, session) {
+  const k = `${got.path}\t${got.title}`
+  CHATS[k] = [{ session, title: got.text.slice(0, 80), at: Math.round(Date.now() / 1000) }, ...(CHATS[k] || [])]
+  NOTES_LOG.asked.push({ path: got.path, at: got.at, prompt: got.prompt, session })
+}
+
 /** `GET /mock/notes`: what was written; `?reset=1` / `?unset=1`. */
 export function mockNotesControl(q) {
   if (q.get('reset')) {
     FILES = fixtures()
     SETUP.unset = false
     SETUP.paragtd = false
+    for (const k of Object.keys(CHATS)) delete CHATS[k]
     screenPolls = 0
-    NOTES_LOG.captures.length = NOTES_LOG.said.length = NOTES_LOG.setup.length = NOTES_LOG.edits.length = KEYS_LOG.length = 0
+    NOTES_LOG.asked.length = NOTES_LOG.captures.length = NOTES_LOG.said.length = NOTES_LOG.setup.length = NOTES_LOG.edits.length = KEYS_LOG.length = 0
   }
   if (q.get('unset')) {
     FILES = {}

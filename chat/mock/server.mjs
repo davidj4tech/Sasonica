@@ -65,7 +65,7 @@ import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
 import { randomUUID, createHash } from 'node:crypto'
-import { mockNotesControl, notesRoute, setupWindowRoute } from './notes.mjs'
+import { mockNotesControl, noteAsk, noteChatStarted, notesRoute, setupWindowRoute } from './notes.mjs'
 
 const args = process.argv.slice(2)
 const opt = (name, dflt) => {
@@ -1187,7 +1187,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
+const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/ask', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1577,6 +1577,16 @@ async function route(method, path, q, body, res) {
     const s = add(session(randomUUID(), text.slice(0, 40), { pane: `%${30 + Object.keys(S).length}`, state: 'working', item: null, shelvedIn: now() + 10 }))
     receive(s, text)
     return ok({ mode: 'new', how: 'asked', session: s.session, pane: s.pane, opened: true, fresh: true, tmux: 'amux-scratch', agent, submitted: true, title: '', text })
+  }
+
+  if (method === 'POST' && path === '/notes/ask') {
+    // A chat about a note: a fresh session like /ask's, opened in the notes tree.
+    const got = noteAsk(body)
+    if (got.error) return err(got.status, got.error)
+    const s = add(session(randomUUID(), got.prompt.slice(0, 40), { pane: `%${30 + Object.keys(S).length}`, state: 'working', item: null, shelvedIn: now() + 10 }))
+    receive(s, got.prompt)
+    noteChatStarted(got, s.session)
+    return ok({ mode: 'new', how: 'asked', session: s.session, pane: s.pane, opened: true, fresh: true, tmux: 'org', agent: 'claude', submitted: true, title: '', text: got.prompt, path: got.path, at: got.at })
   }
 
   if (method === 'POST' && path === '/session/answer') {

@@ -74,6 +74,26 @@ const said = (await mock()).said
 ok(said.length === 1 && said[0].path === 'inbox.org' && said[0].at > 0, `POST /notes/say {path, at} (${JSON.stringify(said)})`)
 await page.screenshot({ path: SHOTS + '/notes-02-heading.png' })
 
+// 3b. The chat box at its foot: a fresh session about this item, then listed on the item
+const noteUrl = page.url()
+ok((await page.locator('.note-ask .input').getAttribute('placeholder')) === 'Ask about this…', 'a chat box under the heading')
+await page.fill('.note-ask .input', 'who was the last plumber?')
+await page.keyboard.press('Enter')
+ok((await page.locator('.note-ask .input').inputValue()) === 'who was the last plumber?\n', 'Enter is a new line, not a send')
+await page.screenshot({ path: SHOTS + '/notes-02b-ask.png' })
+await page.keyboard.press('Control+Enter')
+await page.waitForURL(/\/t\//)
+const asked = (await mock()).asked
+ok(asked.length === 1 && asked[0].path === 'inbox.org' && asked[0].prompt.startsWith('About "Ring the plumber" in my Org notes (~/org/inbox.org, line ') && asked[0].prompt.endsWith(', NEXT): who was the last plumber?'), `POST /notes/ask names the item (${asked[0]?.prompt})`)
+await page.goto(noteUrl)
+await page.waitForSelector('.note-chats a')
+ok((await page.locator('.note-chats a').innerText()).includes('who was the last plumber?'), 'the chat is listed on the item')
+ok((await page.locator('.note-ask .input').inputValue()) === '', 'the box is empty after the send')
+await page.click('.note-chats a')
+await page.waitForURL(/\/t\//)
+ok(page.url().includes(encodeURIComponent(asked[0].session)), 'the chip opens that thread')
+await page.goBack()
+
 // 4. A roam note: markup, checkboxes, and an id link that opens the other note
 await page.goto(BASE + '/organiser')
 await page.click('.note-view:has-text("Project notes")')

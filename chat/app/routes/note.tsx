@@ -10,6 +10,7 @@ import { hasCredential } from '../api/auth'
 import { ApiError } from '../api'
 import { isEditable, readNote, refileNote, REFILE_LABELS, sayNote, setNoteState, type NoteState, type NoteText, type RefileTarget } from '../api/notes'
 import { MoveSheet } from '../components/MoveSheet'
+import { NoteAsk } from '../components/NoteAsk'
 import { noteHref as noteHrefOf, OrgBody, parseHeading, StateBadge } from '../lib/org'
 import { SpeechBar } from '../components/SpeechBar'
 import '../notes.css'
@@ -148,6 +149,7 @@ function NotePage() {
 
       <div className="dock">
         <SpeechBar />
+        {note && <NoteAsk key={`${path}#${at}`} path={path} at={at} title={note.title} chats={note.chats || []} />}
       </div>
     </div>
   )

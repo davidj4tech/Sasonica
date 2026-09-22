@@ -5,6 +5,7 @@
  * stay as they were; it shares their `request` and error.
  */
 import { request } from './index'
+import type { AskResponse } from './types'
 
 export type NoteViewKind = 'agenda' | 'file' | 'folder'
 
@@ -54,6 +55,16 @@ export interface NoteText {
   /** Raw Org. */
   text: string
   links: { label: string; path: string }[]
+  /** Chats started about it (POST /notes/ask), newest first; an older server leaves it out. */
+  chats?: NoteChat[]
+}
+
+/** A chat about a note: the session, and the words that started it. */
+export interface NoteChat {
+  session: string
+  title: string
+  /** Epoch seconds. */
+  at: number
 }
 
 export interface NoteHit {
@@ -146,6 +157,14 @@ export function captureNote(text: string, kind: CaptureKind = 'todo') {
 /** REAL on the server: the voice reads it out. Test on the mock. */
 export function sayNote(path: string, at = 0) {
   return request<{ title: string; chars: number }>('POST', '/notes/say', at ? { path, at } : { path })
+}
+
+/**
+ * REAL on the server: opens a session in the notes tree, the item named in
+ * its first message — what /ask {target: "new"} answers. Test on the mock.
+ */
+export function askNote(path: string, at: number, text: string) {
+  return request<AskResponse>('POST', '/notes/ask', at ? { path, at, text } : { path, text })
 }
 
 export function getNotesSetup(signal?: AbortSignal) {
