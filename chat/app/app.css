@@ -469,6 +469,9 @@ a { color: var(--accent); }
 @media (max-height: 520px) {
   .bar { padding: 4px 12px; }
   .bar h1 { font-size: 1rem; }
+  .thread-bar { gap: 0; padding: 2px 12px; }
+  .thread-bar h1 { font-size: .933rem; }
+  .thread-bar .thread-sub > a.icon, .thread-bar .thread-sub .menu-anchor .icon { min-height: 32px; }
   /* Landscape: the pairing hero goes to one line. */
   .brand-hero { flex-direction: row; justify-content: center; gap: 10px; padding: 4px 0 0; }
   .brand-hero .mark { width: 2.4rem; height: 2.4rem; }
@@ -610,6 +613,15 @@ a { color: var(--accent); }
 .thread-sub .thread-project { flex: 1 1 auto; }
 .thread-sub .badge { flex: none; padding: 0 6px; font-size: .7rem; }
 .thread-sub .updating { flex: none; font-size: .7rem; }
+/* The thread's bar stacks (routes/thread.tsx): the title has the first row to
+ * itself, so a long name is not squeezed between two keys; ← and ⋮ ride the
+ * second one with the project and the badges between them. */
+.thread-bar { flex-direction: column; align-items: stretch; gap: 2px; padding: 6px 12px; }
+.thread-bar h1 { flex: none; font-size: 1.033rem; }
+.thread-bar .thread-sub { justify-content: flex-start; margin: -5px 0; }
+.thread-bar .thread-sub > a.icon { flex: none; min-width: 40px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center; margin-left: -8px; font-size: 1.2rem; }
+.thread-bar .thread-sub .menu-anchor { flex: none; margin-left: auto; margin-right: -8px; }
+.thread-bar .thread-sub .menu-anchor .icon { min-height: 38px; }
 
 /* ── The thread list's sort control and By project headings ────────────── */
 .list-tools { display: flex; justify-content: space-between; padding: 2px 12px 0; }

@@ -8,7 +8,8 @@
 //             the heading says it); the Archived section too
 //   fold      a group heading folds its rows away; the fold survives a reload
 //   device    the choice survives a reload (localStorage)
-//   menu      the sort menu closes on a tap outside without changing it
+//   menu      the sort menu closes on a tap outside without changing it, and
+//             hangs off no edge in a wider (desktop) window
 //   project   the small line under a row's title, the thread header's, and
 //             Home's recap and working cards; none where it is null
 import { chromium, SHOTS } from './lib.mjs'
@@ -133,6 +134,18 @@ await page.waitForSelector('.sort-menu')
 await page.mouse.click(200, 500)
 await page.waitForTimeout(150)
 ok((await page.locator('.sort-menu').count()) === 0 && page.url() === BASE + '/threads' && (await page.locator('.sort-button').innerText()).startsWith('Sort: By project'), 'a tap outside closes the sort menu; nothing opened, nothing changed')
+
+// A wider window (Chrome at the desk): the menu hangs off no edge
+await page.setViewportSize({ width: 700, height: 800 })
+await page.locator('.sort-button').click()
+await page.waitForSelector('.sort-menu')
+const mb = await page.locator('.sort-menu').boundingBox()
+const iw = await page.evaluate(() => window.innerWidth)
+ok(mb.x >= 0 && mb.x + mb.width <= iw, `the menu sits inside the window (${mb.x.toFixed(0)}–${(mb.x + mb.width).toFixed(0)} of ${iw})`)
+ok(mb.width < iw / 2, `and is as wide as its words (${mb.width.toFixed(0)} px)`)
+await page.keyboard.press('Escape')
+await page.setViewportSize({ width: 390, height: 780 })
+await page.waitForTimeout(100)
 
 // The project line (Smart: no headings, so each row says its own)
 await sortTo('Smart')

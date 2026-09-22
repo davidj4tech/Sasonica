@@ -10,9 +10,9 @@
  * (lib/snapshots.ts), with "updating…" in the header until the first
  * snapshot — never a spinner over content.
  */
-import { BackLink, useGoBack } from '../components/Nav'
+import { BackLink } from '../components/Nav'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { answer, ApiError, reply, stopSession } from '../api'
 import type { Approval, QuestionAnswer } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
@@ -72,7 +72,7 @@ function ThreadPage({ session }: { session: string }) {
   const rename = useRename()
   const autoRename = useAutoRename()
   const acts = useSessionActions()
-  const goBack = useGoBack()
+  const navigate = useNavigate()
   useSessionFlags()
   const archived = archivedOf(session, knownArchived(session))
 
@@ -221,11 +221,12 @@ function ThreadPage({ session }: { session: string }) {
       setStatus({ text: 'Thinking of a name…' })
       void autoRename(session).then((r) => setStatus({ text: r.message, failed: !r.ok }))
     } else if (a === 'exit' || a === 'exit-archive') {
-      // No confirm (a send resumes it); once the close is accepted, back to
-      // the screen this thread was opened from.
+      // No confirm (a send resumes it); once the close is accepted, the
+      // thread is gone from under the reader, so land on the list rather
+      // than back on a screen that may not mention it.
       setStatus(null)
       void (a === 'exit-archive' ? acts.exitAndArchive(session) : acts.exit(session)).then((r) =>
-        r.ok ? goBack() : setStatus({ text: r.message, failed: true })
+        r.ok ? navigate('/threads', { replace: true }) : setStatus({ text: r.message, failed: true })
       )
     }
     else {
@@ -249,38 +250,39 @@ function ThreadPage({ session }: { session: string }) {
 
   return (
     <div className="page thread-page">
-      <header className="bar">
-        <BackLink />
-        <h1 className="grow">
+      {/* Two rows: the title has the whole first one, so long names are not
+          cut short; ← and ⋮ sit on the second, beside the project and badges. */}
+      <header className="bar thread-bar">
+        <h1>
           <button className="title-button" onClick={() => setRenaming(true)} title="Rename">
             {title}
           </button>
-          {/* status sits under the title, beside the project, so the title gets the bar's full width */}
-          <span className="thread-sub">
-            {project && <span className="thread-project">{project}</span>}
-            {log.stale && <span className="updating">updating…</span>}
-            {!log.stale && log.transport === 'poll' && (
-              <span className="updating" title="The live stream is not reachable; checking every few seconds instead">
-                polling
-              </span>
-            )}
-            {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
-            {archived && <span className="badge archived">Archived</span>}
-          </span>
         </h1>
-        <div className="menu-anchor">
-          <button ref={menuButton} className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
-            ⋮
-          </button>
-          {menu && (
-            <Popover anchor={menuButton} label="Thread menu" onClose={() => setMenu(false)}>
-              {sessionMenuItems(sessionLive, archived).map((a) => (
-                <button key={a} role="menuitem" className={a === 'exit' || a === 'exit-archive' ? 'danger' : ''} onClick={() => onAction(a)}>
-                  {ACTION_LABEL[a]}
-                </button>
-              ))}
-            </Popover>
+        <div className="thread-sub">
+          <BackLink />
+          {project && <span className="thread-project">{project}</span>}
+          {log.stale && <span className="updating">updating…</span>}
+          {!log.stale && log.transport === 'poll' && (
+            <span className="updating" title="The live stream is not reachable; checking every few seconds instead">
+              polling
+            </span>
           )}
+          {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
+          {archived && <span className="badge archived">Archived</span>}
+          <div className="menu-anchor">
+            <button ref={menuButton} className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+              ⋮
+            </button>
+            {menu && (
+              <Popover anchor={menuButton} label="Thread menu" onClose={() => setMenu(false)}>
+                {sessionMenuItems(sessionLive, archived).map((a) => (
+                  <button key={a} role="menuitem" className={a === 'exit' || a === 'exit-archive' ? 'danger' : ''} onClick={() => onAction(a)}>
+                    {ACTION_LABEL[a]}
+                  </button>
+                ))}
+              </Popover>
+            )}
+          </div>
         </div>
       </header>
       <AgentsStrip session={session} counts={log.agents} />
