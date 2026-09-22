@@ -131,13 +131,43 @@
           {{ approval.question ? "Some answers are off the session's screen; they're at the desk."
                                : "This question runs off the session's screen; the rest is at the desk." }}
         </p>
-        <button v-for="opt in approval.options" :key="opt.n" :disabled="answering"
-                class="w-full text-left text-xs rounded px-2 py-1.5 mb-1 border bg-black/20 border-transparent disabled:opacity-50"
-                @click.stop="answer(opt)">
-          <span class="font-mono text-fg-muted pr-1.5">{{ opt.n }}</span>
-          <span class="font-semibold">{{ opt.label }}</span>
-          <span v-if="opt.detail" class="text-fg-muted"> — {{ opt.detail }}</span>
-        </button>
+        <!-- Several questions at once, or boxes to tick: one number cannot
+             answer that, so each question gets its own options and one Send
+             gives them all (the server's structured `answers`). -->
+        <template v-if="askQuestions">
+          <div v-for="(q, qi) in askQuestions" :key="`${approval.key}-${qi}`" class="pb-2">
+            <p class="text-sm whitespace-pre-line pb-1">
+              <span v-if="q.header" class="text-xs text-fg-muted pr-1">{{ q.header }} ·</span>{{ q.question }}
+              <span v-if="q.multiSelect" class="text-xs text-fg-muted"> (choose any)</span>
+            </p>
+            <button v-for="opt in q.options" :key="opt.n" :disabled="answering"
+                    class="w-full text-left text-xs rounded px-2 py-1.5 mb-1 border disabled:opacity-50 flex items-start"
+                    :class="isPicked(qi, opt.n) ? 'bg-fg/10 border-fg/40' : 'bg-black/20 border-transparent'"
+                    @click.stop="pick(qi, q, opt.n)">
+              <span class="material-symbols text-sm leading-snug pr-1.5 flex-shrink-0" :class="isPicked(qi, opt.n) ? 'text-success' : 'text-fg-muted'">{{ isPicked(qi, opt.n) ? (q.multiSelect ? 'check_box' : 'radio_button_checked') : (q.multiSelect ? 'check_box_outline_blank' : 'radio_button_unchecked') }}</span>
+              <span>
+                <span class="font-semibold">{{ opt.label }}</span>
+                <span v-if="opt.description || opt.detail" class="text-fg-muted"> — {{ opt.description || opt.detail }}</span>
+              </span>
+            </button>
+            <input v-if="q.free_text !== false" type="text" :disabled="answering" :value="(picks[qi] || {}).other || ''"
+                   placeholder="Other: your own words…"
+                   class="w-full text-xs rounded px-2 py-1.5 bg-black/20 border border-transparent text-fg"
+                   @click.stop @input="typeOther(qi, q, $event.target.value)" />
+          </div>
+          <button :disabled="answering || !picksReady"
+                  class="text-xs rounded px-3 py-1.5 bg-success/80 text-black font-semibold disabled:opacity-40"
+                  @click.stop="sendAnswers">Send</button>
+        </template>
+        <template v-else>
+          <button v-for="opt in approval.options" :key="opt.n" :disabled="answering"
+                  class="w-full text-left text-xs rounded px-2 py-1.5 mb-1 border bg-black/20 border-transparent disabled:opacity-50"
+                  @click.stop="answer(opt)">
+            <span class="font-mono text-fg-muted pr-1.5">{{ opt.n }}</span>
+            <span class="font-semibold">{{ opt.label }}</span>
+            <span v-if="opt.detail" class="text-fg-muted"> — {{ opt.detail }}</span>
+          </button>
+        </template>
         <p v-if="answerError" class="text-xs text-error pt-1">{{ answerError }}</p>
       </div>
     </div>
@@ -296,6 +326,9 @@ export default {
       approval: null,
       answering: false,
       answerError: '',
+      // What has been picked on a several-question ask, per question:
+      // { selected: [n], other: '' }. Starts over with each new question.
+      picks: [],
       // Which replies have their step list open, by `at`.
       openWork: {},
       // The running turn's list: every step, open by default; a tap folds it
@@ -318,6 +351,20 @@ export default {
     }
   },
   computed: {
+    // The questions of an ask that takes structured answers (several at once,
+    // or a multi-select); null when one tap on a number answers it.
+    askQuestions() {
+      const a = this.approval
+      const qs = a && a.kind === 'question' ? a.questions || [] : []
+      return qs.length > 1 || qs.some((q) => q.multiSelect) ? qs : null
+    },
+    picksReady() {
+      const qs = this.askQuestions || []
+      return qs.length > 0 && qs.every((_, i) => {
+        const p = this.picks[i]
+        return !!p && (p.selected.length > 0 || p.other.trim() !== '')
+      })
+    },
     thinking() {
       return this.awaiting || this.pending
     },
@@ -580,6 +627,9 @@ export default {
         if (!res?.approval || !this.approval || res.approval.key !== this.approval.key) {
           this.answerError = ''
         }
+        if (!res?.approval || !this.approval || res.approval.key !== this.approval.key) {
+          this.picks = this.freshPicks(res?.approval)
+        }
         this.approval = res?.approval || null
         this.logSession = res?.session || this.logSession
         if (!res?.working) this.workingOpen = true
@@ -623,17 +673,46 @@ export default {
     // Answer the dialog: the option's number and the key of the words that
     // were on screen when it was read. The server presses the key in the
     // pane, and refuses if that question has since been answered elsewhere.
-    async answer(opt) {
-      if (this.answering || !this.approval) return
+    freshPicks(approval) {
+      const qs = (approval && approval.questions) || []
+      return qs.map((q) => ({
+        selected: q.multiSelect ? (q.options || []).filter((o) => o.checked).map((o) => o.n) : [],
+        other: ''
+      }))
+    },
+    isPicked(qi, n) {
+      return !!this.picks[qi] && this.picks[qi].selected.includes(n)
+    },
+    pick(qi, q, n) {
+      if (this.answering) return
+      const p = this.picks[qi] || { selected: [], other: '' }
+      let selected
+      if (q.multiSelect) selected = p.selected.includes(n) ? p.selected.filter((x) => x !== n) : [...p.selected, n].sort((a, b) => a - b)
+      else selected = [n]
+      // A single choice: an option or your own words, never both.
+      this.$set(this.picks, qi, { selected, other: q.multiSelect ? p.other : '' })
+    },
+    typeOther(qi, q, other) {
+      const p = this.picks[qi] || { selected: [], other: '' }
+      this.$set(this.picks, qi, { selected: q.multiSelect || !other.trim() ? p.selected : [], other })
+    },
+    async sendAnswers() {
+      if (this.answering || !this.approval || !this.picksReady) return
       const session = this.logSession
       if (!session) return
+      const answers = this.askQuestions.map((_, i) => {
+        const p = this.picks[i]
+        const other = p.other.trim()
+        return { question_index: i, selected: p.selected, ...(other ? { other_text: other } : {}) }
+      })
+      await this.postAnswer({ session, key: this.approval.key, answers })
+    },
+    async postAnswer(body) {
       this.answering = true
       this.answerError = ''
-      const key = this.approval.key
       try {
         const token = this.$store.getters['user/getToken']
-        await this.$nativeHttp.request('POST', `${this.baseUrl}/session/answer`,
-          { session, choice: opt.n, key },
+        await this.$nativeHttp.request('POST', `${this.baseUrl}/session/answer`, body,
           { headers: { Authorization: `Bearer ${token}` } })
         this.approval = null
       } catch (error) {
@@ -645,6 +724,12 @@ export default {
         this.answering = false
         this.fetchLog({ quiet: true })
       }
+    },
+    async answer(opt) {
+      if (this.answering || !this.approval) return
+      const session = this.logSession
+      if (!session) return
+      await this.postAnswer({ session, choice: opt.n, key: this.approval.key })
     },
     stepCount(working) {
       if (!working) return 0
