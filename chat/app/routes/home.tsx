@@ -213,6 +213,7 @@ function WorkingRow({ w, skew }: { w: DashWorking; skew: number }) {
         <span className="live-pulse" role="img" aria-label="working" />
         <span className="dash-main">
           <span className="dash-title">{title}</span>
+          {w.project && <span className="row-project">{w.project}</span>}
           <span className="dash-sub">
             {w.current || 'Thinking…'}
             {w.count > 0 && ` · ${w.count} step${w.count === 1 ? '' : 's'}`}
@@ -263,9 +264,12 @@ function RecapRow({ r, skew }: { r: DashRecent; skew: number }) {
   return (
     <li className="recap-row">
       <div className="recap-head">
-        <Link to={`/t/${encodeURIComponent(r.session)}`} state={{ title }} className="dash-title">
-          {title}
-        </Link>
+        <span className="title-col">
+          <Link to={`/t/${encodeURIComponent(r.session)}`} state={{ title }} className="dash-title">
+            {title}
+          </Link>
+          {r.project && <span className="row-project">{r.project}</span>}
+        </span>
         {r.live ? <span className="badge waiting">live</span> : r.rested ? <span className="badge resting">resting</span> : null}
         <span className="dash-when">{ago(r.at, skew)}</span>
       </div>

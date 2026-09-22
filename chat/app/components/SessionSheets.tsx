@@ -4,7 +4,8 @@
  * asks for. The thread header's ⋮ menu offers the same items
  * (sessionMenuItems), so both places say the same thing.
  */
-import { useEffect, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { useScrim } from '../lib/layers'
 import { createPortal } from 'react-dom'
 
 export type SessionAction = 'rename' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
@@ -27,15 +28,11 @@ export function sessionMenuItems(live: boolean, archived: boolean): SessionActio
 }
 
 export function Sheet(props: { label: string; onClose: () => void; children: ReactNode; className?: string }) {
-  const { onClose } = props
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  // A scrim tap, Escape or Android back closes it (lib/layers.ts).
+  const scrim = useScrim(props.onClose)
   if (typeof document === 'undefined') return null
   return createPortal(
-    <div className="sheet-wrap" onClick={onClose}>
+    <div className="sheet-wrap" {...scrim}>
       <div className={`rename-sheet ${props.className || ''}`} role="dialog" aria-label={props.label} onClick={(e) => e.stopPropagation()}>
         {props.children}
       </div>

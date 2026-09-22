@@ -759,7 +759,7 @@ function liveLine(line) {
 }
 
 // §6.1 (22 Sep 2026): every row carries archived, rested (null while live) and pinned.
-const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned })
+const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, project: s.project ?? null, cwd: s.cwd ?? null })
 const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, recap: s.recap || null, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, recap: s.recap || null, ...flags(s) })
 
 function logOf(s, q = null) {
@@ -941,7 +941,7 @@ const stateOf = (s) => ({ state: s.live ? s.state || 'waiting' : 'ended', live: 
 function envelopeOf(s) {
   const env = logOf(s, { messages: true })
   delete env.ok // REALITY (red5): the snapshot has no `ok`
-  return { ...env, ...stateOf(s), resumable: true }
+  return { ...env, ...stateOf(s), resumable: true, agents: agentCounts(s.session), project: s.project ?? null, cwd: s.cwd ?? null }
 }
 const TICKING = new Set(['elapsed', 'server_time', 'sentence', 'paused', 'delay'])
 function sigOf(m) {
@@ -969,7 +969,7 @@ function openStream(req, res, s) {
   for (const m of env.messages) c.sigs.set(m.id, sigOf(m))
   c.live = liveOfMessages(env.messages)
   c.liveRead = now()
-  c.last = { working: noClock(env.working), approval: noClock(env.approval), suggestion: noClock({ text: env.suggestion }), state: noClock(stateOf(s)), recap: noClock(env.recap) }
+  c.last = { working: noClock(env.working), approval: noClock(env.approval), suggestion: noClock({ text: env.suggestion }), state: noClock(stateOf(s)), recap: noClock(env.recap), agents: noClock(env.agents) }
   send('snapshot', env)
   const tick = () => {
     const e = envelopeOf(s)
@@ -990,7 +990,7 @@ function openStream(req, res, s) {
     if (changed) send('live', live)
     if (changed || !live || live.paused) (c.live = live), (c.liveRead = t)
     else if (live) (c.live = { ...live, elapsed: c.live.elapsed + (t - c.liveRead) }), (c.liveRead = t)
-    const cur = { working: e.working, approval: e.approval, suggestion: { text: e.suggestion }, state: stateOf(s), recap: e.recap }
+    const cur = { working: e.working, approval: e.approval, suggestion: { text: e.suggestion }, state: stateOf(s), recap: e.recap, agents: e.agents }
     for (const [k, v] of Object.entries(cur)) {
       const sig = noClock(v)
       if (c.last[k] === sig) continue
@@ -1044,6 +1044,81 @@ function streamTurn(s) {
     L.id = 1000 + seq++
     vSay(s, L)
   })
+}
+
+
+// ── Background agents (§6.12) ─────────────────────────────────────────────
+//
+// `Mock: working` has a tree of subagents, the way Claude Code keeps them
+// (`<session>/subagents/agent-<id>.jsonl` + `.meta.json`): one done (with a
+// long log, for Load earlier), one running whose current step moves every
+// MOCK_AGENT_STEP_S, a fork running under it and a done one beside it, one
+// failed and one stopped. GET /mock/agents?finish=<id> ends a running one
+// (done), `?spawn=1` starts another, `?reset=1` puts them back. The stream's
+// snapshot carries `agents: {running, total}` and an `agents` event when
+// the counts change.
+const AGENT_STEP_S = Number(process.env.MOCK_AGENT_STEP_S ?? 3)
+const AGENT_STEPS = ['Read the route table', 'Search for the stream watcher', 'Edit threads.py', 'Run the server tests', 'Read the failure', 'Edit the fixture', 'Run the typecheck']
+const AGENTS = {}
+function agent(id, description, extra) {
+  return { id, description, agent_type: 'general-purpose', is_fork: false, parent_id: null, depth: 1, started_at: r3(T0 - 300), ended_at: null, status: 'done', current_step: null, steps: 0, last_at: r3(T0 - 300), logSize: 3, ...extra }
+}
+function seedAgents() {
+  const w = Object.values(S).find((x) => x.title === 'Mock: working')
+  if (!w) return
+  AGENTS[w.session] = [
+    agent('a1c01e7815570a8f6', 'Map the client routes', { agent_type: 'Explore', started_at: r3(T0 - 900), ended_at: r3(T0 - 700), last_at: r3(T0 - 700), steps: 14, logSize: 45 }),
+    agent('a3d589a1ad3335234', 'Run the long test suite', { started_at: r3(T0 - 800), ended_at: r3(T0 - 780), last_at: r3(T0 - 780), status: 'failed', steps: 2 }),
+    agent('a085f45672a8c46a4', 'Build the server half', { started_at: r3(T0 - 600), status: 'running', steps: 9, stepBase: 9 }),
+    agent('a43f1798d9fccafdc', 'Research headless modes', { parent_id: 'a085f45672a8c46a4', depth: 2, started_at: r3(T0 - 500), ended_at: r3(T0 - 380), last_at: r3(T0 - 380), steps: 6 }),
+    agent('a47fdcc9d305699f4', 'App half (fork)', { agent_type: 'fork', is_fork: true, parent_id: 'a085f45672a8c46a4', depth: 2, started_at: r3(T0 - 400), status: 'running', steps: 4, stepBase: 4 }),
+    agent('a38c5219b5d009c07', 'Old research', { started_at: r3(T0 - 1000), ended_at: r3(T0 - 950), last_at: r3(T0 - 950), status: 'stopped', steps: 3 })
+  ]
+}
+/** A running agent's step moves with the clock; the row as the server answers it. */
+function agentRow(a) {
+  const { logSize, stepBase, ...row } = a
+  if (a.status === 'running') {
+    const k = Math.floor((now() - T0) / AGENT_STEP_S)
+    row.steps = (stepBase || 0) + k
+    row.current_step = AGENT_STEPS[(row.steps + (a.depth > 1 ? 3 : 0)) % AGENT_STEPS.length]
+    row.last_at = r3(now())
+  } else row.current_step = null
+  return row
+}
+const agentsOf = (sid) => (AGENTS[sid] || []).map(agentRow)
+const agentCounts = (sid) => {
+  const rows = AGENTS[sid] || []
+  return { running: rows.filter((a) => a.status === 'running').length, total: rows.length }
+}
+/** A subagent's transcript as messages: its task, then a message per step. */
+function agentMessages(sid, a) {
+  const row = agentRow(a)
+  const out = [{ id: uuidOf(`${a.id}:task`), role: 'user', at: a.started_at, parts: [{ type: 'text', text: `(mock) The task: ${a.description}.` }], spoken: null, turn: { running: false } }]
+  const n = a.status === 'running' ? Math.max(1, row.steps) : Math.max(a.logSize, 1)
+  for (let i = 0; i < n; i++) {
+    const last = i === n - 1
+    const running = a.status === 'running' && last
+    const title = running ? row.current_step : `Step ${i + 1}: ${AGENT_STEPS[i % AGENT_STEPS.length]}`
+    const parts = [
+      { type: 'reasoning', text: '', redacted: true },
+      { type: 'tool', name: 'Bash', title, input_summary: `(mock) ${title.toLowerCase()}`, status: running ? 'running' : a.status === 'failed' && last ? 'error' : 'done', result_summary: running ? '' : '(mock) ok', tool_use_id: `toolu_${hex12(a.id + i)}` }
+    ]
+    if (!running) parts.push({ type: 'text', text: last && a.status !== 'running' ? `(mock) ${a.status === 'failed' ? 'It failed: the suite did not start.' : 'Finished: here is what I found.'}` : `(mock) Step ${i + 1} done.` })
+    out.push({ id: uuidOf(`${a.id}:m:${i}`), role: 'assistant', at: r3(a.started_at + (i + 1) * 5), parts, spoken: null, turn: { running } })
+  }
+  return out
+}
+function agentsControl(q) {
+  const sid = Object.keys(AGENTS)[0]
+  if (q.get('reset')) seedAgents()
+  const fin = q.get('finish')
+  if (fin && sid) {
+    const a = AGENTS[sid].find((x) => x.id === fin)
+    if (a && a.status === 'running') Object.assign(a, { status: 'done', ended_at: r3(now()), last_at: r3(now()), steps: agentRow(a).steps, logSize: agentRow(a).steps })
+  }
+  if (q.get('spawn') && sid) AGENTS[sid].push(agent(`a${hex12(String(now()))}0000`.slice(0, 18), q.get('description') || 'A new background agent', { started_at: r3(now()), status: 'running', steps: 0, stepBase: -Math.floor((now() - T0) / AGENT_STEP_S) }))
+  return { ok: true, session: sid, counts: sid ? agentCounts(sid) : null }
 }
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
@@ -1113,6 +1188,19 @@ function serveStatic(req, res, path) {
 }
 
 const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
+
+// Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
+// not known): a mix, some null, for By project and the row's small line.
+// And one old shelved thread pinned, for Smart's "pinned on top".
+{
+  const P = { 'Mock: speaking now': 'agent-media', 'Mock: working': 'agent-media', 'Mock: long conversation': 'agent-media', 'Mock: needs approval': 'sasonica', 'Mock: asking a question': 'sasonica', 'Mock: shelved conversation': 'sasonica', 'Mock: archived earlier': 'sasonica', 'Mock: multi-select question': 'runlet' }
+  for (const x of Object.values(S)) {
+    x.project = P[x.title] ?? null
+    x.cwd = x.project ? `/home/you/projects/${x.project}` : null
+    if (x.title === 'Mock: long conversation') x.pinned = true
+  }
+  seedAgents()
+}
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://mock')
@@ -1239,6 +1327,31 @@ createServer(async (req, res) => {
     return res.end(String(DELAY_MS))
   }
 
+  const agentsPath = path.match(/^\/threads\/([^/]+)\/agents(?:\/([^/]+)\/log)?$/)
+  if (agentsPath) {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, { ...CORS, 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '3600' })
+      return res.end()
+    }
+    const tok = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+    if (!tok || tok === 'bad' || (tok.startsWith('mock-dev-') && !DEVICES.get(tok))) return (log(401), fail(res, 401, 'Audiobookshelf rejected that login'))
+    const sid = decodeURIComponent(agentsPath[1])
+    if (!SESSION_RE.test(sid)) return (log(400), fail(res, 400, 'not a session id'))
+    const s = S[sid]
+    if (!s) return (log(404), fail(res, 404, 'no such session'))
+    if (DELAY_MS) await sleep(DELAY_MS)
+    if (!agentsPath[2]) {
+      log(200)
+      return send(res, 200, { ok: true, session: sid, counts: agentCounts(sid), agents: agentsOf(sid) })
+    }
+    const a = (AGENTS[sid] || []).find((x) => x.id === decodeURIComponent(agentsPath[2]))
+    if (!a) return (log(404), fail(res, 404, 'no such agent'))
+    const page = pageOf(agentMessages(sid, a), url.searchParams.get('before') || '', Number(url.searchParams.get('limit')) || 60)
+    log(200)
+    return send(res, 200, { ok: true, session: sid, agent: agentRow(a), ...page })
+  }
+  if (path === '/mock/agents') return send(res, 200, agentsControl(url.searchParams))
+
   const events = path.match(/^\/threads\/([^/]+)\/events$/)
   if (events) {
     if (req.method === 'OPTIONS') {
@@ -1356,10 +1469,10 @@ async function route(method, path, q, body, res) {
     const sp = speechNow()
     return ok({
       at: r3(now()),
-      needs_you: all.filter((x) => x.live && x.approval).map((x) => ({ session: x.session, title: x.title, kind: x.approval.kind === 'question' ? 'question' : 'approval', approval: x.approval, ...(x.headless ? { driver: 'headless' } : {}) })),
-      working: all.filter((x) => x.live && x.state === 'working').map((x) => ({ session: x.session, title: x.title, current: x.working?.current || '', since: x.working?.since ?? null, count: x.working?.count || 0 })),
+      needs_you: all.filter((x) => x.live && x.approval).map((x) => ({ session: x.session, title: x.title, kind: x.approval.kind === 'question' ? 'question' : 'approval', approval: x.approval, project: x.project ?? null, cwd: x.cwd ?? null, ...(x.headless ? { driver: 'headless' } : {}) })),
+      working: all.filter((x) => x.live && x.state === 'working').map((x) => ({ session: x.session, title: x.title, current: x.working?.current || '', since: x.working?.since ?? null, count: x.working?.count || 0, project: x.project ?? null, cwd: x.cwd ?? null })),
       speech: { now: { live: sp.live, speaking: sp.speaking, paused: sp.paused, session: sp.session, title: sp.title, sentence: sp.sentence, target: AUDIO.speech, replay: false }, queued: sp.queued },
-      recent: all.filter((x) => !x.archived).sort((a, b) => lastAt(b) - lastAt(a)).slice(0, 12).map((x) => ({ session: x.session, title: x.title, recap: x.recap || null, at: r3(lastAt(x)) || null, live: !!x.live, rested: x.live ? null : x.rested || null })),
+      recent: all.filter((x) => !x.archived).sort((a, b) => lastAt(b) - lastAt(a)).slice(0, 12).map((x) => ({ session: x.session, title: x.title, recap: x.recap || null, at: r3(lastAt(x)) || null, live: !!x.live, rested: x.live ? null : x.rested || null, project: x.project ?? null, cwd: x.cwd ?? null })),
       places: PLACES(),
       agents: [{ name: 'claude', present: true }, { name: 'codex', present: true }, { name: 'pi', present: false }, { name: 'hermes', present: false }],
       hosts: dashHosts()

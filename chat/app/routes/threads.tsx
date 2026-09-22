@@ -21,6 +21,8 @@ import { HomeTabs } from '../components/Nav'
 import { ConfirmExitSheet, SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { archivedOf, endedHere, useSessionFlags } from '../lib/sessionFlags'
+import { Popover } from '../components/Popover'
+import { loadThreadSort, saveThreadSort, SORT_LABEL, SORTS, sortThreads, type ListEntry, type ThreadSort } from '../lib/threadSort'
 
 const STATE_LABEL: Record<SessionState, string> = {
   working: 'working',
@@ -51,6 +53,14 @@ function ThreadList() {
   const [confirm, setConfirm] = useState<{ session: string; archive: boolean } | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null)
+  const [sort, setSortState] = useState<ThreadSort>(() => loadThreadSort())
+  const [sortOpen, setSortOpen] = useState(false)
+  const sortButton = useRef<HTMLButtonElement>(null)
+  const setSort = (next: ThreadSort) => {
+    setSortOpen(false)
+    setSortState(next)
+    saveThreadSort(next)
+  }
   const rename = useRename()
   const acts = useSessionActions()
   useSessionFlags()
@@ -59,6 +69,9 @@ function ThreadList() {
   const main: SessionRow[] = []
   const archived: SessionRow[] = []
   for (const row of sessions) (archivedOf(row.session, row.archived) ? archived : main).push(row)
+  // The chosen order (lib/threadSort.ts), the Archived section's too.
+  const mainList = sortThreads(main, sort, states)
+  const archivedList = sortThreads(archived, sort, states)
   const say = (r: { ok: boolean; message: string }) => setNote(r.ok ? null : { text: r.message, failed: true })
   const pick = (a: SessionAction) => {
     const m = menu
@@ -68,6 +81,14 @@ function ThreadList() {
     else if (a === 'exit' || a === 'exit-archive') setConfirm({ session: m.session, archive: a === 'exit-archive' })
     else void acts.archive(m.session, a === 'archive').then(say)
   }
+  const entryOf = (e: ListEntry, where: string) =>
+    e.kind === 'head' ? (
+      <li key={`${where}:head:${e.name}`} className="project-head">
+        {e.name}
+      </li>
+    ) : (
+      rowOf(e.row)
+    )
   const rowOf = (row: SessionRow) => (
     <ThreadRow
       key={row.session}
@@ -96,13 +117,30 @@ function ThreadList() {
         </Link>
       </header>
       <HomeTabs current="threads" />
+      <div className="list-tools">
+        <button ref={sortButton} type="button" className="sort-button" aria-haspopup="menu" aria-expanded={sortOpen} onClick={() => setSortOpen((o) => !o)}>
+          Sort: {SORT_LABEL[sort]} <span aria-hidden="true">▾</span>
+        </button>
+      </div>
+      {sortOpen && (
+        <Popover anchor={sortButton} label="Sort threads" align="left" className="sort-menu" onClose={() => setSortOpen(false)}>
+          {SORTS.map((k) => (
+            <button key={k} role="menuitemradio" aria-checked={sort === k} className={sort === k ? 'on' : ''} onClick={() => setSort(k)}>
+              <span className="mark" aria-hidden="true">
+                {sort === k ? '✓' : ''}
+              </span>
+              {SORT_LABEL[k]}
+            </button>
+          ))}
+        </Popover>
+      )}
 
       {error && <p className="notice error">{error}</p>}
       {note && <p className={note.failed ? 'notice error' : 'notice'}>{note.text}</p>}
       {loading && !sessions.length && <p className="notice">Loading…</p>}
 
       <ul className="threads">
-        {main.map(rowOf)}
+        {mainList.map((e) => entryOf(e, 'main'))}
         {archived.length > 0 && (
           <li className="archived-head">
             <button aria-expanded={showArchived} onClick={() => setShowArchived((v) => !v)}>
@@ -113,7 +151,7 @@ function ThreadList() {
             </button>
           </li>
         )}
-        {showArchived && archived.map(rowOf)}
+        {showArchived && archivedList.map((e) => entryOf(e, 'archived'))}
       </ul>
 
       {menu && <SessionMenuSheet title={menu.title} live={menu.live} archived={menu.archived} onPick={pick} onClose={() => setMenu(null)} />}
@@ -212,7 +250,10 @@ function ThreadRow({ row, state: polled, onMenu }: { row: SessionRow; state: Ses
         }}
       >
         <span className={`dot ${live ? state || 'live' : 'shelved'}`} />
-        <span className="title">{title}</span>
+        <span className="title-col">
+          <span className="title">{title}</span>
+          {row.project && <span className="row-project">{row.project}</span>}
+        </span>
         {hasDraft(row.session) && <span className="draft-mark">Draft</span>}
         {unread && <span className="unread-dot" aria-label="New reply" />}
         {live ? (

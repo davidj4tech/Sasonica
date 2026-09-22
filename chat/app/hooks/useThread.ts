@@ -38,7 +38,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, getConversationLog, getEarlier, openThreadStream } from '../api'
-import type { Approval, ConversationLog, LiveEvent, Message, Recap, ThreadEvent, ThreadState, Working } from '../api/types'
+import type { AgentCounts, Approval, ConversationLog, LiveEvent, Message, Recap, ThreadEvent, ThreadState, Working } from '../api/types'
 import { liveClockFrom, withGrowth, type LiveClock } from '../lib/followAlong'
 import { applyMessage, liveFields, liveOf, mergeSnapshot, signature } from '../lib/messages'
 import { saidOf, unmatched, type PendingSend } from '../lib/pending'
@@ -84,6 +84,10 @@ export interface ThreadView {
   approval: Approval | null
   suggestion: string
   recap: Recap | null
+  /** Background agents (§6.12): from the snapshot and `agents` events; null until known. */
+  agents: AgentCounts | null
+  /** The thread's project (§6.1), from the snapshot; null when not known. */
+  project: string | null
   /** The follow-along clock of the message being spoken here, and its id. */
   live: LiveClock | null
   liveId: string | null
@@ -107,6 +111,8 @@ const EMPTY: ThreadView = {
   approval: null,
   suggestion: '',
   recap: null,
+  agents: null,
+  project: null,
   live: null,
   liveId: null,
   error: '',
@@ -202,7 +208,7 @@ export function useThread(session: string) {
 
   /** A whole thread: a snapshot, or a poll of the log. Replaces the state. */
   const applyWhole = useCallback(
-    (res: Omit<ConversationLog, 'ok'> & { state?: ThreadState; live?: boolean }, receivedAt: number, rtt: number, fromStream: boolean) => {
+    (res: Omit<ConversationLog, 'ok'> & { state?: ThreadState; live?: boolean; agents?: AgentCounts; project?: string | null }, receivedAt: number, rtt: number, fromStream: boolean) => {
       freshRef.current = true
       const snapMessages = res.messages || []
       setView((v) => {
@@ -220,6 +226,8 @@ export function useThread(session: string) {
           approval: res.approval || null,
           suggestion: res.suggestion || '',
           recap: res.recap ?? null,
+          agents: fromStream ? res.agents ?? null : v.agents,
+          project: res.project !== undefined ? res.project ?? null : v.project,
           ...clockOf(liveOf(snapMessages), receivedAt, rtt),
           error: '',
           loaded: true,
@@ -266,6 +274,9 @@ export function useThread(session: string) {
           return
         case 'recap':
           setView((v) => ({ ...v, recap: ev.data || null }))
+          return
+        case 'agents':
+          setView((v) => ({ ...v, agents: ev.data || null }))
           return
         default:
           return

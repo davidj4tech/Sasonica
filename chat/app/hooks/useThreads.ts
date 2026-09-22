@@ -21,6 +21,11 @@ export function knownLive(session: string): boolean | undefined {
   return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.live
 }
 
+/** The project per the last /targets seen (§6.1), or null. */
+export function knownProject(session: string): string | null {
+  return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.project || null
+}
+
 /** Archived per the last /targets seen (the server's flag, before any change made here). */
 export function knownArchived(session: string): boolean | undefined {
   return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.archived

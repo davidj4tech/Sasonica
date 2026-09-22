@@ -11,6 +11,8 @@
 import { authHeaders, serverBase } from './auth'
 import { readSse } from '../lib/sse'
 import type {
+  AgentLogResponse,
+  AgentsResponse,
   AnswerRequest,
   ArchiveResponse,
   CloseResponse,
@@ -218,6 +220,20 @@ export async function openThreadStream(
     },
     signal
   )
+}
+
+// ── Background agents (§6.12) ─────────────────────────────────────────────
+
+/** A thread's subagents, in start order, with running/total counts. */
+export function getAgents(session: SessionId, signal?: AbortSignal) {
+  return request<AgentsResponse>('GET', `/threads/${q(session)}/agents`, undefined, signal)
+}
+
+/** One subagent's transcript as messages (read-only); page back with `before`. */
+export function getAgentLog(session: SessionId, id: string, opts: { before?: string; limit?: number } = {}, signal?: AbortSignal) {
+  let path = `/threads/${q(session)}/agents/${q(id)}/log?messages=1&limit=${opts.limit || 30}`
+  if (opts.before) path += `&before=${q(opts.before)}`
+  return request<AgentLogResponse>('GET', path, undefined, signal)
 }
 
 // ── Sending ───────────────────────────────────────────────────────────────

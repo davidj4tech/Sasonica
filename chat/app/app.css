@@ -71,6 +71,9 @@ a { color: var(--accent); }
 /* The thread title: a tap renames it. */
 .title-button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; text-align: left; }
 .menu-anchor { position: relative; }
+/* A dropped menu's clear scrim (components/Popover.tsx): catches the tap outside. */
+.popover-scrim { position: fixed; inset: 0; z-index: 30; background: transparent; }
+.menu.popover { position: fixed; }
 .menu-anchor .icon { min-width: 44px; min-height: 44px; }
 .menu { position: absolute; right: 0; top: 100%; z-index: 10; min-width: 10rem; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px #0006; padding: 4px; }
 .menu button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 12px 14px; border-radius: 8px; color: inherit; font: inherit; cursor: pointer; }
@@ -550,3 +553,43 @@ a { color: var(--accent); }
   .live-pulse, .svc-dot.up, .online-dot.up, .speak-dot.on, .dot.working, .updating { animation: none; }
   .mem-ring .arc { transition: none; }
 }
+
+/* ── The project, really small under a title (§6.1 `project`) ─────────── */
+.title-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.row-project, .thread-project { display: block; font-family: var(--font-body); font-size: .75em; font-weight: 400; line-height: 1.2; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.recap-head .title-col .dash-title { flex: none; }
+.bar h1 .title-button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── The thread list's sort control and By project headings ────────────── */
+.list-tools { display: flex; justify-content: flex-end; padding: 2px 12px 0; }
+.sort-button { background: none; border: 0; color: var(--muted); font: inherit; font-size: .867rem; min-height: 40px; padding: 0 6px; cursor: pointer; }
+.sort-menu button { display: flex; align-items: center; gap: 8px; }
+.sort-menu .mark { width: 1rem; color: var(--accent); }
+.project-head { padding: 14px 16px 4px; font-size: .8rem; font-weight: 600; letter-spacing: .02em; color: var(--muted); border-bottom: 1px solid var(--line); text-transform: none; }
+
+/* ── Background agents (§6.12) ─────────────────────────────────────────── */
+.agents-strip { border-bottom: 1px solid var(--line); background: var(--bg); flex: none; }
+.agents-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 0 16px; background: none; border: 0; color: var(--muted); font: inherit; font-size: .867rem; text-align: left; cursor: pointer; }
+.agents-label { color: var(--text); font-weight: 500; white-space: nowrap; }
+.agents-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agents-head .caret { font-size: .8em; }
+.agents-body { max-height: 45vh; overflow-y: auto; padding: 0 0 6px; }
+.agents-tools { display: flex; justify-content: flex-end; padding: 0 12px; }
+.agents-sort { background: none; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font: inherit; font-size: .8rem; min-height: 32px; padding: 0 12px; cursor: pointer; }
+.agents-list { list-style: none; margin: 0; padding: 0 8px; }
+.agent-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 8px; border-radius: 10px; color: var(--text); text-decoration: none; }
+.agent-row:hover { background: var(--panel-2); }
+.agent-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.agent-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .933rem; }
+.agent-branch { color: var(--muted); }
+.agent-kind { margin-left: 6px; font-size: .75rem; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 0 6px; }
+.agent-step { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-time { font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.dot.agent-running { background: var(--warn); animation: pulse 1.2s infinite; }
+.dot.agent-done { background: var(--accent); }
+.dot.agent-failed { background: var(--bad); }
+.dot.agent-stopped { background: transparent; border: 1.5px solid var(--muted); }
+.badge.agent-running { color: var(--warn); }
+.badge.agent-done { color: var(--accent); }
+.badge.agent-failed { color: var(--on-accent); background: var(--bad); }
+.agent-page .agent-title { display: block; overflow: hidden; text-overflow: ellipsis; }

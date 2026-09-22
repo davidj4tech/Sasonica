@@ -32,6 +32,12 @@
 //   dashboard  Home (§6.11): every section, a question answered in place,
 //           quick start, machines, Home ⇄ Threads; the + clear of the nav
 //           bar and the last row; the composer's one-line start and keyboard
+//   agents  §6.12 background agents: the strip collapsed and open (a tree,
+//           running first / start order, steps moving, the `agents` event),
+//           an agent's read-only thread with Load earlier; menus and sheets
+//           close on a tap outside (pressing nothing), Escape and Android back
+//   sort    the thread list: Smart / Most recent / By project (headings,
+//           Archived too), kept per device; the project line under titles
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -54,16 +60,19 @@ const mock = await mockAt(P, { MOCK_SPEECH_REST_S: '0' })
 const skewMock = await mockAt(P + 1, { MOCK_REAL_VOICE: '1' })
 // Home answers the same questions ask.mjs answers: a mock of its own.
 const dashMock = await mockAt(P + 2, { MOCK_SPEECH_REST_S: '0' })
+// Background agents and sorting: a mock whose running agents step each second.
+const agentsMock = await mockAt(P + 3, { MOCK_SPEECH_REST_S: '0', MOCK_AGENT_STEP_S: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['sessions.mjs'], ['brand.mjs'], ['ask.mjs'], ['dashboard.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['sessions.mjs'], ['brand.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
-    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : P}`, ...env })) ? 1 : 0
+    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' ? P + 3 : P}`, ...env })) ? 1 : 0
   }
 } finally {
   mock.kill()
   skewMock.kill()
   dashMock.kill()
+  agentsMock.kill()
 }
 console.log(failed ? `\n${failed} suite(s) failed` : '\nall suites pass')
 process.exit(failed ? 1 : 0)

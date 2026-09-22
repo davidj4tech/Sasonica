@@ -74,6 +74,12 @@ the older fixtures with recaps make the cut) plus invented hosts:
 `GET /mock/dashboard?hosts=tight` (the default: red5 short of memory,
 sessiond down, hpo offline) or `?hosts=ok`; `/audio/targets` and
 `POST /audio/target` keep the speech target in memory.
+Background agents (§6.12): `Mock: working` has six (done with a 45-message
+log, running with a step that moves every `MOCK_AGENT_STEP_S` (3), a fork
+and a done child under it, failed, stopped); `GET /mock/agents?finish=<id>`
+ends a running one (an `agents` event), `?spawn=1` starts one, `?reset=1`.
+Rows carry `project`/`cwd` (a mix, some null) and `Mock: long conversation`
+is pinned, for the sort modes.
 `MOCK_REAL_VOICE=1` makes `/speech/now`
 speak the streamed one with its `pos` lagging `elapsed`. The speaking thread's long reply
 (with a figure above it and ambient art on it) is one shared voice clock
@@ -226,6 +232,28 @@ device code and passed through.
 - The composer starts at one line and grows to 8 (then scrolls): its own
   autosize (`AutoGrow.tsx`), because assistant-ui's measured once before the
   WebView had a width and drew all 8 rows in Next.
+
+- Background agents (§6.12, 22 Sep 2026): a strip under a thread's header,
+  hidden until the thread has spawned one, collapsed to "2 running · 2 done
+  · 1 failed"; open, a tree (forks and children under their parent), each
+  row its description, status dot, elapsed time and, while running, the step
+  it is on. Running first then most recent, or Start order (per device). The
+  counts ride on the stream (snapshot `agents`, `agents` event); the list is
+  `GET /threads/{s}/agents`, polled every 5 s while open with work going. A
+  row opens `/t/:session/agents/:id`: that agent's own thread, read-only (no
+  composer), Load earlier included.
+- Thread list order (22 Sep 2026): "Sort:" offers Smart (needs you →
+  working → the rest, pinned on top within each; the default), Most recent,
+  and By project (headings from each row's `project`, "Other" last); the
+  Archived section follows it; kept per device (localStorage). Rows, Home's
+  recap and working cards, and the thread header carry the project really
+  small under the title, when there is one.
+- Menus and sheets (the ⋮ menu, the long-press menu, rename and exit
+  sheets, the sort menu, speech controls and output) all close on a tap
+  outside — a scrim takes that tap, so it never presses what is under it —
+  on Escape, and on Android back in Next (`lib/layers.ts`: MainActivity asks
+  `window.__sasonicaBack()` first; with nothing open back goes back a
+  screen, then leaves the app).
 
 - Pairing (§9): first run lands on Pair this device (a pasted
   `sasonica://pair?…` or `http(s)://…/pair?c=…` link, or server + code); a

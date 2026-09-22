@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useScrim } from '../lib/layers'
 
 export function RenameSheet(props: { title: string; onSave: (title: string) => void; onClose: () => void }) {
   const [value, setValue] = useState(props.title)
@@ -13,20 +14,19 @@ export function RenameSheet(props: { title: string; onSave: (title: string) => v
   const name = value.trim()
   const can = !!name && name !== props.title.trim()
 
+  const scrim = useScrim(props.onClose)
+
   useEffect(() => {
     const el = inputRef.current
     if (el) {
       el.focus()
       el.select()
     }
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [props])
+  }, [])
 
   if (typeof document === 'undefined') return null
   return createPortal(
-    <div className="sheet-wrap" onClick={props.onClose}>
+    <div className="sheet-wrap" {...scrim}>
       <form
         className="rename-sheet"
         role="dialog"

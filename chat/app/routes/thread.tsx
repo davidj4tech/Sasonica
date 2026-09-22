@@ -19,12 +19,14 @@ import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
-import { knownArchived, knownLive, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
+import { knownArchived, knownLive, knownProject, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { ACTION_LABEL, ConfirmExitSheet, sessionMenuItems, type SessionAction } from '../components/SessionSheets'
 import { archivedOf, clearArchivedOverride, clearEnded, endedHere, useSessionFlags } from '../lib/sessionFlags'
 import { useRename } from '../hooks/useRename'
 import { RenameSheet } from '../components/RenameSheet'
+import { Popover } from '../components/Popover'
+import { AgentsStrip } from '../components/AgentsStrip'
 import { useTitle } from '../lib/titles'
 import { loadTargets, patchTargetRow } from '../lib/snapshots'
 import { buildItems } from '../lib/convert'
@@ -66,6 +68,7 @@ function ThreadPage({ session }: { session: string }) {
   const title = useTitle(session, serverTitle) || session.slice(0, 8)
   const [renaming, setRenaming] = useState(false)
   const [menu, setMenu] = useState(false)
+  const menuButton = useRef<HTMLButtonElement>(null)
   const [confirmExit, setConfirmExit] = useState<{ archive: boolean } | null>(null)
   const rename = useRename()
   const acts = useSessionActions()
@@ -73,6 +76,8 @@ function ThreadPage({ session }: { session: string }) {
   const archived = archivedOf(session, knownArchived(session))
 
   const log = useThread(session)
+  // The project line under the title (§6.1): the stream's, else the list's.
+  const project = log.project || knownProject(session)
   useSeen(session, log.messages.length)
   const states = useSessionStates()
   const [status, setStatus] = useState<Status>(null)
@@ -238,6 +243,7 @@ function ThreadPage({ session }: { session: string }) {
           <button className="title-button" onClick={() => setRenaming(true)} title="Rename">
             {title}
           </button>
+          {project && <span className="thread-project">{project}</span>}
         </h1>
         {log.stale && <span className="updating">updating…</span>}
         {!log.stale && log.transport === 'poll' && (
@@ -248,20 +254,21 @@ function ThreadPage({ session }: { session: string }) {
         {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
         {archived && <span className="badge archived">Archived</span>}
         <div className="menu-anchor">
-          <button className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+          <button ref={menuButton} className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
             ⋮
           </button>
           {menu && (
-            <div className="menu" role="menu" onMouseLeave={() => setMenu(false)}>
+            <Popover anchor={menuButton} label="Thread menu" onClose={() => setMenu(false)}>
               {sessionMenuItems(sessionLive, archived).map((a) => (
                 <button key={a} role="menuitem" className={a === 'exit' || a === 'exit-archive' ? 'danger' : ''} onClick={() => onAction(a)}>
                   {ACTION_LABEL[a]}
                 </button>
               ))}
-            </div>
+            </Popover>
           )}
         </div>
       </header>
+      <AgentsStrip session={session} counts={log.agents} />
       {confirmExit && (
         <ConfirmExitSheet
           archive={confirmExit.archive}

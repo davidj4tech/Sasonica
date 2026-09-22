@@ -279,6 +279,8 @@ export interface ThreadProps {
   onLoadEarlier?: () => Promise<boolean>
   earlierLoading?: boolean
   earlierError?: string
+  /** No composer: a subagent's thread (§6.12) is read, never written to. */
+  readOnly?: boolean
 }
 
 /** How long the reader's place is held while an older page is added above. */
@@ -453,6 +455,8 @@ export function Thread(props: ThreadProps) {
                 </ThreadPrimitive.Suggestion>
               )}
               {props.status}
+              {!props.readOnly && (
+              <>
               <ComposerPrimitive.Root className="composer">
                 {/*
                   Enter is a new line, everywhere: a message to an agent is
@@ -485,6 +489,8 @@ export function Thread(props: ThreadProps) {
               </ComposerPrimitive.Root>
               {/* Only where there is a real keyboard: app.css hides it on touch-only devices. */}
               <p className="send-hint">{SEND_KEYS} to send</p>
+              </>
+              )}
             </ThreadPrimitive.ViewportFooter>
           </ThreadPrimitive.Viewport>
         </ThreadPrimitive.Root>

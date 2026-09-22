@@ -26,6 +26,10 @@ const rowOf = (session) => page.locator(`a.thread-row[href="/t/${session}"]`)
 
 // 1. Long press in the list → sheet prefilled; blank disabled; optimistic; saved
 const shelved = sid('Mock: shelved conversation')
+// The list settles once /sessions/state answers (Smart order groups by state).
+await page.waitForSelector('.thread-row .badge.working')
+await page.waitForTimeout(300)
+await rowOf(shelved).scrollIntoViewIfNeeded()
 const box = await rowOf(shelved).boundingBox()
 await page.mouse.move(box.x + 60, box.y + box.height / 2)
 await page.mouse.down()

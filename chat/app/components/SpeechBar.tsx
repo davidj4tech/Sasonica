@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router'
 import type { SessionId } from '../api/types'
 import { useSpeech } from '../hooks/useSpeech'
 import { useTitle } from '../lib/titles'
+import { useScrim } from '../lib/layers'
 
 // ── Icons (currentColor, sized by the button's font-size) ─────────────────
 
@@ -258,16 +259,13 @@ function SpeechSheet(props: { title: string; session: SessionId | null; inHere: 
   const paused = live ? !!now?.paused : true
   const progress = live ? progressOf(now?.pos, now?.dur) : null
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [props])
+  // A scrim tap, Escape or Android back closes it (lib/layers.ts).
+  const scrim = useScrim(props.onClose)
 
   const sentence = error || now?.sentence || (paused && live ? 'Paused' : live ? '…' : 'The last reply has finished. Replay it, or go back a turn.')
 
   return (
-    <div className="speech-sheet-wrap" onClick={props.onClose}>
+    <div className="speech-sheet-wrap" {...scrim}>
       <div className="speech-sheet" role="dialog" aria-label="Speech controls" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head">
           <span className={live && !paused ? 'eq on' : 'eq'} aria-hidden="true" />

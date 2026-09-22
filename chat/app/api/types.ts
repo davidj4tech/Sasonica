@@ -47,6 +47,10 @@ export interface SessionRow {
   pinned?: boolean
   /** "Where this thread was" (§6.1 Recaps), or null. */
   recap?: Recap | null
+  /** The project it runs in, for display (§6.1, 22 Sep 2026), or null. */
+  project?: string | null
+  /** Its working directory, or null. */
+  cwd?: string | null
 }
 
 /** A recap (§6.1): Claude Code's "while you were away", or the reaper's own. */
@@ -341,6 +345,12 @@ export interface ThreadSnapshot extends Omit<ConversationLog, 'ok'> {
   live: boolean
   pane: string | null
   resumable: boolean
+  /** Background agents (§6.12): how many are running, of how many. */
+  agents?: AgentCounts
+  /** The project it runs in, for display (§6.1, 22 Sep 2026), or null. */
+  project?: string | null
+  /** Its working directory, or null. */
+  cwd?: string | null
 }
 
 /** The `live` event: the message being spoken, by id, or null. */
@@ -361,7 +371,51 @@ export type ThreadEvent =
   | { type: 'suggestion'; data: { text: string } }
   | { type: 'state'; data: StateEvent }
   | { type: 'recap'; data: Recap | null }
+  | { type: 'agents'; data: AgentCounts }
   | { type: 'ping'; data: Record<string, never> }
+
+// ── §6.12 Background agents ───────────────────────────────────────────────
+
+export interface AgentCounts {
+  running: number
+  total: number
+}
+
+export type AgentStatus = 'running' | 'done' | 'failed' | 'stopped'
+
+/** One subagent of a thread (Claude Code's `<session>/subagents/agent-<id>`). */
+export interface AgentRow {
+  id: string
+  description: string
+  agent_type: string
+  is_fork: boolean
+  /** Another agent's id, or null: spawned by the thread itself. */
+  parent_id: string | null
+  /** 1 = spawned by the thread. */
+  depth: number
+  started_at: number
+  ended_at: number | null
+  status: AgentStatus
+  /** The step in progress, only while running. */
+  current_step: string | null
+  /** Tool calls so far. */
+  steps: number
+  last_at: number
+}
+
+export interface AgentsResponse extends Envelope {
+  session: SessionId
+  counts: AgentCounts
+  /** In start order. */
+  agents: AgentRow[]
+}
+
+export interface AgentLogResponse extends Envelope {
+  session: SessionId
+  agent: AgentRow
+  messages: Message[]
+  older: boolean
+}
 
 /**
  * `GET /draft?session=` · `POST /draft {session, text, at}`: half a reply,
@@ -615,6 +669,10 @@ export interface DashNeed {
   kind: 'approval' | 'question'
   approval: Approval
   driver?: 'headless'
+  /** The project it runs in, for display (§6.1, 22 Sep 2026), or null. */
+  project?: string | null
+  /** Its working directory, or null. */
+  cwd?: string | null
 }
 
 /** A session in the middle of a turn. */
@@ -626,6 +684,10 @@ export interface DashWorking {
   /** When the turn started (server epoch s), or null. */
   since: number | null
   count: number
+  /** The project it runs in, for display (§6.1, 22 Sep 2026), or null. */
+  project?: string | null
+  /** Its working directory, or null. */
+  cwd?: string | null
 }
 
 export interface DashRecent {
@@ -635,6 +697,10 @@ export interface DashRecent {
   at: number | null
   live: boolean
   rested: { at: number; reason: string } | null
+  /** The project it runs in, for display (§6.1, 22 Sep 2026), or null. */
+  project?: string | null
+  /** Its working directory, or null. */
+  cwd?: string | null
 }
 
 export interface DashService {
