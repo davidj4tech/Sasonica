@@ -112,6 +112,9 @@ a { color: var(--accent); }
 /* Thread list */
 .threads { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
 .thread-row { display: flex; align-items: center; gap: 10px; padding: .867rem 16px; border-bottom: 1px solid var(--line); text-decoration: none; color: var(--text); }
+/* Grouped: one-line rows, so they sit closer — but never under 44 px to
+ * press (routes/threads.tsx). */
+.threads.grouped .thread-row { padding-top: .533rem; padding-bottom: .533rem; min-height: 44px; box-sizing: border-box; }
 .thread-row .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-row .when { color: var(--muted); font-size: 0.867rem; }
 /* A thread with unsent words in its composer (lib/drafts.ts), as messaging apps mark one. */

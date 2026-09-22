@@ -248,7 +248,8 @@ device code and passed through.
   Archived section follows it; kept per device (localStorage). Under By
   project each heading folds its group away (a caret and the group's count;
   the folded names are kept per device too), and the rows drop their project
-  line — the heading says it. Everywhere else rows, Home's recap and working
+  line — the heading says it, and the one-line rows sit closer together (44 px
+  to press, still). Everywhere else rows, Home's recap and working
   cards, and the thread header carry the project really small under the
   title, when there is one.
 - Menus and sheets (the ⋮ menu, the long-press menu, rename and exit

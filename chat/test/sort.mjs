@@ -80,6 +80,8 @@ for (const x of all) {
   else if (x.title && (byTitle[x.title]?.project || 'Other') !== under) right = false
 }
 ok(right, 'every row sits under its own project ("Other" rows have none)')
+const rowHeight = async () => page.locator('.thread-row').first().evaluate((el) => el.getBoundingClientRect().height)
+const groupedH = await rowHeight()
 // The heading says it: no line under the title (it is back under Smart).
 ok(
   all.every((x) => !x.title || x.project === null),
@@ -134,6 +136,8 @@ ok((await page.locator('.sort-menu').count()) === 0 && page.url() === BASE + '/t
 
 // The project line (Smart: no headings, so each row says its own)
 await sortTo('Smart')
+const looseH = await rowHeight()
+ok(groupedH < looseH && groupedH >= 44, `grouped rows are tighter (${groupedH.toFixed(0)} px vs ${looseH.toFixed(0)}), still 44 px to press`)
 const rowProject = async (t) => page.locator(`a.thread-row[href="/t/${sid(t)}"] .row-project`)
 ok((await (await rowProject('Mock: working')).innerText()) === 'agent-media', 'a row shows its project under the title')
 ok((await (await rowProject('Mock: not on the shelf yet')).count()) === 0, 'no line where the project is null')

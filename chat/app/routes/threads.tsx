@@ -220,7 +220,9 @@ function ThreadList() {
         </p>
       )}
 
-      <ul className="threads">
+      {/* Grouped: every row is one line (no project under the title), so the
+          rows sit closer together (app.css .threads.grouped). */}
+      <ul className={sort === 'project' ? 'threads grouped' : 'threads'}>
         {mainList.map((e) => entryOf(e, 'main'))}
         {archived.length > 0 && (
           <li className="archived-head">
