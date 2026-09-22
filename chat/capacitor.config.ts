@@ -16,7 +16,10 @@ const config: CapacitorConfig = {
     androidScheme: 'http'
   },
   android: {
-    backgroundColor: '#0D1412'
+    backgroundColor: '#0D1412',
+    // targetSdk 35 draws edge to edge; let Capacitor pad the WebView clear of
+    // the system bars (and the keyboard) rather than trust env(safe-area-*).
+    adjustMarginsForEdgeToEdge: 'force'
   },
   plugins: {
     LocalNotifications: {
