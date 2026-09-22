@@ -502,6 +502,64 @@ It passed the mock and failed on the phone because real live lines differ:
 - New chat: place picker (`/targets.places`) and agent picker, `/ask {text,
   target: "new", cwd, agent}`, then straight into the new thread.
 
+## Android shell (Sasonica Next)
+
+`chat/` is also a Capacitor 7 project: `capacitor.config.ts` + `android/`.
+The app is **Sasonica Next**, applicationId `com.sasonica.next`, installed
+BESIDE the old Sasonica (`com.sasonica.app`), which keeps playing speech and
+owns the phone's ports 8773 / 6613 and its MediaSession. Next binds no port,
+has no MediaSession or foreground service, and its notification channels
+(`replies`, `needs-you`) are its own package's. It takes over
+`com.sasonica.app` only when it replaces the old app.
+
+- **Build:** CI only (red5 has no Android SDK). `.github/workflows/build-next-apk.yml`
+  runs on every push to `android-next`: `pnpm install` → `typecheck` →
+  `build` → `cap sync android` → `assembleDebug`, artifact
+  **`sasonica-next-apk`**. versionCode = the run number; debug builds are
+  signed with the committed `android/app/sasonica-next-debug.keystore`, so
+  each APK installs over the last.
+- **Update the phone:** push to `android-next`, then
+  `gh run download <id> -n sasonica-next-apk`,
+  `agent-phone-adb connect`, `agent-phone-adb install <apk>` (or
+  `adb install -r`), launch with `am start -n com.sasonica.next/.MainActivity`.
+- **Pair it:** `media-visual-canvas pair --device "Pixel 8a (Next)" --host 100.103.43.93`
+  and open/paste the link on the pairing screen.
+- **Local check** (no SDK): `pnpm build && pnpm exec cap sync android`
+  proves the web side and the plugin wiring; Java is only compiled in CI.
+
+What is native (all of it goes through `app/lib/native.ts`, a no-op on the web):
+
+- **The page** is `http://localhost` (`androidScheme: 'http'`), so fetching
+  the plain-http canvas is not mixed content. Cleartext is limited by
+  `android/app/src/main/res/xml/network_security_config.xml` to `*.ts.net`
+  and red5's tailnet IP: that file matches host names, not ranges, so
+  100.64.0.0/10 cannot be written — a canvas on another tailnet IP must be
+  added there or paired by its MagicDNS name.
+- **Credentials** (the device token and the legacy bearer) are sealed with
+  AES-256-GCM under an Android Keystore key (`SecureStorePlugin.java`),
+  mirrored in memory for `api/auth.ts`'s synchronous readers and loaded by
+  root's `clientLoader` before the first screen. Backup is off.
+- **Notifications:** a reply in another thread while the app is in the
+  background (Capacitor `pause`, or the page hidden) posts
+  "New reply · <title>" (channel `replies`) or "Needs you · <title>"
+  (`needs-you`, high importance), with the brand icon; one per session; a
+  tap opens the thread; opening the thread clears it. Permission is asked
+  once, after pairing. This only fires while the WebView still runs JS —
+  Android soon freezes a backgrounded app, so nothing arrives once it is
+  cached. True background delivery needs either a push from the server
+  (FCM, i.e. a Google project and the server sending) or a foreground
+  service holding the §11 stream open natively (a persistent notification,
+  battery cost) — the old app's approach, deliberately not copied yet.
+- **Output…** in the speech sheet opens Android's own output picker
+  (`OutputSwitcherPlugin.java`, androidx.mediarouter's
+  `SystemOutputSwitcherDialogController`), falling back to Bluetooth
+  settings. Speech plays in the OLD app; choosing earbuds or the speaker
+  there still moves it (the active output device is global), but a Cast
+  route chosen here would apply to Next only.
+
+Native code here is written fresh (SPDX Apache-2.0 headers); nothing is
+copied from the ABS-derived old app.
+
 ## Stubbed / not done
 
 - **Stop**: `onCancel` → `stopSession()` in `app/api/index.ts` throws "not

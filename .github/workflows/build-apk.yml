@@ -2,6 +2,9 @@ name: Build APK
 
 on:
   push:
+    # android-next builds Sasonica Next (build-next-apk.yml), not this app.
+    branches-ignore:
+      - android-next
     paths-ignore:
       - 'ios/**'
       - 'readme.md'

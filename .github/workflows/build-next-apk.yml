@@ -1,0 +1,69 @@
+name: Build Sasonica Next APK
+
+# The chat app (chat/) in its Capacitor Android shell, com.sasonica.next —
+# installed beside the old Sasonica (com.sasonica.app). Debug build only,
+# signed with chat/android/app/sasonica-next-debug.keystore so every run's APK
+# installs over the last. No path filter: GitHub skips path-filtered
+# workflows on a branch's first push.
+on:
+  push:
+    branches:
+      - android-next
+  workflow_dispatch:
+
+jobs:
+  next:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: chat
+    steps:
+      - name: checkout sources
+        uses: actions/checkout@v4
+
+      - name: set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: chat/package.json
+
+      - name: use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: chat/pnpm-lock.yaml
+
+      - name: set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: typecheck
+        run: pnpm typecheck
+
+      - name: build the chat app
+        run: pnpm build
+
+      - name: copy to the Android project
+        run: pnpm exec cap sync android
+
+      - name: build debug Android app
+        env:
+          NEXT_VERSION_CODE: ${{ github.run_number }}
+        run: ./android/gradlew assembleDebug -p android --no-daemon
+
+      - name: rename apk
+        run: |
+          build="$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
+          mv -v android/app/build/outputs/apk/debug/app-debug.apk \
+                "android/app/build/outputs/apk/debug/sasonica-next-${build}.apk"
+
+      - name: upload debug app
+        uses: actions/upload-artifact@v4
+        with:
+          name: sasonica-next-apk
+          path: chat/android/app/build/outputs/apk/debug/*.apk
