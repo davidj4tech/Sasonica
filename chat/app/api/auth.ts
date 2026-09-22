@@ -9,7 +9,7 @@
  * the canvas checks a device token first and falls back to ABS):
  *
  * 1. A DEVICE TOKEN (v1, §9) — the default. `pair()` redeems a one-time code
- *    minted at the desk (`media-visual-canvas pair --device NAME`) with
+ *    minted at the desk (`sasonica pair --device NAME`) with
  *    `POST /pair {code, device}` and keeps `{token, device_id, server}`. The
  *    server address becomes the base the pairing answered from.
  * 2. The caller's Audiobookshelf bearer (v0, §4.1) — "Advanced / legacy" in
@@ -123,7 +123,7 @@ export function pairedDevice(): Omit<Device, 'token'> | null {
 }
 
 /** Forget the device token on this device. The server keeps its row until
- * it is revoked at the desk (`media-visual-canvas devices --revoke <id>`). */
+ * it is revoked at the desk (`sasonica devices --revoke <id>`). */
 export function unpair() {
   writeDevice(null)
 }
@@ -165,7 +165,7 @@ export interface PairRequest {
   code: string
 }
 
-/** 8 hex from `media-visual-canvas pair`; accepted loosely, the server judges. */
+/** 8 hex from `sasonica pair`; accepted loosely, the server judges. */
 const CODE_RE = /^[A-Za-z0-9_-]{4,64}$/
 
 /**

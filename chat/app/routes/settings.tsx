@@ -96,7 +96,7 @@ export default function Settings() {
                     setDevice(null)
                     setKind(credentialKind())
                     setSaved(
-                      `Unpaired on this device. To revoke the token itself, at the desk: media-visual-canvas devices --revoke ${device.device_id}`
+                      `Unpaired on this device. To revoke the token itself, at the desk: sasonica devices --revoke ${device.device_id}`
                     )
                   }}
                 >
