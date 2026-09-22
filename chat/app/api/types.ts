@@ -79,6 +79,8 @@ export interface SessionStateRow {
   /** `<project>/<title>` of the item folder — ABS-specific; `""` if none. */
   tail: string
   state: SessionState
+  /** The session's title, as /targets would give it — for a notice about a session the last /targets never listed. Older servers leave it out. */
+  title?: string
 }
 
 export interface SessionsStateResponse extends Envelope {

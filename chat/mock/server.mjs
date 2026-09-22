@@ -1503,7 +1503,7 @@ async function route(method, path, q, body, res) {
 
   if (method === 'GET' && path === '/sessions/state') {
     Object.values(S).forEach(tickSession)
-    return ok({ sessions: Object.values(S).filter((s) => s.live && s.state).map((s) => ({ session: s.session, tail: s.item ? `p-demo/${s.title}` : '', state: s.state })) })
+    return ok({ sessions: Object.values(S).filter((s) => s.live && s.state).map((s) => ({ session: s.session, tail: s.item ? `p-demo/${s.title}` : '', state: s.state, title: s.title })) })
   }
 
   if (method === 'GET' && path === '/conversation') {

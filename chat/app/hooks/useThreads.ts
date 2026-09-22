@@ -124,7 +124,9 @@ export function useSessionStates(enabled = true) {
         saveStates(res)
         const map = stateMap(res)
         // A turn ending elsewhere: a notice and an unread dot, nothing more.
-        noteStates(map, knownTitle)
+        // Named from the list, else from this answer (lib/arrivals.ts): a
+        // chat started since the list was last fetched has no row there yet.
+        noteStates(map, knownTitle, Object.fromEntries((res?.sessions || []).map((r) => [r.session, r.title || ''])))
         setStates(map)
       } catch {
         // Keep the last map; the list's own error line says what is wrong.

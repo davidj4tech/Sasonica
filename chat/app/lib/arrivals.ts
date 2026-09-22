@@ -114,6 +114,14 @@ export function dismissNotice(id: number) {
   emit()
 }
 
+/**
+ * Every live session's title from /sessions/state: what names a notice when
+ * its source had none — a chat started since the list was fetched, or a
+ * /speech/now that has no title for it yet. Without it the notice showed
+ * the session id's first 8 characters.
+ */
+const liveTitles = new Map<string, string>()
+
 /** Something new in `session`. Only the open, visible thread takes it silently. */
 export function arrive(session: SessionId, title: string, kind: NoticeKind, urgent = false) {
   const now = Date.now()
@@ -127,7 +135,7 @@ export function arrive(session: SessionId, title: string, kind: NoticeKind, urge
   // "New reply" supersedes "waiting" for the same session, not the reverse.
   const k: NoticeKind = old?.kind === 'new' && kind === 'waiting' ? 'new' : kind
   if (old) dismissNoticeQuiet(old.id)
-  const n: Notice = { id: nextId++, session, title: title || old?.title || '', kind: k, urgent: urgent || !!old?.urgent, at: now }
+  const n: Notice = { id: nextId++, session, title: title || liveTitles.get(session) || old?.title || '', kind: k, urgent: urgent || !!old?.urgent, at: now }
   notices = [n, ...notices].slice(0, MAX_NOTICES)
   timers.set(
     n.id,
@@ -171,7 +179,8 @@ export function noteSpeech(now: SpeechNow) {
 let statesBase: Record<string, SessionState> | null = null
 
 /** Every /sessions/state answer; `titleOf` names a session for the notice. */
-export function noteStates(next: Record<string, SessionState>, titleOf: (s: SessionId) => string) {
+export function noteStates(next: Record<string, SessionState>, titleOf: (s: SessionId) => string, titles: Record<string, string> = {}) {
+  for (const [session, title] of Object.entries(titles)) if (title) liveTitles.set(session, title)
   const prev = statesBase
   statesBase = next
   if (!prev) return

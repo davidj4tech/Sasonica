@@ -70,6 +70,14 @@ await mock(`mode=state&title=${encodeURIComponent('Mock: working')}`)
 await page.waitForFunction(() => [...document.querySelectorAll('.notice-toast')].some((n) => n.textContent.includes('Mock: working')), null, { timeout: 16000 })
 ok(page.url() === url0 && Math.abs((await scrollTop()) - top0) < 3, 'a turn ending elsewhere: A unmoved')
 
+// 3b. A chat started after the list was fetched: the notice has its title, not its id.
+const fresh = await (await fetch(BASE + '/ask', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + pr.token }, body: JSON.stringify({ text: 'Mock: started since the list', target: 'new' }) })).json()
+await page.waitForTimeout(5500) // one /sessions/state with it working: the baseline
+await mock(`mode=state&title=${encodeURIComponent('Mock: started since the list')}`)
+await page.waitForFunction((sid) => [...document.querySelectorAll('.notice-toast')].some((n) => n.textContent.includes('Mock: started since the list') || n.textContent.includes(sid.slice(0, 8))), fresh.session, { timeout: 16000 })
+const tFresh = await page.locator('.notice-toast', { hasText: /started since the list|/ }).allInnerTexts()
+ok(tFresh.some((t) => t.includes('Mock: started since the list')) && !tFresh.some((t) => t.includes(fresh.session.slice(0, 8))), `a new chat's notice is named (${tFresh.join(' / ').replace(/\s+/g, ' ')})`)
+
 // 4. An urgent reply waiting for the voice: the stronger notice.
 await mock(`mode=queue&urgent=1&title=${encodeURIComponent('Mock: asking a question')}`)
 await page.waitForSelector('.notice-toast.urgent', { timeout: 8000 })
