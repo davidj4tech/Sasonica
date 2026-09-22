@@ -74,7 +74,7 @@ const dashMock = await mockAt(P + 2, { MOCK_SPEECH_REST_S: '0' })
 const agentsMock = await mockAt(P + 3, { MOCK_SPEECH_REST_S: '0', MOCK_AGENT_STEP_S: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['tapread.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['tapread.mjs'], ['peer.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
     failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' ? P + 3 : P}`, ...env })) ? 1 : 0
   }

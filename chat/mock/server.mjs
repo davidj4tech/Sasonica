@@ -372,7 +372,12 @@ add(
     archived: true,
     rested: { at: r3(T0 - 86400 * 5), reason: 'idle' },
     at: r3(T0 - 86400 * 5),
-    lines: [youLine('Tidy the old branch.', T0 - 86400 * 5 - 60), agentLine('Done; nothing left on it.', T0 - 86400 * 5 - 30)]
+    lines: [
+      youLine('Tidy the old branch.', T0 - 86400 * 5 - 60),
+      agentLine('Done; nothing left on it.', T0 - 86400 * 5 - 30),
+      { ...youLine('The canvas is restarted; your change is live.', T0 - 86400 * 5 - 20), peer: { name: 'agent-media-71' } },
+      agentLine('Thanks — noted.', T0 - 86400 * 5 - 10)
+    ]
   })
 )
 
@@ -872,7 +877,8 @@ function messagesOf(s, lines) {
         parts: [{ type: 'text', text: l.text }],
         spoken: l.id ? { id: l.id, key: '', at: l.at } : null,
         turn: { running: false },
-        ...(l.command ? { command: l.command } : {})
+        ...(l.command ? { command: l.command } : {}),
+        ...(l.peer ? { peer: l.peer } : {})
       })
       return
     }

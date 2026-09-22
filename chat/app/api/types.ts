@@ -308,6 +308,8 @@ export interface Message {
   turn: { running: boolean }
   /** User messages that are a slash command only. */
   command?: { name?: string; args?: string; text?: string; [k: string]: unknown } | null
+  /** Another session's message delivered into this one (§6.2.2): not the listener's words. */
+  peer?: { name: string } | null
 }
 
 export interface Recap {

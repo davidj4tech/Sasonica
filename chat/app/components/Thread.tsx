@@ -41,11 +41,13 @@ import {
   MessageSpeechKey,
   OptimisticMark,
   PartGroup,
+  PeerNote,
   Picture,
   PictureData,
   Reasoning,
   ThreadActionsContext,
   ToolStep,
+  useCustom,
   WorkingIndicator,
   type ThreadActions
 } from './parts'
@@ -67,8 +69,10 @@ const partComponents = {
 }
 
 function UserMessage() {
+  const { peer } = useCustom()
   return (
-    <MessagePrimitive.Root className="msg user">
+    <MessagePrimitive.Root className={peer ? 'msg user peer' : 'msg user'}>
+      <PeerNote />
       <div className="bubble">
         <CommandChip />
         <MessagePrimitive.Unstable_PartsGrouped groupingFunction={groupParts} components={partComponents} />

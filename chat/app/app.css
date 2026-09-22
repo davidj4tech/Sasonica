@@ -141,6 +141,10 @@ a { color: var(--accent); }
 .msg.agent { align-self: flex-start; }
 .bubble { background: var(--panel); border-radius: var(--radius); padding: .6rem .867rem; overflow-wrap: anywhere; }
 .msg.user .bubble { background: var(--you); }
+/* Another session's message (§6.2.2 peer): not the listener's, so no "you"
+ * fill — an outlined bubble under a small "From <name>". */
+.msg.user.peer .bubble { background: transparent; border: 1px solid var(--line); }
+.peer-note { font-size: 0.733rem; color: var(--muted); margin: 0 4px 2px; }
 .msg.agent.speaking .bubble { box-shadow: inset 3px 0 0 var(--accent); }
 .line-text { margin: 0; white-space: pre-wrap; }
 .live-text .sentence { color: var(--muted); transition: color .2s; }

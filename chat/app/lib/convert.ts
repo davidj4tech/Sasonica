@@ -48,6 +48,8 @@ export type ChatItem =
 
 export interface LineCustom {
   command?: Message['command']
+  /** Sent by another session, not the listener: shown as a small note. */
+  peer?: { name: string }
   /** Speech-history row for `replay-id`. */
   id?: number
   /** The thread, for `goto-sentence` ("read from here" in the live message). */
@@ -129,6 +131,7 @@ export function convertItem(item: ChatItem): ThreadMessageLike {
   const spoken = m.spoken
   const custom: LineCustom = {
     command: m.command ?? undefined,
+    peer: m.peer ?? undefined,
     id: spoken?.id ?? undefined,
     figure: spoken?.figure,
     live: item.live,

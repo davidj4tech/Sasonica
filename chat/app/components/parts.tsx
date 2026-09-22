@@ -37,7 +37,7 @@ export interface ThreadActions {
 }
 export const ThreadActionsContext = createContext<ThreadActions>({ answer: async (a) => ({ error: 'not wired', key: a.key }) })
 
-function useCustom(): LineCustom {
+export function useCustom(): LineCustom {
   return useAuiState((s) => (s.message.metadata?.custom || {}) as LineCustom)
 }
 
@@ -298,6 +298,13 @@ export function MessageSpeechKey() {
 }
 
 /** The chip for a slash command typed from the box (`message.command`). */
+/** "From <name>": a message another session sent into this one. */
+export function PeerNote() {
+  const { peer } = useCustom()
+  if (!peer) return null
+  return <span className="peer-note">From {peer.name}</span>
+}
+
 export function CommandChip() {
   const { command } = useCustom()
   if (!command) return null

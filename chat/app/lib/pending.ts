@@ -25,7 +25,7 @@ export type Said = Pick<Line, 'who' | 'at' | 'text' | 'command'>
 
 /** The listener's messages as matcher input (§6.2.2: `role: "user"`, its text parts). */
 export function saidOf(messages: Message[]): Said[] {
-  return messages.filter((m) => m.role === 'user').map((m) => ({ who: 'you', at: m.at, text: userText(m), command: m.command ?? undefined }))
+  return messages.filter((m) => m.role === 'user' && !m.peer).map((m) => ({ who: 'you', at: m.at, text: userText(m), command: m.command ?? undefined }))
 }
 
 export type SendState = 'sending' | 'sent' | 'failed' | 'untaken'
