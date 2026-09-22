@@ -20,6 +20,7 @@ import { getSpeechNow, speechCtl } from '../api'
 import { hasCredential, serverBase } from '../api/auth'
 import type { SessionId, SpeechAction, SpeechCtlResponse, SpeechNow } from '../api/types'
 import { usePoll } from './usePoll'
+import { noteSpeech } from '../lib/arrivals'
 
 const POLL_LIVE_MS = 1500
 const POLL_IDLE_MS = 5000
@@ -133,6 +134,8 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
       // The ref now, not at the next render: usePoll asks for the next
       // delay as soon as this returns, and it must see `live`.
       serverRef.current = res
+      // Another thread's reply is news, never a move (lib/arrivals.ts).
+      noteSpeech(res)
       setServer(res)
       setServerAskedAt(askedAt)
       setOverride(null)

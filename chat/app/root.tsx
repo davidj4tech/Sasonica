@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react'
 import { Links, Meta, Navigate, Outlet, Scripts, ScrollRestoration, useLocation } from 'react-router'
 import './app.css'
 import { SpeechProvider } from './hooks/useSpeech'
+import { Notices } from './components/Notices'
 import { TEXT_SIZE_BOOT } from './lib/textSize'
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -68,6 +69,9 @@ export default function App() {
   return (
     <SpeechProvider>
       <Outlet />
+      {/* Replies in other threads: told here, never followed (lib/arrivals.ts).
+          Not on the list, whose rows already carry the dots and states. */}
+      {location.pathname !== '/pairing' && location.pathname !== '/' && <Notices />}
     </SpeechProvider>
   )
 }

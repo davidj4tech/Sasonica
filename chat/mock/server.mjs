@@ -455,7 +455,15 @@ function realVoiceNow() {
   return { ok: true, live: true, speaking: e >= 2, paused: e < 2, sentence: '', session: s.session, title: s.title, item: s.item, pos: Math.floor(realSnap.pos), dur: Math.ceil(REAL_LEN_S), speed: 1, muted: false }
 }
 
+/** §6.5 `queued`: replies said but not heard yet (GET /mock/arrive?mode=queue adds one). */
+const QUEUED = []
+
 function speechNow() {
+  const out = speechNowHeard()
+  return { ...out, replay: false, queued: QUEUED.map((q) => ({ ...q })) }
+}
+
+function speechNowHeard() {
   if (REAL_VOICE) {
     const r = realVoiceNow()
     if (r) return r
@@ -745,6 +753,34 @@ createServer(async (req, res) => {
     console.log(`pairing code ${PAIR.code} armed`)
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end(PAIR.code)
+  }
+  if (path === '/mock/arrive') {
+    // Tests: a reply lands in another session (by fixture title, default
+    // "Mock: not on the shelf yet"), the way David saw one while reading:
+    //   mode=state  working now, then in 6 s a new agent line and `waiting`
+    //               (a turn ending; longer than the 5 s /sessions/state poll)
+    //   mode=speak  a new agent line, and the voice starts saying it
+    //   mode=queue  listed in /speech/now `queued` (`&urgent=1` for urgent)
+    //   clear=1     empties `queued`
+    const q = url.searchParams
+    if (q.get('clear') === '1') QUEUED.length = 0
+    const s = Object.values(S).find((x) => x.title === (q.get('title') || 'Mock: not on the shelf yet'))
+    const mode = q.get('mode') || ''
+    if (s && mode === 'state') {
+      s.state = 'working'
+      setTimeout(() => {
+        s.lines.push(agentLine('(mock) A reply that arrived while you were elsewhere.', now()))
+        s.state = 'waiting'
+      }, 6000)
+    } else if (s && mode === 'speak') {
+      const line = agentLine('(mock) A reply in another thread. It is being spoken now.', now())
+      s.lines.push(line)
+      vSay(s, line)
+    } else if (s && mode === 'queue') {
+      QUEUED.push({ session: s.session, title: s.title, urgent: q.get('urgent') === '1', at: r3(now()) })
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify({ session: s?.session || null, queued: QUEUED }))
   }
   if (path === '/mock/drafts') {
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })

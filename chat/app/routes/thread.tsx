@@ -24,6 +24,7 @@ import { useTitle } from '../lib/titles'
 import { loadTargets } from '../lib/snapshots'
 import { buildItems } from '../lib/convert'
 import { draftSent } from '../lib/drafts'
+import { markSeen, setOpenSession } from '../lib/arrivals'
 import { withPaused, withSkew, type LiveClock } from '../lib/followAlong'
 import type { SpeechNow } from '../api/types'
 
@@ -63,6 +64,7 @@ function ThreadPage({ session }: { session: string }) {
   const rename = useRename()
 
   const log = useConversationLog(session)
+  useSeen(session, log.lines.length)
   const states = useSessionStates()
   const [status, setStatus] = useState<Status>(null)
 
@@ -310,4 +312,27 @@ function useElapsedSkew(session: string, clock: LiveClock | null, now: SpeechNow
     setSkew(floor > SKEW_MIN_S ? Math.round(floor * 10) / 10 : 0)
   }, [now, askedAt, session])
   return skew
+}
+
+/**
+ * This thread is the open one (lib/arrivals.ts): its replies are seen as
+ * they land — no notice, no unread dot — while the page is visible; one
+ * that lands while hidden is unread until the page shows again.
+ */
+function useSeen(session: string, lines: number) {
+  useEffect(() => {
+    setOpenSession(session)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') markSeen(session)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      markSeen(session)
+      setOpenSession(null)
+    }
+  }, [session])
+  useEffect(() => {
+    if (lines && document.visibilityState === 'visible') markSeen(session)
+  }, [session, lines])
 }

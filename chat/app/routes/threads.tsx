@@ -10,6 +10,7 @@ import { RenameSheet } from '../components/RenameSheet'
 import { useRename } from '../hooks/useRename'
 import { useTitle } from '../lib/titles'
 import { hasDraft } from '../lib/drafts'
+import { useUnread } from '../lib/arrivals'
 import { SpeechBar } from '../components/SpeechBar'
 import { hasCredential } from '../api/auth'
 import type { SessionRow, SessionState } from '../api/types'
@@ -101,6 +102,7 @@ const LONG_PRESS_MS = 550
  */
 function ThreadRow({ row, state, onRename }: { row: SessionRow; state: SessionState | undefined; onRename: (title: string) => void }) {
   const title = useTitle(row.session, row.title) || row.session.slice(0, 8)
+  const unread = useUnread(row.session)
   const timer = useRef<number | null>(null)
   const start = useRef<{ x: number; y: number } | null>(null)
   const longRef = useRef(false)
@@ -118,7 +120,7 @@ function ThreadRow({ row, state, onRename }: { row: SessionRow; state: SessionSt
       <Link
         to={`/t/${encodeURIComponent(row.session)}`}
         state={{ title }}
-        className="thread-row"
+        className={unread ? 'thread-row unread' : 'thread-row'}
         onPointerDown={(e) => {
           longRef.current = false
           start.current = { x: e.clientX, y: e.clientY }
@@ -147,6 +149,7 @@ function ThreadRow({ row, state, onRename }: { row: SessionRow; state: SessionSt
         <span className={`dot ${row.live ? state || 'live' : 'shelved'}`} />
         <span className="title">{title}</span>
         {hasDraft(row.session) && <span className="draft-mark">Draft</span>}
+        {unread && <span className="unread-dot" aria-label="New reply" />}
         {row.live ? (
           <span className={`badge ${state || ''}`}>{state ? STATE_LABEL[state] : 'live'}</span>
         ) : (

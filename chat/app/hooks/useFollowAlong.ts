@@ -226,6 +226,16 @@ export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveK
     scrollOwn(el.scrollHeight, 'smooth')
   }, [viewportRef, hasLive, scrollOwn])
 
+  /** To the top of the thread (the ↑ pill): the reader takes over. */
+  const toTop = useCallback(() => {
+    if (hasLive) {
+      followedRef.current = false
+      setDetached(true)
+    }
+    movingUntilRef.current = 0
+    scrollOwn(0, 'smooth')
+  }, [hasLive, scrollOwn])
+
   return {
     following,
     /** The reader took over from a live line: offer "Follow along". */
@@ -233,6 +243,7 @@ export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveK
     /** A live line exists: assistant-ui's own scrolling is held off. */
     guarded: hasLive,
     resume,
-    toFoot
+    toFoot,
+    toTop
   }
 }

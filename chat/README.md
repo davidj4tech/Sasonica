@@ -50,6 +50,9 @@ offsets and a null `sentence`. `GET /mock/real/restart?in=N` starts them
 speaking fixture coming back after it ends (`loop=1` restores it);
 `POST /rename` renames any fixture (a title containing FAIL gets a 500);
 `/draft` keeps drafts in memory (`GET /mock/drafts` lists them);
+`GET /mock/arrive?mode=speak|state|queue[&urgent=1][&title=]` lands a reply
+in another session (spoken now; a turn ending working → waiting in 6 s; or
+listed in `/speech/now`'s `queued`), `?clear=1` empties `queued`;
 `GET /mock/reply?delay=&skew=&flatten=&fail=` makes /reply slow (the line
 lands in the log first), shifts the server clock, flattens whitespace or
 refuses; `MOCK_REAL_VOICE=1` makes `/speech/now`
@@ -70,12 +73,13 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 ```
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
-and runs `test/{pair,follow,keys,skew,rename,finished,send,draft}.mjs` in headless
+and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals}.mjs` in headless
 Chromium at phone size: pairing and the one-request thread open,
 follow-along on the real-shaped speech (default and Larger text), the top
 play/pause key (portrait, landscape, Larger), the skew correction against
 a stale `pos`, rename, the finished speech bar, the send race, and drafts
-(switch threads, reload, hidden, a newer copy from another device, send). Playwright is not a
+(switch threads, reload, hidden, a newer copy from another device, send),
+and replies elsewhere (nothing moves; notice and dot) with the ↑/↓ pills. Playwright is not a
 dependency; any playwright-core with its browsers in `~/.cache/ms-playwright`
 will do. Screenshots go to `$TMPDIR/sasonica-chat-shots`.
 
@@ -133,6 +137,7 @@ device code and passed through.
 | `app/hooks/usePrefetch.ts` | warms the top 5 threads from the list, one at a time, low priority |
 | `app/hooks/useBottomFirst.ts` | newest 20 messages first, older ones added above, scroll pinned to the bottom |
 | `app/lib/drafts.ts`, `app/hooks/useDraft.ts` | the composer's text per thread: local copy, `/draft` push/reconcile, the send rules; the hook binds it to the composer |
+| `app/lib/arrivals.ts`, `app/components/Notices.tsx` | replies elsewhere: notices, unread-since-seen per session, from /speech/now and /sessions/state |
 | `app/lib/textSize.ts` | the per-device text size (one root `--text-size`; everything is rem) |
 | `app/hooks/useSpeech.tsx` | the ONE `/speech/now` poll for the app (1.5 s live / 5 s idle / 15 s failing), the `/speech/ctl` keys, optimistic state |
 | `app/components/SpeechBar.tsx` | the speech bar and its full-controls sheet |
@@ -280,6 +285,26 @@ It passed the mock and failed on the phone because real live lines differ:
   ("Draft"). The new-chat screen keeps its draft on this device only
   (`NEW_CHAT`), cleared when the chat starts, and a refused start puts the
   words back in the box.
+- Replies elsewhere never move you (David, 22 Sep: a turn finishing in
+  another session took over the screen he was reading). Nothing another
+  session does navigates, changes the open thread, its follow-along or its
+  scroll. A reply starting to be heard elsewhere, one waiting in
+  `/speech/now`'s `queued` (§6.5), or a session going working → waiting (or
+  into approval) becomes a notice under the header — "New reply · <title>",
+  "Reply waiting", "Needs you" in amber for `urgent` — tap to open, ▶ to
+  hear a waiting one now (ends what is playing; only when it is next), ×,
+  or it goes in 12 s (30 s urgent). Not on the list, whose rows get an
+  unread dot (and a bold title) instead: arrived since this device last had
+  the thread open and visible (`lib/arrivals.ts`, localStorage, this
+  device's clock). In a thread, the speech bar's title for another thread's
+  reply opens the sheet, not the thread (its link does), and a tap within
+  0.8 s of the bar appearing or changing is ignored.
+- ↑ / ↓ pills at the right of a thread when more than ¾ of a screen from
+  the top / the foot (↓ gives way to "New messages ↓"), shown while the
+  thread is moved by hand (wheel, touch, paging keys) and for 3 s after —
+  at the right edge they sit where a reply's play key can be, so they do
+  not stay. They scroll the follow hook's own way, so they work while a
+  live line holds assistant-ui's scrolling off.
 - New chat: place picker (`/targets.places`) and agent picker, `/ask {text,
   target: "new", cwd, agent}`, then straight into the new thread.
 

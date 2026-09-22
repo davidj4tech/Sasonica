@@ -4,6 +4,7 @@ import type { Place, SessionRow, SessionState, SessionsStateResponse, TargetsRes
 import { loadStates, loadTargets, peekStates, peekTargets, saveStates, saveTargets } from '../lib/snapshots'
 import { confirmTitles } from '../lib/titles'
 import { usePoll } from './usePoll'
+import { noteStates } from '../lib/arrivals'
 
 /**
  * Rows seen in /targets, so a thread page has a heading (and knows whether
@@ -103,7 +104,10 @@ export function useSessionStates(enabled = true) {
       try {
         const res = await getSessionsState()
         saveStates(res)
-        setStates(stateMap(res))
+        const map = stateMap(res)
+        // A turn ending elsewhere: a notice and an unread dot, nothing more.
+        noteStates(map, knownTitle)
+        setStates(map)
       } catch {
         // Keep the last map; the list's own error line says what is wrong.
       }

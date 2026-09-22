@@ -107,6 +107,76 @@ function DraftKeeper({ draftKey, handle }: { draftKey?: string; handle: React.Re
   return null
 }
 
+/** Further than this (in viewport heights) from an end, its pill shows. */
+const AWAY_SCREENS = 0.75
+/** The pills go this long after the reader's hand last moved the thread. */
+const PILLS_IDLE_MS = 3000
+const HAND_KEYS = new Set(['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'Home', 'End'])
+
+/**
+ * Whether the view is well away from the top and from the bottom, for the
+ * ↑ / ↓ pills — and only while the reader is moving through the thread by
+ * hand (wheel, touch, paging keys) and for PILLS_IDLE_MS after: at the
+ * right edge they sit where a reply's play key can be, so they must not
+ * stay over it. Programmatic scrolls (follow-along) do not show them.
+ * Read on scroll and every second (content grows without a scroll event);
+ * only a change re-renders.
+ */
+function useAwayFromEnds(ref: React.RefObject<HTMLElement | null>) {
+  const [away, setAway] = useState({ top: false, bottom: false })
+  const [active, setActive] = useState(false)
+  const idleRef = useRef(0)
+  /** The reader moved the thread (or pressed a pill): show, and start the idle clock again. */
+  const poke = useCallback(() => {
+    setActive(true)
+    window.clearTimeout(idleRef.current)
+    idleRef.current = window.setTimeout(() => setActive(false), PILLS_IDLE_MS)
+  }, [])
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const hand = poke
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) return
+      if (HAND_KEYS.has(e.key)) hand()
+    }
+    el.addEventListener('wheel', hand, { passive: true })
+    el.addEventListener('touchmove', hand, { passive: true })
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.clearTimeout(idleRef.current)
+      el.removeEventListener('wheel', hand)
+      el.removeEventListener('touchmove', hand)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [ref, poke])
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let raf = 0
+    const check = () => {
+      raf = 0
+      const far = el.clientHeight * AWAY_SCREENS
+      const top = el.scrollTop > far
+      const bottom = el.scrollHeight - el.clientHeight - el.scrollTop > far
+      setAway((a) => (a.top === top && a.bottom === bottom ? a : { top, bottom }))
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(check)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    const id = window.setInterval(check, 1000)
+    check()
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      window.clearInterval(id)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [ref])
+  return { ...(active ? away : { top: false, bottom: false }), poke }
+}
+
 /** Two keys need at least this much height to not sit on top of each other. */
 const TWO_KEYS_PX = 2 * 44 + 32
 
@@ -214,6 +284,7 @@ export function Thread(props: ThreadProps) {
   const liveKey = liveItem?.kind === 'line' && liveClock ? liveItem.line.at : null
   const follow = useFollowAlong(viewportRef, liveKey, !!liveClock && !liveClock.paused)
   const newBelow = useNewBelow(props.items, liveIndex, liveKey)
+  const away = useAwayFromEnds(viewportRef)
 
   const { toFoot, guarded } = follow
   const draftRef = useRef<DraftHandle>(null)
@@ -281,6 +352,20 @@ export function Thread(props: ThreadProps) {
                   {newBelow > 0 && follow.guarded && (
                     <button className="follow-pill new-below" onClick={follow.toFoot}>
                       {newBelow === 1 ? 'New message' : `${newBelow} new messages`} ↓
+                    </button>
+                  )}
+                </div>
+              )}
+              {(away.top || (away.bottom && !(newBelow > 0 && follow.guarded))) && (
+                <div className="jump-pills">
+                  {away.top && (
+                    <button className="jump-pill" aria-label="To the top" title="To the top" onClick={() => (away.poke(), follow.toTop())}>
+                      ↑
+                    </button>
+                  )}
+                  {away.bottom && !(newBelow > 0 && follow.guarded) && (
+                    <button className="jump-pill" aria-label="To the bottom" title="To the bottom" onClick={() => (away.poke(), follow.toFoot())}>
+                      ↓
                     </button>
                   )}
                 </div>

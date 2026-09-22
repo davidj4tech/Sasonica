@@ -309,6 +309,21 @@ export interface SpeechNow extends Envelope {
   dur: number | null
   speed: number | null
   muted: boolean
+  /** What is heard is a recorded reply played again; session/title/sentence are its. */
+  replay?: boolean
+  /** Replies said but not heard yet, likely play order (urgent first). Always present on a current server. */
+  queued?: QueuedReply[]
+}
+
+/** One reply waiting for the voice (§6.5 `queued`). */
+export interface QueuedReply {
+  /** null for a reply with no session (e.g. `media say`). */
+  session: SessionId | null
+  title: string
+  /** A question, a permission prompt, `media say --urgent`: it will interrupt. */
+  urgent: boolean
+  /** Submitted, epoch seconds (the server's clock). */
+  at: number
 }
 
 /** `_APP_SPEECH_ACTIONS`; anything else is 400 "unknown action". */

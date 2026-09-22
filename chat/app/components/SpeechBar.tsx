@@ -17,7 +17,7 @@
  * again"; after that it is just the title and a compact "▶ Replay" key.
  * State and keys come from the one SpeechProvider poll.
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
 import type { SessionId } from '../api/types'
@@ -152,6 +152,9 @@ function fullHintFor(endedAt: number): boolean {
   return full
 }
 
+/** A tap on the bar's title sooner than this after it appeared or changed thread is ignored. */
+const SETTLE_TAP_MS = 800
+
 // ── The bar ───────────────────────────────────────────────────────────────
 
 export function SpeechBar({ here }: { here?: SessionId }) {
@@ -169,6 +172,12 @@ export function SpeechBar({ here }: { here?: SessionId }) {
 
   const session = live ? now?.session : finished?.session
   const title = useTitle(session, (live ? now?.title : finished?.title) || '') || (live ? 'Speaking' : 'Nothing playing')
+  // When the bar appeared or changed thread. A tap this soon after was
+  // aimed at whatever the bar just pushed aside, not at the bar.
+  const changedAtRef = useRef(0)
+  useEffect(() => {
+    changedAtRef.current = Date.now()
+  }, [session, visible])
 
   if (!visible) return null
 
@@ -178,7 +187,7 @@ export function SpeechBar({ here }: { here?: SessionId }) {
   const times = live && now?.pos != null ? `${clock(now.pos)}${now.dur ? ` / ${clock(now.dur)}` : ''}` : ''
 
   const openThread = () => {
-    if (!session || inHere) return
+    if (!session || inHere || Date.now() - changedAtRef.current < SETTLE_TAP_MS) return
     setOpen(false)
     navigate(`/t/${encodeURIComponent(session)}`, { state: { title } })
   }
@@ -219,7 +228,12 @@ export function SpeechBar({ here }: { here?: SessionId }) {
             </button>
           ) : (
             <>
-              <button className="speech-title" onClick={session ? openThread : expand} title={session ? 'Open this conversation' : undefined}>
+              {/* In a thread, another thread's reply opens the sheet (which has
+                  the link): the bar changes under the reader's thumb when a
+                  reply starts elsewhere, and a stray tap must never take
+                  them away from what they are reading. On the list, a tap
+                  opens it. */}
+              <button className="speech-title" onClick={session && !here ? openThread : expand} title={session && !here ? 'Open this conversation' : undefined}>
                 <span className={live && !paused ? 'eq on' : 'eq'} aria-hidden="true" />
                 {title}
               </button>
