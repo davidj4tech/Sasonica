@@ -143,8 +143,10 @@ export const LineText: TextMessagePartComponent = ({ text }) => {
 /**
  * A reasoning part: the model's words behind a collapsed "Thinking"
  * disclosure (rendered only when opened), or — REALITY on red5, ~90 % of
- * them — thinking whose text Claude Code does not keep: a small "thought"
- * marker, never an empty box.
+ * them — thinking whose text the harness does not keep: a small "thought"
+ * marker, never an empty box. (Claude Code keeps a signature only; Codex
+ * encrypts it; pi writes the words, so a pi thread is mostly the first
+ * shape.)
  */
 export const Reasoning: ReasoningMessagePartComponent = ({ text }) => {
   const [open, setOpen] = useState(false)
