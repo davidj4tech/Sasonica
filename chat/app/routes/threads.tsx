@@ -109,9 +109,6 @@ function ThreadList() {
         <button className="icon" onClick={() => reload()} title="Refresh">
           ↻
         </button>
-        <Link className="icon" to="/notebook" title="Notes">
-          ✎
-        </Link>
         <Link className="icon" to="/settings" title="Settings">
           ⚙
         </Link>

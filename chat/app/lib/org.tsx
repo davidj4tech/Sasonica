@@ -26,7 +26,7 @@ const INLINE = /\[\[([^\]]+)\](?:\[([^\]]*)\])?\]|(^|[\s(])([*/=~])(\S(?:.*?\S)?
 
 /** Where a note opens in this app. */
 export function noteHref(path: string, at = 0): string {
-  return `/notebook/note?path=${encodeURIComponent(path)}${at ? `&at=${at}` : ''}`
+  return `/organiser/note?path=${encodeURIComponent(path)}${at ? `&at=${at}` : ''}`
 }
 
 function inline(text: string, links: OrgLink[], key: string): ReactNode[] {

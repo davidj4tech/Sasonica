@@ -92,10 +92,10 @@ function SetupPage() {
   return (
     <div className="page notes-setup">
       <header className="bar">
-        <Link className="icon" to="/notebook" title="Notes">
+        <Link className="icon" to="/organiser" title="Organiser">
           ←
         </Link>
-        <h1>Set up notes</h1>
+        <h1>Set up the organiser</h1>
         <button className="icon" onClick={() => load()} title="Check again">
           ↻
         </button>

@@ -1,5 +1,6 @@
 /**
- * The Notes tab: the server's Org tree (server-contract.md §6.10).
+ * The Organiser tab: the server's Org tree (server-contract.md §6.10) — the
+ * third tab beside Home and Threads, whose Agenda section links here too.
  *
  * A strip of views across the top (Agenda, the GTD files, the roam folders),
  * the chosen one's headings or notes below, and a capture box at the foot
@@ -9,8 +10,9 @@
  *
  * No notes on this server yet (no inbox view) → the setup checklist.
  */
-import { BackLink } from '../components/Nav'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Mark } from '../components/Mark'
+import { HomeTabs } from '../components/Nav'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
 import { hasCredential } from '../api/auth'
 import { ApiError } from '../api'
@@ -21,15 +23,14 @@ import {
   isEditable,
   isHeading,
   searchNotes,
-  setNoteState,
   type CaptureKind,
   type NoteHeading,
   type NoteItem,
-  type NoteState,
   type NoteView,
   type SearchResult
 } from '../api/notes'
 import { noteHref, StateBadge } from '../lib/org'
+import { useMarkDone } from '../hooks/useMarkDone'
 import '../notes.css'
 
 const VIEW_KEY = 'sasonica.notes.view'
@@ -88,9 +89,8 @@ function NotesPage() {
   const [error, setError] = useState('')
   const [searching, setSearching] = useState(false)
   const [reload, setReload] = useState(0)
-  // Rows marked done, hidden until the list comes back without them.
-  const [hidden, setHidden] = useState<Set<string>>(() => new Set())
-  const [toast, setToast] = useState<{ text: string; failed?: boolean; undo?: () => void } | null>(null)
+  const refetch = useCallback(() => setReload((n) => n + 1), [])
+  const { markDone, isHidden, resetHidden, toast, dismiss } = useMarkDone(refetch)
 
   useEffect(() => {
     const ac = new AbortController()
@@ -112,7 +112,7 @@ function NotesPage() {
     getNoteView(current, ac.signal)
       .then((r) => {
         setItems(r.items)
-        setHidden(new Set())
+        resetHidden()
         setError('')
       })
       .catch((err) => {
@@ -120,36 +120,6 @@ function NotesPage() {
       })
     return () => ac.abort()
   }, [views, current, reload])
-
-  // The ○ key on a row: done at once (hidden now, the file changed behind),
-  // with Undo. A repeating one is not closed; it moves on to its next date.
-  const markDone = async (h: NoteHeading) => {
-    const key = `${h.path}:${h.at}`
-    setHidden((s) => new Set(s).add(key))
-    setToast(null)
-    try {
-      const r = await setNoteState(h.path, h.at, h.title, 'DONE')
-      if (r.repeated) setToast({ text: `${h.title} — next on ${r.next}` })
-      else
-        setToast({
-          text: `Done: ${h.title}`,
-          undo: () => {
-            setToast(null)
-            void setNoteState(r.path, r.at, h.title, h.state as NoteState)
-              .then(() => setReload((n) => n + 1))
-              .catch((err) => setToast({ text: message(err), failed: true }))
-          }
-        })
-    } catch (err) {
-      setHidden((s) => {
-        const next = new Set(s)
-        next.delete(key)
-        return next
-      })
-      setToast({ text: message(err), failed: true })
-    }
-    setReload((n) => n + 1)
-  }
 
   const choose = (name: string) => {
     setView(name)
@@ -161,23 +131,26 @@ function NotesPage() {
   return (
     <div className="page notes-page">
       <header className="bar">
-        <BackLink />
-        <h1>Notes</h1>
+        <h1 className="wordmark">
+          <Mark size={28} />
+          Sasonica
+        </h1>
         <button className="icon" onClick={() => setSearching((s) => !s)} title={searching ? 'Close search' : 'Search'} aria-pressed={searching}>
           {searching ? '✕' : '⌕'}
         </button>
-        <Link className="icon" to="/notebook/setup" title="Set up notes">
+        <Link className="icon" to="/settings" title="Settings">
           ⚙
         </Link>
       </header>
+      <HomeTabs current="organiser" />
 
       {error && <p className="notice error">{error}</p>}
 
       {unset ? (
         <div className="notes-empty">
-          <p>There are no notes on this server yet.</p>
-          <Link className="notes-button primary" to="/notebook/setup">
-            Set up notes
+          <p>The organiser has nothing to show on this server yet.</p>
+          <Link className="notes-button primary" to="/organiser/setup">
+            Set up the organiser
           </Link>
         </div>
       ) : searching ? (
@@ -191,11 +164,14 @@ function NotesPage() {
                 {v.count ? <span className="count">{v.count}</span> : null}
               </button>
             ))}
+            <Link className="note-view setup-chip" to="/organiser/setup" title="Set up the organiser">
+              Setup
+            </Link>
           </nav>
           <div className="note-list">
             {!items && !error && <p className="notice">Loading…</p>}
             {items && items.length === 0 && <p className="notice">Nothing here.</p>}
-            {items && (current === 'agenda' ? <Agenda items={items as NoteHeading[]} hidden={hidden} onDone={markDone} /> : <Items items={items} hidden={hidden} onDone={markDone} />)}
+            {items && (current === 'agenda' ? <Agenda items={items as NoteHeading[]} isHidden={isHidden} onDone={markDone} /> : <Items items={items} isHidden={isHidden} onDone={markDone} />)}
           </div>
         </>
       )}
@@ -208,7 +184,7 @@ function NotesPage() {
               Undo
             </button>
           )}
-          <button className="icon" onClick={() => setToast(null)} title="Dismiss">
+          <button className="icon" onClick={dismiss} title="Dismiss">
             ✕
           </button>
         </div>
@@ -253,12 +229,12 @@ function isSection(h: NoteHeading, next: NoteItem | undefined): boolean {
   return !!next && isHeading(next) && next.level > h.level
 }
 
-function Items({ items, hidden, onDone }: { items: NoteItem[]; hidden: Set<string>; onDone: (h: NoteHeading) => void }) {
+function Items({ items, isHidden, onDone }: { items: NoteItem[]; isHidden: (h: NoteHeading) => boolean; onDone: (h: NoteHeading) => void }) {
   return (
     <ul className="notes">
       {items.map((it, i) =>
         isHeading(it) ? (
-          hidden.has(`${it.path}:${it.at}`) ? null : <HeadingRow key={`${it.path}:${it.at}`} h={it} section={!it.state && isSection(it, items[i + 1])} onDone={onDone} />
+          isHidden(it) ? null : <HeadingRow key={`${it.path}:${it.at}`} h={it} section={!it.state && isSection(it, items[i + 1])} onDone={onDone} />
         ) : (
           <li key={it.path}>
             <Link className="note-row" to={noteHref(it.path)}>
@@ -272,8 +248,8 @@ function Items({ items, hidden, onDone }: { items: NoteItem[]; hidden: Set<strin
   )
 }
 
-function Agenda({ items: all, hidden, onDone }: { items: NoteHeading[]; hidden: Set<string>; onDone: (h: NoteHeading) => void }) {
-  const items = useMemo(() => all.filter((h) => !hidden.has(`${h.path}:${h.at}`)), [all, hidden])
+function Agenda({ items: all, isHidden, onDone }: { items: NoteHeading[]; isHidden: (h: NoteHeading) => boolean; onDone: (h: NoteHeading) => void }) {
+  const items = all.filter((h) => !isHidden(h))
   const groups = useMemo(() => {
     const out: { label: string; items: NoteHeading[] }[] = []
     const overdue = items.filter((h) => h.overdue)

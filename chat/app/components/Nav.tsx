@@ -1,6 +1,6 @@
 /**
- * Getting around: the Home | Threads switch at the top of both screens, and
- * the ← that leaves a thread (or new chat, settings, notes).
+ * Getting around: the Home | Threads | Organiser switch at the top of the
+ * three, and the ← that leaves a thread (or new chat, settings, a note).
  *
  * The back gesture is the browser's history (Capacitor's back button is
  * `history.back()` while there is one), so both are written to keep that
@@ -12,7 +12,9 @@
 import type { MouseEvent, ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 
-type Tab = 'home' | 'threads'
+type Tab = 'home' | 'threads' | 'organiser'
+
+const TAB_PATH: Record<Tab, string> = { home: '/', threads: '/threads', organiser: '/organiser' }
 
 /** The history entry React Router is on (0 = the first page this app loaded). */
 const historyIdx = () => (typeof window === 'undefined' ? 0 : Number((window.history.state as { idx?: number } | null)?.idx) || 0)
@@ -22,8 +24,11 @@ export function HomeTabs({ current }: { current: Tab }) {
   const location = useLocation()
   const go = (to: Tab) => {
     if (to === current) return
-    if (to === 'threads') navigate('/threads', { state: { fromHome: true } })
-    else if ((location.state as { fromHome?: boolean } | null)?.fromHome && historyIdx() > 0) navigate(-1)
+    const fromHome = (location.state as { fromHome?: boolean } | null)?.fromHome && historyIdx() > 0
+    // From Home a tab pushes (back returns Home); between the other two it
+    // replaces, so back still means Home; to Home it pops that entry.
+    if (to !== 'home') navigate(TAB_PATH[to], { state: { fromHome: current === 'home' || fromHome }, replace: current !== 'home' })
+    else if (fromHome) navigate(-1)
     else navigate('/', { replace: true })
   }
   const tab = (id: Tab, label: string) => (
@@ -35,6 +40,7 @@ export function HomeTabs({ current }: { current: Tab }) {
     <nav className="tabs" role="tablist" aria-label="Views">
       {tab('home', 'Home')}
       {tab('threads', 'Threads')}
+      {tab('organiser', 'Organiser')}
     </nav>
   )
 }

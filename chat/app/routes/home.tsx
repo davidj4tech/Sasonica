@@ -1,8 +1,9 @@
 /**
  * Home, the landing screen: what needs you, what is working, what is being
  * said, where each thread was, a quick way to start, and the machines — all
- * from one poll of GET /dashboard (§6.11, hooks/useDashboard.ts). The thread
- * list is the other tab (components/Nav.tsx).
+ * from one poll of GET /dashboard (§6.11, hooks/useDashboard.ts) — and what
+ * is due, asked of the organiser on its own (components/HomeAgenda.tsx).
+ * Threads and the Organiser are the other tabs (components/Nav.tsx).
  *
  * Needs you: the thread's own question / approval card (parts.tsx
  * ApprovalCard), answered here through the same POST /session/answer; the
@@ -15,6 +16,7 @@ import { hasCredential } from '../api/auth'
 import type { Approval, DashNeed, DashRecent, DashWorking, QuestionAnswer } from '../api/types'
 import { Mark } from '../components/Mark'
 import { Machines } from '../components/Machines'
+import { HomeAgenda } from '../components/HomeAgenda'
 import { HomeTabs } from '../components/Nav'
 import { OutputSheet } from '../components/OutputSheet'
 import { ApprovalCard, ThreadActionsContext, type ThreadActions } from '../components/parts'
@@ -89,9 +91,6 @@ function HomeScreen() {
           Sasonica
         </h1>
         {stale && <span className="updating">updating…</span>}
-        <Link className="icon" to="/notebook" title="Notes">
-          ✎
-        </Link>
         <Link className="icon" to="/settings" title="Settings">
           ⚙
         </Link>
@@ -120,6 +119,8 @@ function HomeScreen() {
                 </ul>
               </Section>
             )}
+
+            <HomeAgenda />
 
             <Section id="listening" title="Listening">
               <Listening queuedFallback={data.speech.queued.length} target={data.speech.now.target} onOutput={() => setOutput(true)} />

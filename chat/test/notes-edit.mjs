@@ -20,7 +20,7 @@ await page.goto(BASE + '/settings')
 await page.evaluate(([base, res]) => { localStorage.setItem('sasonica.chat.baseUrl', base); localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() })); localStorage.setItem('sasonica.notes.view', 'inbox') }, [BASE, pr])
 
 // 1. ○ on a row: gone at once, the file says DONE with CLOSED; Undo restores it
-await page.goto(BASE + '/notebook')
+await page.goto(BASE + '/organiser')
 await page.waitForSelector('.note-row:has-text("Water the fern")')
 await page.click('button[aria-label="Mark done: Water the fern"]')
 await page.waitForSelector('.note-toast:has-text("Done: Water the fern")')
@@ -69,7 +69,7 @@ ok(/\* Inbox\n\*\* NEXT Sharpen the shears\n\*\* NEXT \[#A\] Ring the plumber :p
 ok((await page.locator('.bar h1').innerText()).includes('Ring the plumber'), 'the reader shows it in its new place')
 
 // 5. Move to the tickler, on a date
-await page.goto(BASE + '/notebook')
+await page.goto(BASE + '/organiser')
 await page.click('.note-view:has-text("Inbox")')
 await page.click('.note-row:has-text("Library hold")')
 await page.click('.state-key.move')
@@ -81,12 +81,12 @@ files = (await mock()).files
 ok(files['tickler.org'].includes('** WAITING Library hold on the atlas\n   SCHEDULED: <2026-12-01>'), 'tickler.org: scheduled on the date')
 
 // 6. Roam notes are read-only here
-await page.goto(BASE + '/notebook/note?path=' + encodeURIComponent('roam/projects/garden.org'))
+await page.goto(BASE + '/organiser/note?path=' + encodeURIComponent('roam/projects/garden.org'))
 await page.waitForSelector('.note-body')
 ok((await page.locator('.note-actions').count()) === 0, 'no state keys on a roam note')
 
 // 7. A heading changed at the desk: said, not guessed
-await page.goto(BASE + '/notebook')
+await page.goto(BASE + '/organiser')
 await page.click('.note-view:has-text("Inbox")')
 await page.waitForSelector('.note-row')
 const firstTitle = (await page.locator('.note-row .title').first().innerText()).trim()

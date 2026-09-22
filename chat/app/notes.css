@@ -115,3 +115,14 @@ button.done-key:hover, button.done-key:focus-visible { color: var(--accent); }
 .move-targets { display: flex; flex-direction: column; gap: 8px; }
 .move-targets button { text-align: left; }
 .move-sheet .move-date { display: flex; flex-direction: column; gap: 12px; }
+.note-views .setup-chip { text-decoration: none; border-style: dashed; }
+
+/* Home's Agenda section (components/HomeAgenda.tsx): the organiser's rows,
+   inside the dashboard's section frame. */
+.dash-agenda .notes { margin: 0 -16px; }
+.dash-agenda .note-row { padding-top: .55rem; padding-bottom: .55rem; }
+.dash-agenda .agenda-when { flex: none; font-size: .8rem; color: var(--muted); }
+.dash-agenda .agenda-when.overdue { color: var(--warn); }
+.dash-agenda .agenda-empty { color: var(--muted); margin: .3rem 0; }
+.dash-agenda .note-toast { margin: 8px 0 0; }
+.dash-agenda .open-organiser { display: inline-block; margin-top: 8px; }

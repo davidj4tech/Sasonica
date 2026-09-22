@@ -94,7 +94,7 @@ function NotePage() {
   return (
     <div className="page note-page">
       <header className="bar">
-        <button className="icon" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/notebook'))} title="Back">
+        <button className="icon" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/organiser'))} title="Back">
           ←
         </button>
         <h1>
@@ -110,7 +110,7 @@ function NotePage() {
       {error && (
         <p className="notice error">
           {error.changed ? 'This note changed since the list was drawn. ' : ''}
-          {error.changed ? <Link to="/notebook">Back to the list</Link> : error.text}
+          {error.changed ? <Link to="/organiser">Back to the list</Link> : error.text}
         </p>
       )}
       {said && <p className={said.failed ? 'notice error' : 'notice'}>{said.text}</p>}
@@ -137,7 +137,7 @@ function NotePage() {
             <nav className="note-links" aria-label="Linked notes">
               <h2>Linked</h2>
               {note.links.map((l) => (
-                <Link key={`${l.path}:${l.label}`} to={`/notebook/note?path=${encodeURIComponent(l.path)}`}>
+                <Link key={`${l.path}:${l.label}`} to={`/organiser/note?path=${encodeURIComponent(l.path)}`}>
                   {l.label}
                 </Link>
               ))}
