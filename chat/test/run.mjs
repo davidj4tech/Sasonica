@@ -23,8 +23,9 @@
 //           notice (urgent: stronger) and a list dot; ↑/↓ pills
 //   notes   the Notes tab: views, agenda, a heading and a roam note, read
 //           aloud, search (notes + memory), capture, setup + its window
-//   notes-edit  ○ done + Undo, a repeater moving on, state keys, Move to…
-//           (next actions, the tickler on a date), a vanished heading
+//   notes-edit  ○ done + Undo, a repeater moving on, state keys, a date
+//           changed, Move to… (next actions, the tickler on a date), a
+//           vanished heading
 //   draft   the composer's text per thread: switch, reload, hidden, a newer
 //           copy from another device, send clears it, new chat
 //   stream  the thread is its §11 stream: a new message renders < 1 s after

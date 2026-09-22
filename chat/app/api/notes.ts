@@ -189,7 +189,7 @@ export function closeSetupWindow(pane: string) {
   return request<{ pane: string }>('POST', '/harnesses/close', { pane })
 }
 
-// ── Changing a heading (§6.10: /notes/state, /notes/refile) ───────────────
+// ── Changing a heading (§6.10: /notes/state, /notes/refile, /notes/date) ──
 
 /** The states the app offers; `''` takes the keyword off. */
 export type NoteState = '' | 'TODO' | 'NEXT' | 'WAITING' | 'SOMEDAY' | 'DONE' | 'CANCELLED'
@@ -243,4 +243,25 @@ export function setNoteState(path: string, at: number, title: string, state: Not
 /** REAL on the server: moves the subtree to another file. Test on the mock. */
 export function refileNote(path: string, at: number, title: string, to: RefileTarget, date?: string) {
   return request<{ path: string; at: number; to: RefileTarget }>('POST', '/notes/refile', { path, at, title, to, ...(date ? { date } : {}) })
+}
+
+export type DateKind = 'scheduled' | 'deadline'
+
+export interface DateChanged {
+  path: string
+  at: number
+  kind: DateKind
+  /** YYYY-MM-DD, or `''` when the stamp was taken off. */
+  date: string
+  /** HH:MM, or `''` for none. */
+  time: string
+}
+
+/**
+ * REAL on the server: rewrites the heading's SCHEDULED or DEADLINE stamp,
+ * keeping its repeater. Leave `time` out to keep the stamp's time, `''` to
+ * drop it; an empty `date` takes the stamp off. Test on the mock.
+ */
+export function setNoteDate(path: string, at: number, title: string, kind: DateKind, date: string, time?: string) {
+  return request<DateChanged>('POST', '/notes/date', { path, at, title, kind, date, ...(time !== undefined ? { time } : {}) })
 }

@@ -5,7 +5,8 @@
  * and example blocks, tables as preformatted text, and the inline marks
  * people actually use: *bold*, /italic/, =code=, ~code~, links. Property
  * drawers and `#+` keywords are furniture and are left out; SCHEDULED /
- * DEADLINE lines become a quiet date line.
+ * DEADLINE lines become a quiet date line. Given `onDate`, the dates on the
+ * shown heading's own planning line are keys that change them.
  *
  * Links: `[[id:…][label]]` opens the note the server resolved it to (the
  * read answer's `links`, matched by label); `[[https://…][label]]` opens the
@@ -93,13 +94,56 @@ export function StateBadge({ state }: { state: string }) {
   return <span className={`org-state ${done ? 'done' : state.toLowerCase()}`}>{state}</span>
 }
 
+export interface PlanStamp {
+  kind: 'SCHEDULED' | 'DEADLINE' | 'CLOSED'
+  /** YYYY-MM-DD. */
+  date: string
+  /** HH:MM (the start of a range), or `''`. */
+  time: string
+  /** The stamp as shown: brackets and the day name's spacing tidied. */
+  shown: string
+}
+
+const STAMP = /(SCHEDULED|DEADLINE|CLOSED):\s*[<[]([^>\]]*)[>\]]/g
+
+/** The stamps on a planning line. */
+export function planStamps(line: string): PlanStamp[] {
+  return [...line.matchAll(STAMP)].map((m) => {
+    const inner = m[2].trim().replace(/\s+/g, ' ')
+    const t = /(?:^|\s)(\d{1,2}):(\d{2})/.exec(inner)
+    return {
+      kind: m[1] as PlanStamp['kind'],
+      date: inner.slice(0, 10),
+      time: t ? `${t[1].padStart(2, '0')}:${t[2]}` : '',
+      shown: `${m[1]}: ${inner}`
+    }
+  })
+}
+
+/** The planning line of a heading's text (its first line the heading), or `''`. */
+export function ownPlanning(text: string): string {
+  const second = text.split('\n', 2)[1] || ''
+  return /^\s*(SCHEDULED|DEADLINE|CLOSED):/.test(second) ? second : ''
+}
+
 /** The note's body, rendered. `skipFirstHeading` when the page title already shows it. */
-export function OrgBody({ text, links, skipFirstHeading = false }: { text: string; links: OrgLink[]; skipFirstHeading?: boolean }) {
+export function OrgBody({
+  text,
+  links,
+  skipFirstHeading = false,
+  onDate
+}: {
+  text: string
+  links: OrgLink[]
+  skipFirstHeading?: boolean
+  onDate?: (stamp: PlanStamp) => void
+}) {
   const lines = text.split('\n')
   const blocks: ReactNode[] = []
   let para: string[] = []
   let list: { depth: number; box: string | undefined; text: string }[] = []
   let skipped = !skipFirstHeading
+  let ownPlan = -1
   let i = 0
 
   const flushPara = () => {
@@ -159,6 +203,7 @@ export function OrgBody({ text, links, skipFirstHeading = false }: { text: strin
       i++
       if (!skipped) {
         skipped = true
+        ownPlan = i
         continue
       }
       const { state, priority, title, tags } = parseHeading(h[2])
@@ -177,9 +222,23 @@ export function OrgBody({ text, links, skipFirstHeading = false }: { text: strin
     if (/^(SCHEDULED|DEADLINE|CLOSED):/.test(s)) {
       flush()
       const k = `d${blocks.length}`
+      const stamps = onDate && i === ownPlan ? planStamps(s) : []
       blocks.push(
         <p key={k} className="org-date">
-          {s.replace(/[<>[\]]/g, '').replace(/\s+/g, ' ')}
+          {stamps.length
+            ? stamps.map((st, n) => (
+                <Fragment key={n}>
+                  {n > 0 && ' '}
+                  {st.kind === 'CLOSED' ? (
+                    st.shown
+                  ) : (
+                    <button className="date-key" onClick={() => onDate!(st)} title="Change the date">
+                      {st.shown}
+                    </button>
+                  )}
+                </Fragment>
+              ))
+            : s.replace(/[<>[\]]/g, '').replace(/\s+/g, ' ')}
         </p>
       )
       i++

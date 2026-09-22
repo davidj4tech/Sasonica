@@ -133,7 +133,7 @@ export async function notesRoute(method, path, q, body, ok, err) {
     NOTES_LOG.captures.push({ text, kind })
     return ok({ path: 'inbox.org', at, kind, remembered: body.memory !== false })
   }
-  if (method === 'POST' && (path === '/notes/state' || path === '/notes/refile')) {
+  if (method === 'POST' && (path === '/notes/state' || path === '/notes/refile' || path === '/notes/date')) {
     // The same finding rule as the server: the line if it still holds the
     // title, else the one heading with that title, else 409.
     const p = String(body.path || '')
@@ -150,6 +150,31 @@ export async function notesRoute(method, path, q, body, ok, err) {
     const level = m[1].length
     const setState = (line, st) => { const h = HEAD.exec(line); return [h[1], st, h[3] ? `[#${h[3]}]` : '', h[4]].filter(Boolean).join(' ') + (h[5] ? ' ' + h[5] : '') }
     NOTES_LOG.edits.push({ path, ...body })
+    if (path === '/notes/date') {
+      // The stamp rewritten in place: its repeater kept, its time unless given.
+      const kind = String(body.kind || 'scheduled').toUpperCase()
+      if (kind !== 'SCHEDULED' && kind !== 'DEADLINE') return err(400, `not a date kind: '${body.kind}'`)
+      const date = String(body.date || '')
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return err(400, 'the date must be YYYY-MM-DD')
+      const re = new RegExp(`${kind}:\\s*<([^>]*)>`)
+      const plan = /^\s*(SCHEDULED|DEADLINE|CLOSED):/.test(lines[i + 1] || '') ? i + 1 : -1
+      const old = plan >= 0 ? re.exec(lines[plan]) : null
+      const parts = old ? old[1].split(' ').slice(1).filter((x) => /\d/.test(x)) : []
+      const oldTime = parts.find((x) => /^\d{1,2}:\d{2}/.test(x)) || ''
+      const time = body.time === undefined ? oldTime : String(body.time)
+      const day = date ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(date + 'T12:00:00Z').getUTCDay()] : ''
+      const stamp = `${kind}: <${[date, day, time, ...parts.filter((x) => x !== oldTime)].filter(Boolean).join(' ')}>`
+      if (date && old) lines[plan] = lines[plan].replace(re, stamp)
+      else if (date && plan >= 0) lines[plan] = `${lines[plan].trimEnd()} ${stamp}`
+      else if (date) lines.splice(i + 1, 0, ' '.repeat(level + 1) + stamp)
+      else if (old) {
+        const rest = lines[plan].replace(re, '').replace(/\s+/g, ' ').trim()
+        if (rest) lines[plan] = lines[plan].match(/^\s*/)[0] + rest
+        else lines.splice(plan, 1)
+      }
+      FILES[p] = lines.join('\n') + '\n'
+      return ok({ path: p, at: i + 1, kind: kind.toLowerCase(), date, time: date ? time : '' })
+    }
     if (path === '/notes/state') {
       const st = String(body.state || '').toUpperCase()
       const plan = /^\s*(SCHEDULED|DEADLINE|CLOSED):/.test(lines[i + 1] || '') ? i + 1 : -1

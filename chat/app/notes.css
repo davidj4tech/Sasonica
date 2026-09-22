@@ -131,3 +131,9 @@ button.done-key:hover, button.done-key:focus-visible { color: var(--accent); }
 .note-ask { display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 10px; }
 .note-chats { display: flex; flex-wrap: wrap; gap: 6px; }
 .note-chats a { font-size: .867rem; color: var(--text); background: var(--panel-2); border-radius: 999px; padding: 3px 10px; text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.date-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.date-sheet .date-time { display: flex; gap: 8px; }
+.date-sheet .date-time input { flex: 1; }
+.rename-sheet button.quiet.danger { color: var(--bad); margin-right: auto; }
+.org-date button.date-key { font: inherit; color: var(--accent); background: none; border: 0; border-bottom: 1px dashed currentColor; padding: 0; cursor: pointer; }
+.rename-sheet .date-quick button { padding: 0 12px; }

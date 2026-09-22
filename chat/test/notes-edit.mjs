@@ -1,7 +1,7 @@
 // Changing notes from the Notes tab: ○ marks a row done (Undo puts it
-// back; a repeating one moves on instead), the reader's state keys, Move
-// to… (next actions, the tickler on a date), roam notes left read-only, and
-// a heading gone from under the app. Mock only: a real one rewrites ~/org.
+// back; a repeating one moves on instead), the reader's state keys, a date
+// tapped and changed, Move to… (next actions, the tickler on a date), roam
+// notes left read-only, and a heading gone from under the app. Mock only: a real one rewrites ~/org.
 import { chromium, SHOTS } from './lib.mjs'
 const BASE = process.env.BASE || 'http://127.0.0.1:8811'
 let fails = 0
@@ -54,6 +54,28 @@ await page.waitForSelector('.notice:has-text("Now WAITING")')
 await page.waitForSelector('.bar h1 .org-state.waiting')
 ok((await mock()).inbox.includes('** WAITING [#A] Ring the plumber :phone:'), 'inbox.org: WAITING, priority and tags kept')
 await page.screenshot({ path: SHOTS + '/notes-edit-02-reader.png' })
+
+// 3b. The date: tapped, changed, given a time, then a new one added and removed
+await page.click('.org-date button.date-key:has-text("DEADLINE")')
+await page.waitForSelector('.date-sheet')
+await page.screenshot({ path: SHOTS + '/notes-edit-02b-date.png' })
+await page.fill('.date-sheet input[type=date]', '2026-10-09')
+await page.fill('.date-sheet input[type=time]', '19:00')
+await page.click('.date-sheet button[type=submit]')
+await page.waitForSelector('.notice:has-text("Deadline for 2026-10-09 at 19:00")')
+ok((await mock()).inbox.includes(':phone:\n   DEADLINE: <2026-10-09 Fri 19:00>'), 'inbox.org: the deadline moved, with a time')
+await page.waitForSelector('.org-date button.date-key:has-text("2026-10-09")')
+ok(true, 'the page shows the new date')
+await page.click('.state-key:has-text("Schedule…")')
+await page.click('.date-quick button:has-text("Tomorrow")')
+await page.click('.date-sheet button[type=submit]')
+await page.waitForSelector('.notice:has-text("Scheduled for")')
+ok(/:phone:\n   DEADLINE: <2026-10-09 Fri 19:00> SCHEDULED: <\d{4}-\d{2}-\d{2} \w{3}>\n/.test((await mock()).inbox), 'Schedule… adds a SCHEDULED beside the deadline')
+ok((await page.locator('.state-key:has-text("Schedule…")').count()) === 0, 'and Schedule… goes once there is one')
+await page.click('.org-date button.date-key:has-text("SCHEDULED")')
+await page.click('.date-sheet button:has-text("Remove date")')
+await page.waitForSelector('.notice:has-text("Scheduled date removed")')
+ok((await mock()).inbox.includes(':phone:\n   DEADLINE: <2026-10-09 Fri 19:00>\n'), 'Remove date takes it off again')
 
 // 4. Move to… Next actions: the page follows the heading to its new file
 await page.click('.state-key.move')

@@ -1,17 +1,19 @@
 /**
  * One note, or one heading of a GTD file (`?path=…&at=<line>`), rendered
  * from its Org text (lib/org.tsx). The speaker key hands it to the voice
- * (`POST /notes/say`), which reads it like any reply. A 409 means the file
- * changed under us since the list was drawn: back to the list to refresh.
+ * (`POST /notes/say`), which reads it like any reply. A to-do's date is a
+ * key: tapped, a sheet picks a new one (`POST /notes/date`). A 409 means the
+ * file changed under us since the list was drawn: back to the list to refresh.
  */
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { hasCredential } from '../api/auth'
 import { ApiError } from '../api'
-import { isEditable, readNote, refileNote, REFILE_LABELS, sayNote, setNoteState, type NoteState, type NoteText, type RefileTarget } from '../api/notes'
+import { isEditable, readNote, refileNote, REFILE_LABELS, sayNote, setNoteDate, setNoteState, type DateKind, type NoteState, type NoteText, type RefileTarget } from '../api/notes'
+import { DateSheet } from '../components/DateSheet'
 import { MoveSheet } from '../components/MoveSheet'
 import { NoteAsk } from '../components/NoteAsk'
-import { noteHref as noteHrefOf, OrgBody, parseHeading, StateBadge } from '../lib/org'
+import { noteHref as noteHrefOf, OrgBody, ownPlanning, parseHeading, planStamps, StateBadge } from '../lib/org'
 import { SpeechBar } from '../components/SpeechBar'
 import '../notes.css'
 
@@ -29,6 +31,7 @@ function NotePage() {
   const [error, setError] = useState<{ text: string; changed?: boolean } | null>(null)
   const [said, setSaid] = useState<{ text: string; failed?: boolean } | null>(null)
   const [moving, setMoving] = useState(false)
+  const [dating, setDating] = useState<{ kind: DateKind; date: string; time: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [reload, setReload] = useState(0)
 
@@ -88,9 +91,31 @@ function NotePage() {
     }
   }
 
+  const changeDate = async (date: string, time: string) => {
+    if (!note || !dating) return
+    const { kind } = dating
+    setDating(null)
+    setBusy(true)
+    setSaid(null)
+    try {
+      // An untouched time is left out, so a range (19:00-20:00) survives.
+      const r = await setNoteDate(path, at, note.title, kind, date, time === dating.time ? undefined : time)
+      const what = kind === 'deadline' ? 'Deadline' : 'Scheduled'
+      setSaid({ text: r.date ? `${what} for ${r.date}${r.time ? ` at ${r.time}` : ''}.` : `${what} date removed.` })
+      if (r.at !== at) navigate(noteHrefOf(r.path, r.at), { replace: true })
+      else setReload((n) => n + 1)
+    } catch (err) {
+      setSaid({ text: err instanceof Error ? err.message : String(err), failed: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // A heading's own line carries its state; the page title shows it once.
   const head = note && at ? parseHeading(note.text.split('\n', 1)[0].replace(/^\*+\s+/, '')) : null
   const where = path.replace(/^roam\//, '').replace(/\.org$/, '')
+  const datable = !!note && !!head && isEditable(path)
+  const stamps = note && at ? planStamps(ownPlanning(note.text)) : []
 
   return (
     <div className="page note-page">
@@ -122,18 +147,29 @@ function NotePage() {
               {st === 'DONE' ? '✓ Done' : st}
             </button>
           ))}
+          {!stamps.some((st) => st.kind === 'SCHEDULED') && (
+            <button className="state-key" disabled={busy} onClick={() => setDating({ kind: 'scheduled', date: '', time: '' })}>
+              Schedule…
+            </button>
+          )}
           <button className="state-key move" disabled={busy} onClick={() => setMoving(true)}>
             Move to…
           </button>
         </div>
       )}
       {moving && <MoveSheet from={path} onMove={(to, date) => void move(to, date)} onClose={() => setMoving(false)} />}
+      {dating && <DateSheet {...dating} onSave={(date, time) => void changeDate(date, time)} onClose={() => setDating(null)} />}
       {!note && !error && <p className="notice">Loading…</p>}
 
       {note && (
         <article className="note-body">
           <p className="note-where">{at ? `${where} · line ${at}` : where}</p>
-          <OrgBody text={note.text} links={note.links} skipFirstHeading={!!at} />
+          <OrgBody
+            text={note.text}
+            links={note.links}
+            skipFirstHeading={!!at}
+            onDate={datable && !busy ? (st) => st.kind !== 'CLOSED' && setDating({ kind: st.kind === 'DEADLINE' ? 'deadline' : 'scheduled', date: st.date, time: st.time }) : undefined}
+          />
           {note.links.length > 0 && (
             <nav className="note-links" aria-label="Linked notes">
               <h2>Linked</h2>
