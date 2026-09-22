@@ -212,6 +212,23 @@ export function normaliseServer(text: string): string {
   return /^https?:\/\//i.test(s) ? s : `http://${s}`
 }
 
+/**
+ * Why a bare host name may not be reachable: the Android build allows plain
+ * http only to tailnet addresses (network_security_config), so `red5` alone
+ * — a MagicDNS short name — can be refused before it is ever asked. '' for
+ * an address with a dot or an IP.
+ */
+export function shortHostHint(base: string): string {
+  let host = ''
+  try {
+    host = new URL(base).hostname
+  } catch {
+    return ''
+  }
+  if (!host || host.includes('.') || host.includes(':') || host === 'localhost') return ''
+  return '. This build only allows tailnet addresses: use 100.x.y.z or name.<tailnet>.ts.net'
+}
+
 /** A name to offer the server; the desk's name wins (§9). */
 export function defaultDeviceName(): string {
   const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
@@ -252,7 +269,7 @@ export async function pair(req: PairRequest, device = defaultDeviceName()): Prom
       body: JSON.stringify({ code: req.code.trim(), device })
     })
   } catch {
-    throw new PairError(`Could not reach ${base}`, 0)
+    throw new PairError(`Could not reach ${base}${shortHostHint(base)}`, 0)
   }
   let payload: Record<string, unknown> = {}
   try {

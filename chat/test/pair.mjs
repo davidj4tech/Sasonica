@@ -103,6 +103,23 @@ await page.getByRole('button', { name: 'Pair' }).click()
 await page.waitForURL(BASE + '/')
 ok(!!(await page.evaluate(() => localStorage.getItem('sasonica.chat.device'))), 'pasted sasonica:// link pairs')
 
+// 5b. a bare short host that cannot be reached says why
+await page.evaluate(() => localStorage.removeItem('sasonica.chat.device'))
+await page.goto(BASE + '/pairing')
+await page.getByLabel('Pairing link').fill('http://nosuchhost-sasonica:8781/pair?c=c0ffee42&device=1')
+await page.getByRole('button', { name: 'Pair' }).click()
+await page.waitForSelector('text=only allows tailnet addresses', { timeout: 15000 }).catch(() => null)
+ok((await page.locator('text=only allows tailnet addresses').count()) > 0, 'unreachable short host → the tailnet-address hint')
+
+// 5c. the desk's browser link (what a terminal copy gives), pasted into the Code box
+await page.evaluate(() => localStorage.removeItem('sasonica.chat.device'))
+await fetch(BASE + '/mock/pair')
+await page.goto(BASE + '/pairing')
+await page.getByLabel('Code').fill(`${BASE}/pair?c=c0ffee42&device=1`)
+await page.getByRole('button', { name: 'Pair' }).click()
+await page.waitForURL(BASE + '/')
+ok(!!(await page.evaluate(() => localStorage.getItem('sasonica.chat.device'))), 'browser link /pair?c=…&device=1 pasted in the Code box pairs')
+
 // 6. revoked device → 401 in the list
 const d2 = await page.evaluate(() => JSON.parse(localStorage.getItem('sasonica.chat.device')))
 await fetch(BASE + '/mock/devices?revoke=' + d2.device_id)

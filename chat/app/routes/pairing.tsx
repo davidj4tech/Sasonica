@@ -77,7 +77,11 @@ export default function Pairing() {
   }, [params])
 
   const submit = () => {
-    const fromLink = parsePairLink(link)
+    // A link pasted into the code or server box counts as the link: the
+    // desk prints the browser form (http://HOST:8781/pair?c=CODE&device=1)
+    // and that is what gets copied from a terminal.
+    const pasted = link.trim() ? link : [code, server].find((t) => parsePairLink(t)) || ''
+    const fromLink = parsePairLink(pasted)
     if (link.trim() && !fromLink) {
       setError('That is not a pairing link. It looks like sasonica://pair?server=…&code=…')
       return
