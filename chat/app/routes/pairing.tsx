@@ -1,7 +1,7 @@
 /**
  * Pair this device with a canvas (server-contract.md §9).
  *
- * At the desk: `media-visual-canvas pair --device "Pixel 8a"` prints
+ * At the desk: `sasonica pair --device "Pixel 8a"` prints
  * `sasonica://pair?server=<base>&code=<code>` (and a browser link). Here:
  * paste either link, or type the server address and the code. `POST /pair`
  * trades the one-time code for a device token, which api/auth.ts keeps.
@@ -24,7 +24,7 @@ const attempted = new Set<string>()
 
 function explain(err: unknown): string {
   if (err instanceof PairError) {
-    if (err.status === 403) return 'That code is wrong, already used, or expired. Mint a new one at the desk: media-visual-canvas pair --device NAME'
+    if (err.status === 403) return 'That code is wrong, already used, or expired. Mint a new one at the desk: sasonica pair --device NAME'
     if (err.status === 429) return err.message || 'Too many attempts; try again in a few minutes.'
     if (err.status === 404 || err.status === 405) return 'That server does not do device pairing (is it the canvas, on port 8781?).'
     return err.message
@@ -124,7 +124,7 @@ export default function Pairing() {
         </div>
         {first && <p className="lead">Sasonica needs to be paired with your server once.</p>}
         <p className="hint">
-          At the desk, run <code>media-visual-canvas pair --device "Phone"</code> and paste the <code>sasonica://pair?…</code> link it prints.
+          At the desk, run <code>sasonica pair --device "Phone"</code> and paste the <code>sasonica://pair?…</code> link it prints.
         </p>
         {current && (
           <p className="status">
