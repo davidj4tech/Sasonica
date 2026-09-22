@@ -73,7 +73,7 @@ a { color: var(--accent); }
 .menu-anchor { position: relative; }
 /* A dropped menu's clear scrim (components/Popover.tsx): catches the tap outside. */
 .popover-scrim { position: fixed; inset: 0; z-index: 30; background: transparent; }
-.menu.popover { position: fixed; }
+.menu.popover { position: fixed; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .menu-anchor .icon { min-width: 44px; min-height: 44px; }
 /* The ← on every sub-page: a 44 px target at any text size. */
 .bar > a.icon { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
@@ -615,6 +615,10 @@ a { color: var(--accent); }
 /* The thread filter (lib/threadFilter.ts): lit when it hides something. */
 .filter-button.on { color: var(--accent); }
 .filter-menu .menu-sep { height: 1px; margin: 4px 0; background: var(--line); }
+/* The filter menu's three parts (Show, Project, State): a small heading each,
+ * so the states below the fold are findable (routes/threads.tsx). */
+.filter-menu .menu-head { padding: 10px 14px 4px; font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); margin-top: 4px; }
+.filter-menu .menu-head:first-child { border-top: 0; margin-top: 0; padding-top: 6px; }
 .thread-row .archived-mark { color: var(--muted); }
 .filter-empty .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .project-head { border-bottom: 1px solid var(--line); }

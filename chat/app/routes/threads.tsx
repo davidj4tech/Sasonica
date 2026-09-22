@@ -216,6 +216,7 @@ function ThreadList() {
 
       {filterOpen && (
         <Popover anchor={filterButton} label="Filter threads" align="left" className="sort-menu filter-menu" onClose={() => setFilterOpen(false)}>
+          <div className="menu-head" role="presentation">Show</div>
           {SHOWS.map((k) => (
             <button key={k} role="menuitemradio" aria-checked={filter.show === k} className={filter.show === k ? 'on' : ''} onClick={() => setFilter({ ...filter, show: k })}>
               <span className="mark" aria-hidden="true">
@@ -224,22 +225,22 @@ function ThreadList() {
               {SHOW_LABEL[k]}
             </button>
           ))}
-          <div className="menu-sep" role="separator" />
-          {[null, ...projects].map((p) => (
-            <button key={p ?? ''} role="menuitemradio" aria-checked={filter.project === p} className={filter.project === p ? 'on' : ''} onClick={() => setFilter({ ...filter, project: p })}>
-              <span className="mark" aria-hidden="true">
-                {filter.project === p ? '✓' : ''}
-              </span>
-              {p ?? 'All projects'}
-            </button>
-          ))}
-          <div className="menu-sep" role="separator" />
+          <div className="menu-head" role="presentation">State</div>
           {STATE_FILTERS.map((k) => (
             <button key={k} role="menuitemcheckbox" aria-checked={filter.states.includes(k)} className={filter.states.includes(k) ? 'on' : ''} onClick={() => toggleState(k)}>
               <span className="mark" aria-hidden="true">
                 {filter.states.includes(k) ? '✓' : ''}
               </span>
               {STATE_FILTER_LABEL[k]}
+            </button>
+          ))}
+          <div className="menu-head" role="presentation">Project</div>
+          {[null, ...projects].map((p) => (
+            <button key={p ?? ''} role="menuitemradio" aria-checked={filter.project === p} className={filter.project === p ? 'on' : ''} onClick={() => setFilter({ ...filter, project: p })}>
+              <span className="mark" aria-hidden="true">
+                {filter.project === p ? '✓' : ''}
+              </span>
+              {p ?? 'All projects'}
             </button>
           ))}
         </Popover>

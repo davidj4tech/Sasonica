@@ -20,12 +20,16 @@ export function Popover(props: {
   role?: string
 }) {
   const scrim = useScrim(props.onClose)
-  const [pos, setPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
+  const [pos, setPos] = useState<{ top: number; left?: number; right?: number; maxHeight: number } | null>(null)
   useLayoutEffect(() => {
     const el = props.anchor.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    setPos(props.align === 'left' ? { top: r.bottom + 4, left: Math.max(8, r.left) } : { top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) })
+    // A long menu (the filter's: Show, the projects, the states) would run
+    // off the foot of the screen, so it takes the room there is and scrolls.
+    const top = r.bottom + 4
+    const maxHeight = Math.max(160, window.innerHeight - top - 8)
+    setPos(props.align === 'left' ? { top, left: Math.max(8, r.left), maxHeight } : { top, right: Math.max(8, window.innerWidth - r.right), maxHeight })
   }, [props.anchor, props.align])
   if (typeof document === 'undefined') return null
   return createPortal(
