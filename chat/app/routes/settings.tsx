@@ -15,6 +15,7 @@ import { Link } from 'react-router'
 import { getTargets } from '../api'
 import { credentialKind, hasLegacyToken, pairedDevice, serverBase, setBaseUrl, setLegacyToken, storedBaseUrl, unpair } from '../api/auth'
 import { LEAD_DEFAULT_S, LEAD_MAX_S, LEAD_MIN_S, LEAD_STEP_S, setFollowLead, useFollowLead } from '../lib/followLead'
+import { backgroundNotifyStatus, setBackgroundNotify, syncBackgroundNotify, type BackgroundNotifyStatus } from '../lib/native'
 import { getShowAmbient, setShowAmbient } from '../lib/pictures'
 import { setAdvanced, useAdvanced } from '../lib/advanced'
 import { getTextSize, setTextSize, TEXT_SIZE_EVENT, TEXT_SIZES, type TextSizeId } from '../lib/textSize'
@@ -44,10 +45,20 @@ export default function Settings() {
   const [kind, setKind] = useState(() => credentialKind())
   const lead = useFollowLead()
   const advanced = useAdvanced()
+  // Background notifications: the Android shell only (null elsewhere).
+  const [bg, setBg] = useState<BackgroundNotifyStatus | null>(null)
+  useEffect(() => {
+    let live = true
+    void backgroundNotifyStatus().then((s) => live && setBg(s))
+    return () => {
+      live = false
+    }
+  }, [])
 
   const save = () => {
     setBaseUrl(url)
     if (token) setLegacyToken(token)
+    else void syncBackgroundNotify(serverBase())
     setTok('')
     setKind(credentialKind())
     setSaved('Saved.')
@@ -105,7 +116,7 @@ export default function Settings() {
                   type="button"
                   className="quiet"
                   onClick={() => {
-                    unpair()
+                    void unpair()
                     setDevice(null)
                     setKind(credentialKind())
                     setSaved(
@@ -182,6 +193,30 @@ export default function Settings() {
           </label>
           <small>The small pictures drawn beside a reply. Figures (diagrams) always show, as a thumbnail. On this device only.</small>
         </fieldset>
+        {bg && (
+          <fieldset data-testid="bg-notify">
+            <legend>Notifications</legend>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={bg.enabled}
+                onChange={(e) => {
+                  const on = e.target.checked
+                  setBg({ ...bg, enabled: on })
+                  void setBackgroundNotify(on).then((s) => s && setBg(s))
+                }}
+              />
+              Notify me when the app is closed
+            </label>
+            <small>
+              {!bg.permitted
+                ? 'Android is not letting Sasonica post notifications: allow them in the phone’s settings for this app.'
+                : bg.enabled
+                  ? `Keeps one quiet connection to the server open, shown as “Sasonica · listening for replies”.${bg.state ? ` Now: ${bg.state}` : ''}`
+                  : 'Off: replies are told only while the app is open.'}
+            </small>
+          </fieldset>
+        )}
         <fieldset>
           <legend>Advanced</legend>
           <label className="check">

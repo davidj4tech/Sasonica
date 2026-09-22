@@ -507,9 +507,10 @@ It passed the mock and failed on the phone because real live lines differ:
 `chat/` is also a Capacitor 7 project: `capacitor.config.ts` + `android/`.
 The app is **Sasonica Next**, applicationId `com.sasonica.next`, installed
 BESIDE the old Sasonica (`com.sasonica.app`), which keeps playing speech and
-owns the phone's ports 8773 / 6613 and its MediaSession. Next binds no port,
-has no MediaSession or foreground service, and its notification channels
-(`replies`, `needs-you`) are its own package's. It takes over
+owns the phone's ports 8773 / 6613 and its MediaSession. Next binds no port
+and has no MediaSession; its one foreground service is the background
+notifier below, and its notification channels (`replies`, `needs-you`,
+`listening`) are its own package's. It takes over
 `com.sasonica.app` only when it replaces the old app.
 
 - **Build:** CI only (red5 has no Android SDK). `.github/workflows/build-next-apk.yml`
@@ -544,12 +545,27 @@ What is native (all of it goes through `app/lib/native.ts`, a no-op on the web):
   "New reply · <title>" (channel `replies`) or "Needs you · <title>"
   (`needs-you`, high importance), with the brand icon; one per session; a
   tap opens the thread; opening the thread clears it. Permission is asked
-  once, after pairing. This only fires while the WebView still runs JS —
-  Android soon freezes a backgrounded app, so nothing arrives once it is
-  cached. True background delivery needs either a push from the server
-  (FCM, i.e. a Google project and the server sending) or a foreground
-  service holding the §11 stream open natively (a persistent notification,
-  battery cost) — the old app's approach, deliberately not copied yet.
+  once, after pairing. From the WebView this only fires while it still runs
+  JS — Android soon freezes a backgrounded app.
+- **Background notifications** (David, 22 Sep 2026: a foreground service,
+  not FCM): `NotifyService.java` keeps ONE `GET /sessions/events` stream
+  (server-contract.md §6.13) open while the app is closed or swiped away,
+  and posts the same "New reply" / "Needs you" per thread (tag = session,
+  grouped), tap → the thread (`NotifyPlugin`'s `open` event → the web's
+  `onNotificationTap`). Nothing is posted while the app is on screen (the
+  in-app notice covers it); while the service runs, the WebView's own
+  `notifyArrival` stands aside. A quiet persistent notification
+  ("Sasonica · listening for replies", channel `listening`, minimum
+  importance) has **Turn off**; Settings → Notifications has the toggle
+  (on by default once notifications are permitted). FGS type `specialUse`
+  (dataSync is capped at 6 h/day on Android 15). One connection, ping every
+  120 s, read timeout 270 s, backoff 2 s → 5 min; after 30 min failing it
+  parks (no timer) and says so, and retries on a network change or when
+  the app is opened; a 401 parks until the app pairs again. No wake locks.
+  Restarts after a reboot or an update when on (`NotifyBootReceiver`). The
+  decision logic is plain Java with JUnit tests (`NotifyRules`, `Backoff`,
+  `SseReader`; CI runs `testDebugUnitTest`). Needs a server with
+  `/sessions/events`; an older one leaves it retrying, then parked.
 - **Output…** in the speech sheet opens Android's own output picker
   (`OutputSwitcherPlugin.java`, androidx.mediarouter's
   `SystemOutputSwitcherDialogController`), falling back to Bluetooth

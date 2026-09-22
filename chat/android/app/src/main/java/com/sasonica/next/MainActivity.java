@@ -18,6 +18,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(OutputSwitcherPlugin.class);
         registerPlugin(AssistPlugin.class);
         registerPlugin(SpeechInputPlugin.class);
+        registerPlugin(NotifyPlugin.class);
         super.onCreate(savedInstanceState);
         fitWebViewToBarsAndKeyboard();
         backClosesMenusFirst();

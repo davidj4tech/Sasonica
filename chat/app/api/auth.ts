@@ -25,7 +25,7 @@
  * A token an earlier web build left in localStorage moves across and is
  * wiped there. Nothing outside this file reads the token.
  */
-import { isNative, SecureStore } from '../lib/native'
+import { isNative, SecureStore, syncBackgroundNotify } from '../lib/native'
 
 const BASE_KEY = 'sasonica.chat.baseUrl'
 /** v0: the Audiobookshelf bearer (the preview server's pairing page writes this key too). */
@@ -93,12 +93,16 @@ function readSecret(key: string): string {
   return isNative() ? secrets.get(key) || '' : read(key)
 }
 
-function writeSecret(key: string, value: string) {
-  if (!isNative()) return write(key, value)
+/** Resolves once the keystore has it (at once on the web); never rejects. */
+function writeSecret(key: string, value: string): Promise<void> {
+  if (!isNative()) {
+    write(key, value)
+    return Promise.resolve()
+  }
   if (value) secrets.set(key, value)
   else secrets.delete(key)
   const done = value ? SecureStore.set({ key, value }) : SecureStore.remove({ key })
-  done.catch(() => {
+  return done.catch(() => {
     // Kept for this run only; the next start asks to pair again.
   })
 }
@@ -161,8 +165,8 @@ function readDevice(): Device | null {
     return null
   }
 }
-function writeDevice(d: Device | null) {
-  writeSecret(DEVICE_KEY, d ? JSON.stringify(d) : '')
+function writeDevice(d: Device | null): Promise<void> {
+  return writeSecret(DEVICE_KEY, d ? JSON.stringify(d) : '')
 }
 
 /** The paired device, without its token (for Settings). */
@@ -175,8 +179,11 @@ export function pairedDevice(): Omit<Device, 'token'> | null {
 
 /** Forget the device token on this device. The server keeps its row until
  * it is revoked at the desk (`sasonica devices --revoke <id>`). */
-export function unpair() {
-  writeDevice(null)
+export function unpair(): Promise<void> {
+  const done = writeDevice(null)
+  // The background notifier (Android shell) stops once the token is gone.
+  void done.then(() => syncBackgroundNotify(serverBase()))
+  return done
 }
 
 // ── The legacy ABS bearer (v0, §4.1) ──────────────────────────────────────
@@ -186,7 +193,7 @@ export function hasLegacyToken(): boolean {
 }
 
 export function setLegacyToken(token: string) {
-  writeSecret(TOKEN_KEY, token.trim())
+  void writeSecret(TOKEN_KEY, token.trim()).then(() => syncBackgroundNotify(serverBase()))
 }
 
 // ── What the rest of the app asks ─────────────────────────────────────────
@@ -339,8 +346,10 @@ export async function pair(req: PairRequest, device = defaultDeviceName()): Prom
     server: { name: String(server.name || ''), base: String(server.base || base).replace(/\/+$/, '') },
     pairedAt: Date.now()
   }
-  writeDevice(d)
   setBaseUrl(d.server.base)
+  // Stored before this resolves, so the background notifier (told on the
+  // next screen) reads the new token.
+  await writeDevice(d)
   const { token: _t, ...rest } = d
   return rest
 }

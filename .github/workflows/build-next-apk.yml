@@ -56,6 +56,10 @@ jobs:
           NEXT_VERSION_CODE: ${{ github.run_number }}
         run: ./android/gradlew assembleDebug -p android --no-daemon
 
+      # The plain-Java decision logic (NotifyRules, Backoff, SseReader).
+      - name: unit tests
+        run: ./android/gradlew testDebugUnitTest -p android --no-daemon
+
       - name: rename apk
         run: |
           build="$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"

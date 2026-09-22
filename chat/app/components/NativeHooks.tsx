@@ -2,12 +2,13 @@
  * What the Android shell needs from the app's life, rendered once in root:
  * a tap on a "New reply" notification opens that thread, the phone's
  * assistant button opens a new chat that listens at once, and once paired
- * the app asks (once) to be allowed to post notifications. Nothing on the web.
+ * the app asks (once) to be allowed to post notifications, then starts the
+ * background notifier (lib/native.ts syncBackgroundNotify). Nothing on the web.
  */
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { hasCredential } from '../api/auth'
-import { askNotificationPermission, isNative, onAssist, onNotificationTap } from '../lib/native'
+import { hasCredential, serverBase } from '../api/auth'
+import { askNotificationPermission, isNative, onAssist, onNotificationTap, syncBackgroundNotify } from '../lib/native'
 
 export function NativeHooks() {
   const navigate = useNavigate()
@@ -25,8 +26,17 @@ export function NativeHooks() {
       }),
     [navigate]
   )
+  // Then the background service (NotifyService): on by default once the
+  // permission is there, so it is told after the question is answered — and
+  // again whenever the page changes, which is cheap and covers a pairing
+  // just made or undone (the service re-reads the credentials each time).
   useEffect(() => {
-    if (isNative() && location.pathname !== '/pairing' && hasCredential()) void askNotificationPermission()
+    if (!isNative() || location.pathname === '/pairing') return
+    if (!hasCredential()) {
+      void syncBackgroundNotify(serverBase())
+      return
+    }
+    void askNotificationPermission().then(() => syncBackgroundNotify(serverBase()))
   }, [location.pathname])
   return null
 }

@@ -47,6 +47,28 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <!-- Background notifications (NotifyService): one stream to the
+             paired server while the app is closed, no Firebase. specialUse,
+             not dataSync: Android 15 stops a dataSync service after 6 hours
+             a day, and this one runs all day. -->
+        <service
+            android:name=".NotifyService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps one connection open to the user's own self-hosted Sasonica server so it can notify them when a reply finishes or a question waits, without Firebase Cloud Messaging." />
+        </service>
+
+        <!-- Restarts it after a reboot or an update, when it is on. -->
+        <receiver
+            android:name=".NotifyBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions -->
@@ -54,6 +76,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- "New reply" / "Needs you" (Android 13+ asks for it at run time). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Background notifications (NotifyService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Dictation (SpeechInputPlugin): Android 11+ hides other apps' services
          unless the app says which it looks for, and without these the

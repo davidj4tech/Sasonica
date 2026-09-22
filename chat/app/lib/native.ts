@@ -12,8 +12,11 @@
  *   (SpeechInputPlugin.java), for the composer's mic key.
  * - Local notifications for replies elsewhere while the app is in the
  *   background (lib/arrivals.ts calls notifyArrival()). Delivered only while
- *   the WebView is still running JS: see README "Android shell" for what true
- *   background delivery would need.
+ *   the WebView is still running JS.
+ * - BackgroundNotify: true background delivery (NotifyService.java) — a
+ *   foreground service holding one GET /sessions/events stream (§6.13) while
+ *   the app is closed. While it runs it owns the system notifications, and
+ *   notifyArrival() stands aside. Settings has its toggle.
  */
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -151,7 +154,8 @@ export async function askNotificationPermission(): Promise<void> {
 
 /** "New reply · <title>" / "Needs you · <title>", from arrivals.arrive(). */
 export async function notifyArrival(session: string, title: string, label: string, urgent: boolean): Promise<void> {
-  if (!isNative() || !inBackground()) return
+  // The background service posts these itself (the same words, per thread).
+  if (!isNative() || !inBackground() || backgroundNotifying) return
   try {
     await channels()
     await LocalNotifications.schedule({
@@ -177,25 +181,100 @@ export async function notifyArrival(session: string, title: string, label: strin
 export function clearArrival(session: string): void {
   if (!isNative()) return
   LocalNotifications.cancel({ notifications: [{ id: idFor(session) }] }).catch(() => {})
+  BackgroundNotify.clear({ session }).catch(() => {})
 }
 
-/** A tap on a notification: open that thread. Returns the unsubscribe. */
+/** A tap on a notification (the app's own, or the background service's): open that thread. Returns the unsubscribe. */
 export function onNotificationTap(open: (session: string) => void): () => void {
   if (!isNative()) return () => {}
-  let remove: (() => void) | null = null
+  const removers: (() => void)[] = []
   let gone = false
-  LocalNotifications.addListener('localNotificationActionPerformed', (e) => {
-    const s = e.notification?.extra?.session
-    if (typeof s === 'string' && s) open(s)
-  })
-    .then((h) => {
-      if (gone) void h.remove()
-      else remove = () => void h.remove()
+  const keep = (p: Promise<{ remove: () => Promise<void> }>) =>
+    p
+      .then((h) => {
+        if (gone) void h.remove()
+        else removers.push(() => void h.remove())
+      })
+      .catch(() => {})
+  keep(
+    LocalNotifications.addListener('localNotificationActionPerformed', (e) => {
+      const s = e.notification?.extra?.session
+      if (typeof s === 'string' && s) open(s)
     })
-    .catch(() => {})
+  )
+  keep(
+    BackgroundNotify.addListener('open', (e) => {
+      if (typeof e?.session === 'string' && e.session) open(e.session)
+    })
+  )
   return () => {
     gone = true
-    remove?.()
+    removers.forEach((r) => r())
+  }
+}
+
+// ── Background notifications (NotifyService.java) ─────────────────────────
+
+export interface BackgroundNotifyStatus {
+  /** The Settings toggle: on unless turned off. */
+  enabled: boolean
+  /** Whether the toggle was ever touched (else it is on by default). */
+  decided: boolean
+  /** Android lets the app post notifications. */
+  permitted: boolean
+  /** The service is up. */
+  running: boolean
+  /** What its persistent notification says ("" when not running). */
+  state: string
+}
+
+interface BackgroundNotifyPlugin {
+  status(): Promise<BackgroundNotifyStatus>
+  setEnabled(o: { enabled: boolean }): Promise<BackgroundNotifyStatus>
+  sync(o: { base: string }): Promise<BackgroundNotifyStatus>
+  clear(o: { session: string }): Promise<void>
+  addListener(event: 'open', fn: (e: { session: string }) => void): Promise<{ remove: () => Promise<void> }>
+}
+const BackgroundNotify = registerPlugin<BackgroundNotifyPlugin>('BackgroundNotify')
+
+/** The service is on (so notifyArrival stands aside). */
+let backgroundNotifying = false
+const noted = (s: BackgroundNotifyStatus) => {
+  backgroundNotifying = !!(s.enabled && s.permitted)
+  return s
+}
+
+/** Where background notifications stand; null on the web or an older shell. */
+export async function backgroundNotifyStatus(): Promise<BackgroundNotifyStatus | null> {
+  if (!isNative()) return null
+  try {
+    return noted(await BackgroundNotify.status())
+  } catch {
+    return null
+  }
+}
+
+/** The Settings toggle. */
+export async function setBackgroundNotify(enabled: boolean): Promise<BackgroundNotifyStatus | null> {
+  if (!isNative()) return null
+  try {
+    return noted(await BackgroundNotify.setEnabled({ enabled }))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Tell the service where the server is and that the credentials may have
+ * changed (paired, unpaired, permission just granted): it starts, retries
+ * or stops to match. Cheap; call it after any of those.
+ */
+export async function syncBackgroundNotify(base: string): Promise<BackgroundNotifyStatus | null> {
+  if (!isNative()) return null
+  try {
+    return noted(await BackgroundNotify.sync({ base }))
+  } catch {
+    return null
   }
 }
 
