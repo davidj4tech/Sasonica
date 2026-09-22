@@ -1329,7 +1329,10 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/search'])
+/** The projects /session/move will accept, as the canvas's layout knows them. */
+const KNOWN_PROJECTS = new Set(['agent-media', 'sasonica', 'runlet'])
+
+const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/search'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1865,6 +1868,26 @@ async function route(method, path, q, body, res) {
     if (SESSION_OPS.fail === 'archive') return err(500, 'could not archive')
     s.archived = archived
     return ok({ session: sid, archived })
+  }
+
+  // §6.15 POST /session/move {session, project|cwd} → where it now is, and
+  // whether its session restarted there. A working session is refused 409,
+  // as on the canvas.
+  if (method === 'POST' && path === '/session/move') {
+    const sid = String(body.session || '')
+    if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
+    const s = S[sid]
+    if (!s) return err(404, `no such session ${sid.slice(0, 8)}`)
+    const project = String(body.project || '')
+    const cwd = String(body.cwd || '')
+    if (!project && !cwd) return err(400, 'no project or directory given')
+    if (project && !KNOWN_PROJECTS.has(project)) return err(400, `no directory known for project '${project}'`)
+    if (s.live && s.state === 'working') return err(409, 'that session is working — stop it first')
+    if (SESSION_OPS.delay) await sleep(SESSION_OPS.delay)
+    if (SESSION_OPS.fail === 'move') return err(500, 'could not move the transcript')
+    s.project = project || null
+    s.cwd = cwd || `/home/you/projects/${project}`
+    return ok({ session: sid, project: s.project, cwd: s.cwd, restarted: !!s.live, pane: s.live ? s.pane : null, live: !!s.live })
   }
 
   if (method === 'POST' && path === '/rename') {

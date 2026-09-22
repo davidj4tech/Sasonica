@@ -42,6 +42,9 @@
 //   about   About from Settings: mark, version, server, shell version, credits
 //   harnesses  Coding agents from Settings: versions and sign-in state, a
 //           sign-in with a pasted code, an install to finished
+//   move    a thread to another project (§6.15): the picker from a long press
+//           and from the thread's ⋮, what a move costs a live session, a
+//           refused one, the project line following
 //   sort    the thread list: Smart / Most recent / By project (headings,
 //           Archived too), kept per device; the project line under titles
 //   search  ⌕ on Home and Threads → /find: threads, messages and memory as
@@ -78,17 +81,21 @@ const skewMock = await mockAt(P + 1, { MOCK_REAL_VOICE: '1' })
 const dashMock = await mockAt(P + 2, { MOCK_SPEECH_REST_S: '0' })
 // Background agents and sorting: a mock whose running agents step each second.
 const agentsMock = await mockAt(P + 3, { MOCK_SPEECH_REST_S: '0', MOCK_AGENT_STEP_S: '1' })
+// Moving changes which project a thread is in, which sort.mjs and filter.mjs
+// read: its own mock, so the order the suites run in does not matter.
+const moveMock = await mockAt(P + 4, { MOCK_SPEECH_REST_S: '0' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
-    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : P}`, ...env })) ? 1 : 0
+    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : file === 'move.mjs' ? P + 4 : P}`, ...env })) ? 1 : 0
   }
 } finally {
   mock.kill()
   skewMock.kill()
   dashMock.kill()
   agentsMock.kill()
+  moveMock.kill()
 }
 console.log(failed ? `\n${failed} suite(s) failed` : '\nall suites pass')
 process.exit(failed ? 1 : 0)

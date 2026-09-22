@@ -634,6 +634,17 @@ export interface ArchiveResponse extends Envelope {
   archived: boolean
 }
 
+/** POST /session/move (§6.15) — the thread's new project, and what became of its session. */
+export interface MoveResponse extends Envelope {
+  session: SessionId
+  project: string | null
+  cwd: string
+  /** Whether a live session was closed and reopened in the new directory. */
+  restarted: boolean
+  pane: string | null
+  live: boolean
+}
+
 // ── §6.5 Speech ───────────────────────────────────────────────────────────
 
 /**

@@ -19,10 +19,10 @@ import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
-import { knownArchived, knownLive, knownProject, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
+import { knownArchived, knownLive, knownProject, knownProjects, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
 import { useSessionActions } from '../hooks/useSessionActions'
-import { ACTION_LABEL, sessionMenuItems, type SessionAction } from '../components/SessionSheets'
-import { archivedOf, clearArchivedOverride, clearEnded, endedHere, useSessionFlags } from '../lib/sessionFlags'
+import { ACTION_LABEL, ProjectPickerSheet, sessionMenuItems, type SessionAction } from '../components/SessionSheets'
+import { archivedOf, clearArchivedOverride, clearEnded, endedHere, projectOverrideOf, useSessionFlags } from '../lib/sessionFlags'
 import { useAutoRename, useRename } from '../hooks/useRename'
 import { RenameSheet } from '../components/RenameSheet'
 import { Popover } from '../components/Popover'
@@ -67,6 +67,7 @@ function ThreadPage({ session }: { session: string }) {
   }, [session])
   const title = useTitle(session, serverTitle) || session.slice(0, 8)
   const [renaming, setRenaming] = useState(false)
+  const [moving, setMoving] = useState(false)
   const [menu, setMenu] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const rename = useRename()
@@ -79,7 +80,7 @@ function ThreadPage({ session }: { session: string }) {
   const log = useThread(session)
   const jumpTo = useSearchJump(log.loadAround)
   // The project line under the title (§6.1): the stream's, else the list's.
-  const project = log.project || knownProject(session)
+  const project = projectOverrideOf(session, log.project || knownProject(session))
   useSeen(session, log.messages.length)
   const states = useSessionStates()
   const [status, setStatus] = useState<Status>(null)
@@ -217,6 +218,7 @@ function ThreadPage({ session }: { session: string }) {
   const onAction = (a: SessionAction) => {
     setMenu(false)
     if (a === 'rename') setRenaming(true)
+    else if (a === 'move') setMoving(true)
     else if (a === 'auto-rename') {
       setStatus({ text: 'Thinking of a name…' })
       void autoRename(session).then((r) => setStatus({ text: r.message, failed: !r.ok }))
@@ -286,6 +288,20 @@ function ThreadPage({ session }: { session: string }) {
         </div>
       </header>
       <AgentsStrip session={session} counts={log.agents} />
+      {moving && (
+        <ProjectPickerSheet
+          title={title}
+          current={project}
+          projects={knownProjects()}
+          live={sessionLive}
+          onClose={() => setMoving(false)}
+          onPick={(to) => {
+            setMoving(false)
+            setStatus({ text: `Moving to ${to}…` })
+            void acts.move(session, to).then((r) => setStatus({ text: r.message, failed: !r.ok }))
+          }}
+        />
+      )}
       {renaming && (
         <RenameSheet
           title={title}

@@ -7,6 +7,10 @@
  *
  * - archived: dropped when a fresh /targets row agrees, on rollback, or
  *   after OVERRIDE_TTL_MS (so a change made elsewhere is not masked long).
+ * - project: where a move (§6.15) put the thread, so the list, its headings
+ *   and the thread header follow before the next /targets. Not optimistic —
+ *   a move restarts the session, so nothing is claimed until the server says
+ *   it happened.
  * - ended: dropped when a message is sent from here (sending resumes the
  *   session), on rollback, after the TTL, or when /targets says the session
  *   is live again well after the exit (resumed elsewhere). Not on the first
@@ -20,6 +24,7 @@ const OVERRIDE_TTL_MS = 10 * 60 * 1000
 const ENDED_GRACE_MS = 30 * 1000
 
 const archived = new Map<string, { value: boolean; at: number }>()
+const project = new Map<string, { value: string | null; at: number }>()
 const ended = new Map<string, number>()
 const listeners = new Set<() => void>()
 let version = 0
@@ -36,6 +41,12 @@ export function setArchivedOverride(session: string, value: boolean) {
 export function clearArchivedOverride(session: string) {
   if (archived.delete(session)) changed()
 }
+/** A move the server accepted (§6.15). */
+export function setProjectOverride(session: string, value: string | null) {
+  project.set(session, { value, at: Date.now() })
+  changed()
+}
+
 export function setEnded(session: string) {
   ended.set(session, Date.now())
   changed()
@@ -52,6 +63,11 @@ export function confirmFlags(rows: { session: string; live: boolean; archived?: 
     const a = archived.get(row.session)
     if (a && a.value === !!row.archived) {
       archived.delete(row.session)
+      any = true
+    }
+    const p = project.get(row.session)
+    if (p && (p.value || null) === ((row as { project?: string | null }).project || null)) {
+      project.delete(row.session)
       any = true
     }
     const e = ended.get(row.session)
@@ -71,6 +87,14 @@ export function archivedOf(session: string, server: boolean | undefined): boolea
   return !!server
 }
 
+/** Which project the thread is in: a move made here if there is one, else the server's. */
+export function projectOverrideOf(session: string, server: string | null | undefined): string | null {
+  const p = project.get(session)
+  if (p && Date.now() - p.at <= OVERRIDE_TTL_MS) return p.value
+  if (p) project.delete(session)
+  return server || null
+}
+
 /** Exited from here and not resumed since. */
 export function endedHere(session: string): boolean {
   const e = ended.get(session)
@@ -87,7 +111,7 @@ function subscribe(fn: () => void) {
   return () => void listeners.delete(fn)
 }
 
-/** Re-render when an exit or archive changes anything. */
+/** Re-render when an exit, archive or move changes anything. */
 export function useSessionFlags(): number {
   return useSyncExternalStore(subscribe, () => version, () => version)
 }

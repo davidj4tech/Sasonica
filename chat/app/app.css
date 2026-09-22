@@ -100,6 +100,8 @@ a { color: var(--accent); }
    menu, in the rename sheet's frame. */
 .action-sheet { gap: 4px; }
 .action-title { margin: 0 0 4px; color: var(--muted); font-size: .867rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* What a move costs, above the projects (§6.15) — it wraps, unlike the title. */
+.action-note { margin: 0 0 8px; color: var(--muted); font-size: .8rem; }
 .action-list { display: flex; flex-direction: column; }
 .action-list button { width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 0 12px; }
 .action-list button:hover { background: var(--panel-2); }

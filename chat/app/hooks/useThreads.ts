@@ -26,6 +26,17 @@ export function knownProject(session: string): string | null {
   return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.project || null
 }
 
+/**
+ * Every project the last /targets named (§6.15): what a move can offer from a
+ * thread page, which has one row and not the list.
+ */
+export function knownProjects(): string[] {
+  const rows = peekTargets()?.sessions || []
+  const names = new Set<string>()
+  for (const r of [...known.values(), ...rows]) if (r.project) names.add(r.project)
+  return [...names].sort((a, b) => a.localeCompare(b))
+}
+
 /** Archived per the last /targets seen (the server's flag, before any change made here). */
 export function knownArchived(session: string): boolean | undefined {
   return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.archived

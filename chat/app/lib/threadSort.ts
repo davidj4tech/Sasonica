@@ -13,6 +13,7 @@
  * server's order, which puts live first).
  */
 import type { SessionRow, SessionState } from '../api/types'
+import { projectOverrideOf } from './sessionFlags'
 
 export type ThreadSort = 'smart' | 'recent' | 'project'
 
@@ -81,7 +82,8 @@ function group(row: SessionRow, states: States): number {
   return st === 'approval' ? 0 : st === 'working' ? 1 : 2
 }
 
-export const projectOf = (row: SessionRow): string => (row.project || '').trim() || OTHER_PROJECT
+export const projectOf = (row: SessionRow): string =>
+  (projectOverrideOf(row.session, row.project) || '').trim() || OTHER_PROJECT
 
 export type ListEntry = { kind: 'row'; row: SessionRow } | { kind: 'head'; name: string; count: number }
 

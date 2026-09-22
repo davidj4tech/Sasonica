@@ -6,10 +6,13 @@
  *
  * Exit & archive is two requests, close then archive (§6.4: "archiving ends
  * nothing"); a refused close stops there, archiving nothing.
+ *
+ * Move (§6.15) is not optimistic: it restarts a running session, so what the
+ * row says waits for the server to say it happened.
  */
 import { useCallback } from 'react'
-import { archiveSession, closeSession } from '../api'
-import { clearArchivedOverride, clearEnded, setArchivedOverride, setEnded } from '../lib/sessionFlags'
+import { archiveSession, closeSession, moveSession } from '../api'
+import { clearArchivedOverride, clearEnded, setArchivedOverride, setEnded, setProjectOverride } from '../lib/sessionFlags'
 import { patchTargetRow } from '../lib/snapshots'
 import { noteRow } from './useThreads'
 
@@ -47,6 +50,21 @@ async function archive(session: string, archived: boolean): Promise<ActionOutcom
   }
 }
 
+async function move(session: string, project: string): Promise<ActionOutcome> {
+  try {
+    const res = await moveSession(session, { project })
+    setProjectOverride(session, res.project)
+    patchTargetRow(session, { project: res.project, cwd: res.cwd })
+    noteRow(session, { project: res.project, cwd: res.cwd })
+    return {
+      ok: true,
+      message: res.restarted ? `Moved to ${project}. The session restarted there.` : `Moved to ${project}.`
+    }
+  } catch (err) {
+    return { ok: false, message: `Not moved: ${why(err)}` }
+  }
+}
+
 async function exitAndArchive(session: string): Promise<ActionOutcome> {
   // Both show at once; the archive waits for the close to be accepted.
   setArchivedOverride(session, true)
@@ -63,6 +81,7 @@ export function useSessionActions() {
   return {
     exit: useCallback(exit, []),
     archive: useCallback(archive, []),
+    move: useCallback(move, []),
     exitAndArchive: useCallback(exitAndArchive, [])
   }
 }

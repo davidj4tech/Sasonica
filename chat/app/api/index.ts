@@ -16,6 +16,7 @@ import type {
   AgentsResponse,
   AnswerRequest,
   ArchiveResponse,
+  MoveResponse,
   CloseResponse,
   AnswerResponse,
   AskRequest,
@@ -343,6 +344,16 @@ export function closeSession(session: SessionId) {
 /** POST /session/archive (§6.4): file the thread under Archived, or take it out. */
 export function archiveSession(session: SessionId, archived: boolean) {
   return request<ArchiveResponse>('POST', '/session/archive', { session, archived })
+}
+
+/**
+ * POST /session/move (§6.15): move the thread to another project. Name it by
+ * `project`, or by `cwd` for a directory the thread list has no project for.
+ * REAL on the canvas: a live session is closed and reopened there, so the
+ * agent restarts (refused, 409, while it is working).
+ */
+export function moveSession(session: SessionId, dest: { project?: string; cwd?: string }) {
+  return request<MoveResponse>('POST', '/session/move', { session, ...dest })
 }
 
 // ── Speech (§6.5) ─────────────────────────────────────────────────────────

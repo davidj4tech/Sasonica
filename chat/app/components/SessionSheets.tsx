@@ -1,18 +1,23 @@
 /**
- * The thread's actions as sheets: the list's long-press menu (Rename, Auto rename, Exit
- * session, Archive / Unarchive, Exit & archive); an exit asks no confirmation
- * (a send resumes it). The thread header's ⋮ menu offers the same items
- * (sessionMenuItems), so both places say the same thing.
+ * The thread's actions as sheets: the list's long-press menu (Rename, Auto rename,
+ * Move to project…, Exit session, Archive / Unarchive, Exit & archive); an exit
+ * asks no confirmation (a send resumes it). The thread header's ⋮ menu offers the
+ * same items (sessionMenuItems), so both places say the same thing.
+ *
+ * Move opens the project picker below. It says up front that a running session
+ * restarts (§6.15: the agent cannot change directory mid-session), because that
+ * is the one thing about it nobody would guess.
  */
 import type { ReactNode } from 'react'
 import { useScrim } from '../lib/layers'
 import { createPortal } from 'react-dom'
 
-export type SessionAction = 'rename' | 'auto-rename' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
+export type SessionAction = 'rename' | 'auto-rename' | 'move' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
 
 export const ACTION_LABEL: Record<SessionAction, string> = {
   rename: 'Rename…',
   'auto-rename': 'Auto rename',
+  move: 'Move to project…',
   exit: 'Exit session',
   archive: 'Archive',
   unarchive: 'Unarchive',
@@ -21,7 +26,7 @@ export const ACTION_LABEL: Record<SessionAction, string> = {
 
 /** What a thread offers: exit only while it runs, one archive toggle, the pair when it runs and is not archived. */
 export function sessionMenuItems(live: boolean, archived: boolean): SessionAction[] {
-  const items: SessionAction[] = ['rename', 'auto-rename']
+  const items: SessionAction[] = ['rename', 'auto-rename', 'move']
   if (live) items.push('exit')
   items.push(archived ? 'unarchive' : 'archive')
   if (live && !archived) items.push('exit-archive')
@@ -53,6 +58,45 @@ export function SessionMenuSheet(props: { title: string; live: boolean; archived
             {ACTION_LABEL[a]}
           </button>
         ))}
+      </div>
+      <div className="row">
+        <button type="button" className="quiet" onClick={props.onClose}>
+          Cancel
+        </button>
+      </div>
+    </Sheet>
+  )
+}
+
+
+/**
+ * Where to move a thread: the projects the thread list knows, its own first
+ * and struck out — picking it is a no-op, so it is shown as where it already
+ * is rather than offered.
+ */
+export function ProjectPickerSheet(props: {
+  title: string
+  current: string | null
+  projects: string[]
+  live: boolean
+  onPick: (project: string) => void
+  onClose: () => void
+}) {
+  const others = props.projects.filter((p) => p !== props.current)
+  return (
+    <Sheet label="Move to project" onClose={props.onClose} className="action-sheet">
+      <p className="action-title">{props.title}</p>
+      <p className="action-note">
+        {props.current ? <>In {props.current}. </> : null}
+        {props.live ? 'Moving restarts the session in the new directory.' : 'It will open in the new directory next time.'}
+      </p>
+      <div role="menu" className="action-list">
+        {others.map((p) => (
+          <button key={p} role="menuitem" onClick={() => props.onPick(p)}>
+            {p}
+          </button>
+        ))}
+        {others.length === 0 && <p className="action-note">No other project on this server yet.</p>}
       </div>
       <div className="row">
         <button type="button" className="quiet" onClick={props.onClose}>

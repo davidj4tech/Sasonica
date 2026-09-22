@@ -18,14 +18,15 @@ import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
 import { Mark } from '../components/Mark'
 import { HomeTabs } from '../components/Nav'
-import { SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
+import { ProjectPickerSheet, SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
 import { useSessionActions } from '../hooks/useSessionActions'
-import { archivedOf, endedHere, useSessionFlags } from '../lib/sessionFlags'
+import { archivedOf, endedHere, projectOverrideOf, useSessionFlags } from '../lib/sessionFlags'
 import { Popover } from '../components/Popover'
 import {
   loadClosedGroups,
   loadThreadSort,
   openEntries,
+  OTHER_PROJECT,
   saveClosedGroups,
   saveThreadSort,
   SORT_LABEL,
@@ -75,6 +76,7 @@ function ThreadList() {
   usePrefetch(sessions, !stale && !loading && !error)
   const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
   const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean } | null>(null)
+  const [moving, setMoving] = useState<{ session: string; title: string; live: boolean } | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null)
   const [sort, setSortState] = useState<ThreadSort>(() => loadThreadSort())
@@ -139,6 +141,7 @@ function ThreadList() {
     setMenu(null)
     if (!m) return
     if (a === 'rename') setRenaming({ session: m.session, title: m.title })
+    else if (a === 'move') setMoving(m)
     else if (a === 'auto-rename') {
       setNote({ text: 'Thinking of a name…' })
       void autoRename(m.session).then((r) => setNote(r.ok ? null : { text: r.message, failed: true }))
@@ -278,6 +281,21 @@ function ThreadList() {
       </ul>
 
       {menu && <SessionMenuSheet title={menu.title} live={menu.live} archived={menu.archived} onPick={pick} onClose={() => setMenu(null)} />}
+      {moving && (
+        <ProjectPickerSheet
+          title={moving.title}
+          current={sessions.find((r) => r.session === moving.session)?.project || null}
+          projects={projects.filter((p) => p !== OTHER_PROJECT)}
+          live={moving.live}
+          onClose={() => setMoving(null)}
+          onPick={(to) => {
+            const m = moving
+            setMoving(null)
+            setNote({ text: `Moving to ${to}…` })
+            void acts.move(m.session, to).then((r) => setNote({ text: r.message, failed: !r.ok }))
+          }}
+        />
+      )}
       {renaming && (
         <RenameSheet
           title={renaming.title}
@@ -328,6 +346,8 @@ function ThreadRow({
   onMenu: (title: string, live: boolean) => void
 }) {
   const title = useTitle(row.session, row.title) || row.session.slice(0, 8)
+  // Moved from here: the new project, until /targets says it too (§6.15).
+  const rowProject = projectOverrideOf(row.session, row.project)
   // Exited from here: not live, whatever the last poll said.
   const live = row.live && !endedHere(row.session)
   const state = live ? polled : undefined
@@ -378,7 +398,7 @@ function ThreadRow({
         <span className={`dot ${live ? state || 'live' : 'shelved'}`} />
         <span className="title-col">
           <span className="title">{title}</span>
-          {row.project && !hideProject && <span className="row-project">{row.project}</span>}
+          {rowProject && !hideProject && <span className="row-project">{rowProject}</span>}
         </span>
         {markArchived && <span className="draft-mark archived-mark">Archived</span>}
         {hasDraft(row.session) && <span className="draft-mark">Draft</span>}
