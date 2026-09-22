@@ -50,6 +50,8 @@ export interface LineCustom {
   command?: Message['command']
   /** Speech-history row for `replay-id`. */
   id?: number
+  /** The thread, for `goto-sentence` ("read from here" in the live message). */
+  session?: SessionId
   figure?: boolean
   live?: LiveClock | null
   /** The text part the follow-along bolds: the spoken reply, as shown. */
@@ -129,7 +131,8 @@ export function convertItem(item: ChatItem): ThreadMessageLike {
     command: m.command ?? undefined,
     id: spoken?.id ?? undefined,
     figure: spoken?.figure,
-    live: item.live
+    live: item.live,
+    session
   }
 
   if (m.role === 'user') {

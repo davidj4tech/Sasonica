@@ -190,3 +190,57 @@ export function withSkew(clock: LiveClock, skewS: number): LiveClock {
   if (!skewS) return clock
   return { ...clock, delay: clock.delay + skewS }
 }
+
+/**
+ * Where each of the server's `sentences` sits in the shown `text`, as
+ * `[start, end)` character offsets (null for a sentence that cannot be
+ * found) — for "Read from here" on a reply that is not playing, where the
+ * app knows a character (the start of the reader's selection) and the
+ * server wants a sentence index. The sentences are the server's
+ * (GET /speech/sentences); this only places them. Whitespace is ignored on
+ * both sides (the splitter re-joins on single spaces); a sentence the shown
+ * text renders differently (a code fence) is found by its first few
+ * characters, or skipped.
+ */
+export function sentenceSpans(text: string, sentences: string[]): ([number, number] | null)[] {
+  const map: number[] = []
+  let flat = ''
+  for (let i = 0; i < text.length; i++) {
+    if (/\s/.test(text[i])) continue
+    map.push(i)
+    flat += text[i]
+  }
+  const out: ([number, number] | null)[] = []
+  let from = 0
+  for (const s of sentences) {
+    const want = s.replace(/\s+/g, '')
+    if (!want) {
+      out.push(null)
+      continue
+    }
+    let at = flat.indexOf(want, from)
+    let len = want.length
+    if (at < 0) {
+      const probe = want.slice(0, 12)
+      at = flat.indexOf(probe, from)
+      len = probe.length
+    }
+    if (at < 0) {
+      out.push(null)
+      continue
+    }
+    const end = at + len
+    out.push([map[at], map[end - 1] + 1])
+    from = end
+  }
+  return out
+}
+
+/** The sentence a character of the shown text belongs to: the last one starting at or before it (0 if none). */
+export function sentenceOfChar(spans: ([number, number] | null)[], offset: number): number {
+  let idx = 0
+  spans.forEach((sp, i) => {
+    if (sp && sp[0] <= offset) idx = i
+  })
+  return idx
+}

@@ -31,6 +31,7 @@ import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
 import { useDraft, type DraftHandle } from '../hooks/useDraft'
 import { useFollowAlong } from '../hooks/useFollowAlong'
+import { ReadFromHere } from './ReadFromHere'
 import { APPROVAL_TOOL, ASK_TOOL, convertItem, groupParts, type ChatItem } from '../lib/convert'
 import {
   ApprovalToolUI,
@@ -406,6 +407,7 @@ export function Thread(props: ThreadProps) {
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadActionsContext.Provider value={props.actions}>
         <DraftKeeper draftKey={props.draftKey} handle={draftRef} />
+        <ReadFromHere />
         <ThreadPrimitive.Root className="thread">
           <ThreadPrimitive.Viewport className="viewport" ref={viewportRef} autoScroll={!follow.guarded} scrollToBottomOnRunStart={!follow.guarded}>
             {items.length === 0 && props.empty}

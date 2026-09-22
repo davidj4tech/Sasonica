@@ -629,11 +629,23 @@ export type SpeechAction =
   | 'vol-'
   | 'vol+'
   | 'mute'
+  /** "Read from here" in the message being said: `arg` = sentence index (§6.5). */
+  | 'goto-sentence'
 
 export interface SpeechCtlRequest {
   action: SpeechAction
-  /** Turn index for `prev`/`replay` (1 = latest); history row id for `replay-id`. */
+  /** Turn index for `prev`/`replay` (1 = latest); history row id for `replay-id`; sentence index for `goto-sentence`. */
   arg?: number
+  /** `replay-id` only: start at this sentence of GET /speech/sentences (§6.5 "Read from here"). */
+  sentence?: number
+  /** `goto-sentence` only: the thread the tap was in; 409 if another is being heard. */
+  session?: string
+}
+
+/** GET /speech/sentences?id= — what a replay of that reply can start at; `[]` = only from the top. */
+export interface SpeechSentencesResponse extends Envelope {
+  id: number
+  sentences: string[]
 }
 
 /** `ok: true` means the command ran, not that it did anything — read `out`. */

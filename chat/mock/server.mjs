@@ -657,8 +657,11 @@ function speechNowHeard() {
   }
 }
 
+/** Every /speech/ctl the app sent, for the tests (GET /mock/speech/log). */
+const CTL_LOG = []
+
 /** Returns `out`, as `media` would print it, or null for an unknown action. */
-function speechCtl(action, arg) {
+function speechCtl(action, arg, body = {}) {
   vTick()
   const n = Math.max(1, Math.min(999, Number(arg) || 1))
   const turns = spokenTurns()
@@ -711,8 +714,17 @@ function speechCtl(action, arg) {
     case 'replay-id': {
       const t = turns.find((x) => x.line.id === Number(arg))
       if (!t) return `no history row ${arg}`
-      vSay(t.s, t.line)
+      // "Read from here" (§6.5): from a sentence of GET /speech/sentences.
+      const { offsets } = speechOf(t.line)
+      const from = Number.isInteger(body.sentence) ? Math.min(body.sentence, offsets.length - 1) : 0
+      vSay(t.s, t.line, offsets[from] || 0)
       return String(turns.indexOf(t) + 1)
+    }
+    case 'goto-sentence': {
+      // Checked by the route: an index, and a reply being said.
+      const i = Math.min(Number(arg), V.on.offsets.length - 1)
+      vSeek(V.on.offsets[i])
+      return `sentence ${i}`
     }
     case 'speed-':
     case 'speed+':
@@ -1189,7 +1201,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
+const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1239,6 +1251,12 @@ createServer(async (req, res) => {
     if (q.has('fail')) REPLY.fail = q.get('fail') === '1'
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
     return res.end(JSON.stringify(REPLY))
+  }
+  if (path === '/mock/speech/log') {
+    // Tests: what /speech/ctl was sent (`?clear=1` empties it first).
+    if (url.searchParams.get('clear') === '1') CTL_LOG.length = 0
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify(CTL_LOG))
   }
   if (path === '/mock/voice') {
     // Tests: `?loop=0` stops the speaking fixture coming back after it ends
@@ -1735,8 +1753,26 @@ async function route(method, path, q, body, res) {
     return ok(answer)
   }
 
+  if (method === 'GET' && path === '/speech/sentences') {
+    // §6.5 "Read from here": the reply's sentences as replay-id + sentence counts them.
+    const raw = q.get('id') || ''
+    if (!/^\d+$/.test(raw)) return err(400, 'id must be a history row id')
+    const t = spokenTurns().find((x) => x.line.id === Number(raw))
+    if (!t) return err(404, 'no such spoken reply')
+    return ok({ id: Number(raw), sentences: speechOf(t.line).sentences })
+  }
+
   if (method === 'POST' && path === '/speech/ctl') {
-    const out = speechCtl(String(body.action || ''), body.arg)
+    const isIndex = (n) => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= 9999
+    if (body.action === 'goto-sentence') {
+      if (!isIndex(body.arg)) return err(400, 'arg must be a sentence index')
+      vTick()
+      if (!V.on) return err(409, 'nothing is being said')
+      if (body.session && V.on.s.session !== body.session) return err(409, 'that reply is no longer being said')
+    }
+    if (body.action === 'replay-id' && body.sentence != null && !isIndex(body.sentence)) return err(400, 'sentence must be a sentence index')
+    CTL_LOG.push({ action: body.action, arg: body.arg, sentence: body.sentence, session: body.session, at: Date.now() })
+    const out = speechCtl(String(body.action || ''), body.arg, body)
     if (out === null) return err(400, 'unknown action')
     console.log(`  speech ${body.action}${body.arg !== undefined ? ' ' + body.arg : ''} → ${out}`)
     return ok({ out })

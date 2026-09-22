@@ -12,7 +12,7 @@ import {
   type TextMessagePartComponent,
   type ToolCallMessagePartComponent
 } from '@assistant-ui/react'
-import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent, type PropsWithChildren } from 'react'
 import type { Approval, ApprovalQuestion, QuestionAnswer, Working } from '../api/types'
 import { useSpeechActions } from '../hooks/useSpeech'
 import { IconPause, IconPlay } from './SpeechBar'
@@ -54,17 +54,69 @@ function useTick(on: boolean, ms: number) {
 
 // ── Text ──────────────────────────────────────────────────────────────────
 
-function LiveText({ text, clock }: { text: string; clock: LiveClock }) {
+/** A tapped sentence is shown at once and held this long at most while the server catches up. */
+const TAP_HOLD_MS = 6000
+/** The server's clock confirms a tap once it is on the tapped sentence or this many past it (a short one may be over already). */
+const TAP_CONFIRM_SPAN = 3
+
+/** Taps that are not "read from here": on a control, a link or code. */
+const NOT_A_SENTENCE_TAP = 'a, button, input, textarea, select, code, pre, [role="button"]'
+
+/**
+ * The spoken reply of the message being said, its sentence in bold — and
+ * "read from here": a tap on any sentence (the server's own `sentences`,
+ * so index i is the server's i) jumps the voice there (§6.5
+ * `goto-sentence`). The bold moves at once and holds on the tapped
+ * sentence until the server's clock, read after the jump, agrees — then
+ * follows the real position again. A tap only: a scroll is never a click,
+ * a selection (long press, drag) or a double tap is left to the browser,
+ * and links, code and controls keep their own taps.
+ */
+function LiveText({ text, clock, session }: { text: string; clock: LiveClock; session?: string }) {
   // A quarter-second tick is what moves the bold between polls.
   const now = useTick(!clock.paused, 250)
-  const current = sentenceAt(clock, now)
+  const { gotoSentence } = useSpeechActions()
+  const [tap, setTap] = useState<{ idx: number; at: number; settledAt: number | null } | null>(null)
+  const real = sentenceAt(clock, now)
+  // Confirmed: a clock received after the server took the jump is on (or
+  // just past) the tapped sentence.
+  useEffect(() => {
+    if (tap && tap.settledAt !== null && clock.anchorMs >= tap.settledAt && real >= tap.idx && real <= tap.idx + TAP_CONFIRM_SPAN) setTap(null)
+  }, [tap, clock, real])
+  // Never confirmed: the server's position is the truth after all.
+  useEffect(() => {
+    if (!tap) return
+    const t = window.setTimeout(() => setTap((cur) => (cur && cur.at === tap.at ? null : cur)), TAP_HOLD_MS)
+    return () => window.clearTimeout(t)
+  }, [tap])
+  const current = tap ? tap.idx : real
   const { parts, tail } = liveParts(text, clock.sentences)
+
+  const onClick = (e: ReactMouseEvent<HTMLParagraphElement>) => {
+    if (!session || e.button !== 0 || e.detail > 1) return
+    const target = e.target as HTMLElement
+    if (target.closest(NOT_A_SENTENCE_TAP)) return
+    const sel = typeof window !== 'undefined' ? window.getSelection() : null
+    if (sel && !sel.isCollapsed && sel.toString().trim()) return
+    const el = target.closest<HTMLElement>('[data-i]')
+    if (!el) return
+    const idx = Number(el.dataset.i)
+    if (!Number.isInteger(idx) || idx < 0) return
+    const at = Date.now()
+    setTap({ idx, at, settledAt: null })
+    void gotoSentence(session, idx).then((ok) =>
+      setTap((cur) => (cur && cur.at === at ? (ok ? { ...cur, settledAt: Date.now() } : null) : cur))
+    )
+  }
+
   return (
-    <p className="line-text live-text">
+    <p className="line-text live-text" onClick={onClick}>
       {parts.map((p, i) => (
         <span key={i}>
           {p.lead}
-          <span className={i === current ? 'sentence now' : i < current ? 'sentence said' : 'sentence'}>{p.text}</span>
+          <span data-i={i} className={i === current ? 'sentence now' : i < current ? 'sentence said' : 'sentence'}>
+            {p.text}
+          </span>
         </span>
       ))}
       {/* Not rendered to speech yet: shown, never bold (the sentences grow into it). */}
@@ -79,7 +131,10 @@ function LiveText({ text, clock }: { text: string; clock: LiveClock }) {
  */
 export const LineText: TextMessagePartComponent = ({ text }) => {
   const custom = useCustom()
-  if (custom.live && text === custom.liveText) return <LiveText text={text} clock={custom.live} />
+  if (custom.live && text === custom.liveText) return <LiveText text={text} clock={custom.live} session={custom.session} />
+  // A spoken reply that is not playing: its history row, for "Read from
+  // here" on a selection (components/ReadFromHere.tsx).
+  if (custom.id && text === custom.liveText) return <p className="line-text" data-rid={custom.id}>{text}</p>
   return <p className="line-text">{text}</p>
 }
 

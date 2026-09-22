@@ -37,6 +37,7 @@ import type {
   SessionsStateResponse,
   SpeechAction,
   SpeechCtlResponse,
+  SpeechSentencesResponse,
   SpeechNow,
   StopRequest,
   StopResponse,
@@ -332,8 +333,17 @@ export function getSpeechNow(signal?: AbortSignal) {
  * A listening key: `toggle`, `skip-`/`skip+`, `replay-id` + a history row id…
  * REAL on the canvas: it pauses the voice David is hearing. Test on the mock.
  */
-export function speechCtl(action: SpeechAction, arg?: number) {
-  return request<SpeechCtlResponse>('POST', '/speech/ctl', arg === undefined ? { action } : { action, arg })
+export function speechCtl(action: SpeechAction, arg?: number, extra?: { sentence?: number; session?: string }) {
+  return request<SpeechCtlResponse>('POST', '/speech/ctl', { action, ...(arg === undefined ? {} : { arg }), ...extra })
+}
+
+/**
+ * GET /speech/sentences (§6.5 "Read from here"): a spoken reply's sentences
+ * as `replay-id` + `sentence` counts them — the server's list, so the app
+ * never re-splits the words. `[]`: it can only be replayed from the top.
+ */
+export function getSpeechSentences(id: number, signal?: AbortSignal) {
+  return request<SpeechSentencesResponse>('GET', `/speech/sentences?id=${encodeURIComponent(String(id))}`, undefined, signal)
 }
 
 /**
