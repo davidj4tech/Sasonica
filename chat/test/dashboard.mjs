@@ -3,8 +3,9 @@
 //
 //   home      every section renders from /dashboard; polled while visible
 //   needs     a multi-select question answered in place → POST
-//             /session/answer {session, key, answers}, the card leaves at
-//             once and stays gone; a title tap opens the thread; back → Home
+//             /session/answer {session, key, answers}, the ticks and words
+//             surviving a poll, the card leaves at once and stays gone; a
+//             title tap opens the thread; back → Home
 //   working   the current step and a ticking elapsed time
 //   listening a queued reply shows as "1 waiting"; Output → /audio/target
 //   recaps    clamped text that expands; live / resting badges
@@ -75,6 +76,12 @@ ok((await card.locator('[role=checkbox]').nth(1).getAttribute('aria-checked')) =
 await card.locator('[role=checkbox]').nth(0).click()
 await card.locator('.other input').fill('kiwi')
 await page.screenshot({ path: SHOTS + '/home-02-answering.png' })
+// A poll of /dashboard hands back the same question in a new object: what
+// has been ticked here stays ticked, and the words stay written.
+await page.waitForTimeout(5600)
+const kept = await card.locator('[role=checkbox]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-checked')))
+ok(JSON.stringify(kept) === JSON.stringify(['true', 'true', 'false']), `needs: the ticks survive a /dashboard poll (${kept.join(', ')})`)
+ok((await card.locator('.other input').inputValue()) === 'kiwi', 'needs: and the Other words survive it')
 const before = posts.length
 await card.locator('.send-answer').click()
 for (let i = 0; i < 30 && posts.length === before; i++) await page.waitForTimeout(100)

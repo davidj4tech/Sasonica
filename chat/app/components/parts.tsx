@@ -12,7 +12,7 @@ import {
   type TextMessagePartComponent,
   type ToolCallMessagePartComponent
 } from '@assistant-ui/react'
-import { createContext, useContext, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent, type PropsWithChildren } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PropsWithChildren } from 'react'
 import type { Approval, ApprovalQuestion, QuestionAnswer, Working } from '../api/types'
 import { useSpeechActions } from '../hooks/useSpeech'
 import { IconPause, IconPlay } from './SpeechBar'
@@ -394,6 +394,16 @@ function initialPicks(questions: ApprovalQuestion[]): Pick[] {
 const hasAnswer = (p: Pick | undefined) => !!p && (p.selected.length > 0 || p.other.trim() !== '')
 
 /**
+ * Which question this card is showing. A poll hands back an equal-but-new
+ * `questions` array every few seconds (Home polls /dashboard); the picks
+ * must only start over when the question itself changed — a 409, or the
+ * next dialog — never on a refresh that says the same thing.
+ */
+function questionSig(key: string, questions: ApprovalQuestion[]): string {
+  return JSON.stringify([key, questions.map((q) => [q.header, q.question, q.multiSelect, q.free_text, q.options.map((o) => [o.n, o.label])])])
+}
+
+/**
  * An AskUserQuestion on screen, answered from here (§6.4, the structured
  * form): one section per question — tap an option of a single-select, tick
  * the boxes of a multi-select, or write your own words under "Other" — and
@@ -407,8 +417,15 @@ export function QuestionCard({ approval }: { approval: Approval }) {
   const [picks, setPicks] = useState<Pick[]>(() => initialPicks(questions))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState({ error: '', key: '' })
-  // A different question (after a 409, or the next one) starts afresh.
-  useEffect(() => setPicks(initialPicks(questions)), [approval.key, questions])
+  // A different question (after a 409, or the next one) starts afresh; the
+  // same question polled again leaves what has been picked alone.
+  const sig = questionSig(approval.key, questions)
+  const sigRef = useRef(sig)
+  useEffect(() => {
+    if (sigRef.current === sig) return
+    sigRef.current = sig
+    setPicks(initialPicks(questions))
+  }, [sig, questions])
 
   const quick = questions.length === 1 && !questions[0].multiSelect
   const typing = !!picks[0]?.other.trim()
