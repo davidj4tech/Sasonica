@@ -235,6 +235,18 @@ add(
   add(session(randomUUID(), 'Mock: long conversation', { live: false, state: null, at: r3(T0 - 86400 * 3 + 45 * 120), lines }))
 }
 
+// Filed under Archived (§6.4), and one the idle reaper rested.
+add(
+  session(randomUUID(), 'Mock: archived earlier', {
+    live: false,
+    state: null,
+    archived: true,
+    rested: { at: r3(T0 - 86400 * 5), reason: 'idle' },
+    at: r3(T0 - 86400 * 5),
+    lines: [youLine('Tidy the old branch.', T0 - 86400 * 5 - 60), agentLine('Done; nothing left on it.', T0 - 86400 * 5 - 30)]
+  })
+)
+
 // ── Real-shaped speech (red5, 22 Sep 2026) ───────────────────────────────
 //
 // Each has its own clock (s.real = {start, len}); it is live for len
@@ -619,7 +631,9 @@ function liveLine(line) {
   vSay(V.loop.s, V.loop.line, 4)
 }
 
-const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane } : { session: s.session, title: s.title, live: false, pane: null, at: s.at })
+// §6.1 (22 Sep 2026): every row carries archived, rested (null while live) and pinned.
+const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned })
+const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, ...flags(s) })
 
 function logOf(s, q = null) {
   tickSession(s)
@@ -788,6 +802,8 @@ function pageOf(all, before, limit = 60) {
 const STREAM_TICK_MS = Number(process.env.MOCK_STREAM_TICK_MS ?? 100)
 const PING_MS = Number(process.env.MOCK_PING_S ?? 15) * 1000
 const STREAM = { refuse: false }
+/** /session/close and /session/archive (GET /mock/session?fail=&delay=). */
+const SESSION_OPS = { fail: '', delay: 0 }
 const STATS = { streams: {}, log: {} }
 const OPEN = new Set()
 
@@ -966,7 +982,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/pair', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
+const API = new Set(['/pair', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://mock')
@@ -1010,6 +1026,12 @@ createServer(async (req, res) => {
     if (url.searchParams.get('loop') === '1') V.loop = V.loop || V.saved || null
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end(V.loop ? 'looping' : 'not looping')
+  }
+  if (path === '/mock/session') {
+    const q = url.searchParams
+    if (q.has('fail')) SESSION_OPS.fail = q.get('fail') === 'none' ? '' : q.get('fail')
+    if (q.has('delay')) SESSION_OPS.delay = Number(q.get('delay')) || 0
+    return send(res, 200, { ok: true, ...SESSION_OPS })
   }
   if (path === '/mock/pair') {
     PAIR.armed = true
@@ -1220,6 +1242,8 @@ async function route(method, path, q, body, res) {
     }
     const opened = !s.live
     receive(s, text)
+    // §6.4: talking un-archives, once the words are in.
+    s.archived = false
     // The line is in the log already; the answer comes after (the race).
     if (REPLY.delay) await sleep(REPLY.delay)
     return ok({ session: s.session, pane: s.pane, opened, submitted: true })
@@ -1289,6 +1313,40 @@ async function route(method, path, q, body, res) {
     }
     const d = DRAFTS.get(sid) || { text: '', at: 0 }
     return ok({ session: sid, text: d.text, at: d.at })
+  }
+
+  // §6.4 POST /session/close {session} → {session, pane?, live:false, closed}.
+  // GET /mock/session?fail=close|archive|none refuses one of them 500 (rollback).
+  if (method === 'POST' && path === '/session/close') {
+    const sid = String(body.session || '')
+    if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
+    const s = S[sid]
+    if (!s) return err(404, `no such session ${sid.slice(0, 8)}`)
+    if (SESSION_OPS.delay) await sleep(SESSION_OPS.delay)
+    if (SESSION_OPS.fail === 'close') return err(500, 'could not close the session')
+    if (!s.live) return ok({ session: sid, live: false, closed: false })
+    const pane = s.pane
+    s.live = false
+    s.state = null
+    s.pending = false
+    s.working = null
+    s.jobs = []
+    s.rested = null
+    s.at = r3(now())
+    return ok({ session: sid, pane, live: false, closed: true })
+  }
+  // §6.4 POST /session/archive {session, archived} → {session, archived}.
+  if (method === 'POST' && path === '/session/archive') {
+    const sid = String(body.session || '')
+    if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
+    const s = S[sid]
+    if (!s) return err(404, `no such session ${sid.slice(0, 8)}`)
+    const archived = body.archived === undefined ? true : body.archived
+    if (typeof archived !== 'boolean') return err(400, 'archived must be true or false')
+    if (SESSION_OPS.delay) await sleep(SESSION_OPS.delay)
+    if (SESSION_OPS.fail === 'archive') return err(500, 'could not archive')
+    s.archived = archived
+    return ok({ session: sid, archived })
   }
 
   if (method === 'POST' && path === '/rename') {

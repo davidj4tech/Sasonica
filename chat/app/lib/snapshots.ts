@@ -20,7 +20,7 @@
  * Bounded: at most MAX_THREADS threads (least recently opened or refreshed
  * goes first) and the newest MAX_MESSAGES messages each.
  */
-import type { Message, SessionId, SessionsStateResponse, TargetsResponse } from '../api/types'
+import type { Message, SessionId, SessionRow, SessionsStateResponse, TargetsResponse } from '../api/types'
 import { plainMessage } from './messages'
 import { idbDel, idbGet, idbSet } from './store'
 
@@ -182,6 +182,13 @@ export function renameInTargets(session: SessionId, title: string) {
   const cur = listMemory.targets
   if (!cur) return
   saveTargets({ ...cur, sessions: cur.sessions.map((r) => (r.session === session ? { ...r, title } : r)) })
+}
+
+/** An exit or an archive (or its rollback): the saved list says so too. */
+export function patchTargetRow(session: SessionId, patch: Partial<SessionRow>) {
+  const cur = listMemory.targets
+  if (!cur) return
+  saveTargets({ ...cur, sessions: cur.sessions.map((r) => (r.session === session ? { ...r, ...patch } : r)) })
 }
 
 export function peekStates() {

@@ -3,6 +3,7 @@ import { getSessionsState, getTargets } from '../api'
 import type { Place, SessionRow, SessionState, SessionsStateResponse, TargetsResponse } from '../api/types'
 import { loadStates, loadTargets, peekStates, peekTargets, saveStates, saveTargets } from '../lib/snapshots'
 import { confirmTitles } from '../lib/titles'
+import { confirmFlags } from '../lib/sessionFlags'
 import { usePoll } from './usePoll'
 import { noteStates } from '../lib/arrivals'
 
@@ -18,6 +19,17 @@ export function knownTitle(session: string): string {
 /** Live per the last /targets seen; undefined when the list never showed it. */
 export function knownLive(session: string): boolean | undefined {
   return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.live
+}
+
+/** Archived per the last /targets seen (the server's flag, before any change made here). */
+export function knownArchived(session: string): boolean | undefined {
+  return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.archived
+}
+
+/** An exit or archive the server accepted (or its rollback), for the rows seen in this page load. */
+export function noteRow(session: string, patch: Partial<SessionRow>) {
+  const row = known.get(session)
+  if (row) known.set(session, { ...row, ...patch })
 }
 
 /** A rename the server accepted, for the next page that asks knownTitle. */
@@ -51,6 +63,7 @@ export function useTargets() {
       const res = await getTargets()
       saveTargets(res)
       confirmTitles(res.sessions)
+      confirmFlags(res.sessions)
       setSessions(rowsOf(res))
       setPlaces(res.places || [])
       setError('')

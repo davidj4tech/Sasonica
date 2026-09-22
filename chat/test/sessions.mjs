@@ -1,0 +1,181 @@
+// Exit and Archive (§6.4): the list's long-press menu and the thread's ⋮;
+// the confirm sheet; optimistic, rolled back on refusal; the folded
+// "Archived (N)" section; Exit & archive as close-then-archive; the saved
+// list agrees on a cold start; sending un-archives and resumes. Mock only: a
+// real /session/close ends a running agent.
+import { chromium, SHOTS } from './lib.mjs'
+const BASE = process.env.BASE || 'http://127.0.0.1:8811'
+let fails = 0
+const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++ }
+const ctl = (q) => fetch(BASE + '/mock/session?' + q)
+await ctl('fail=none&delay=0')
+await fetch(BASE + '/mock/delay?ms=0')
+await fetch(BASE + '/mock/reply?delay=0&skew=0&flatten=0&fail=0')
+await fetch(BASE + '/mock/pair')
+const pr = await (await fetch(BASE + '/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: 'c0ffee42' }) })).json()
+const H = { Authorization: 'Bearer ' + pr.token }
+const targets = async () => (await (await fetch(BASE + '/targets', { headers: H })).json()).sessions
+const first = await targets()
+const sid = (t) => first.find((s) => s.title === t)?.session
+const rowFlags = async (s) => (await targets()).find((r) => r.session === s)
+ok(first.every((r) => 'archived' in r && 'rested' in r && 'pinned' in r), 'mock /targets rows carry archived, rested, pinned')
+
+const b = await chromium.launch()
+const page = await (await b.newContext({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true, colorScheme: 'dark' })).newPage()
+await page.route('**/input', (r) => r.abort())
+const posts = []
+page.on('request', (r) => { if (r.method() === 'POST') posts.push({ p: new URL(r.url()).pathname, body: JSON.parse(r.postData() || '{}') }) })
+const errors = []
+page.on('pageerror', (e) => errors.push(e.message))
+await page.goto(BASE + '/settings')
+await page.evaluate(([base, res]) => { localStorage.setItem('sasonica.chat.baseUrl', base); localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() })) }, [BASE, pr])
+await page.goto(BASE + '/')
+await page.waitForSelector('.thread-row')
+const rowOf = (s) => page.locator(`a.thread-row[href="/t/${s}"]`)
+const archivedHead = page.locator('.archived-head button')
+const inArchived = (s) => page.evaluate((s) => {
+  const head = document.querySelector('.archived-head')
+  const row = document.querySelector(`a.thread-row[href="/t/${s}"]`)
+  return !!(head && row && head.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING)
+}, s)
+const menuItems = async () => (await page.locator('.action-sheet [role=menuitem]').allInnerTexts())
+
+// 1. The Archived section: folded, counted, opens on a tap
+const old = sid('Mock: archived earlier')
+ok((await rowOf(old).count()) === 0, 'an archived thread is not in the main list')
+ok((await archivedHead.innerText()).includes('Archived (1)'), `"Archived (1)" at the foot (${await archivedHead.innerText()})`)
+ok((await archivedHead.getAttribute('aria-expanded')) === 'false', 'the section starts folded')
+await archivedHead.click()
+ok((await rowOf(old).count()) === 1 && (await inArchived(old)), 'a tap opens it: the archived thread under the heading')
+await page.screenshot({ path: SHOTS + '/sessions-01-archived-section.png' })
+await archivedHead.click()
+
+// 2. Long press a live thread → the menu → Exit session → confirm → ended at once
+const fresh = sid('Mock: not on the shelf yet')
+await rowOf(fresh).dispatchEvent('contextmenu')
+await page.waitForSelector('.action-sheet')
+ok(page.url() === BASE + '/', 'long press opened the menu, not the thread')
+const items = await menuItems()
+ok(JSON.stringify(items) === JSON.stringify(['Rename…', 'Exit session', 'Archive', 'Exit & archive']), `live thread menu: ${items.join(' | ')}`)
+await page.screenshot({ path: SHOTS + '/sessions-02-menu.png' })
+await page.getByRole('menuitem', { name: 'Exit session' }).click()
+await page.waitForSelector('.confirm-sheet')
+ok((await page.locator('.confirm-text').innerText()) === 'End this session? It can be resumed by sending a message.', 'confirm sheet asks first')
+await page.screenshot({ path: SHOTS + '/sessions-03-confirm.png' })
+await ctl('delay=1500')
+await page.getByRole('button', { name: 'End session' }).click()
+await page.waitForTimeout(300)
+ok((await rowOf(fresh).locator('.badge').count()) === 0 && (await rowOf(fresh).locator('.dot.shelved').count()) === 1, 'row ended at once (no live badge) before the server answered')
+await page.waitForTimeout(1600)
+const cp = posts.find((p) => p.p === '/session/close')
+ok(cp && cp.body.session === fresh && Object.keys(cp.body).length === 1, 'POST /session/close {session}')
+ok((await rowFlags(fresh)).live === false, 'the mock session is closed')
+ok((await rowOf(fresh).locator('.badge').count()) === 0, 'still ended after the answer and the next list')
+await ctl('delay=0')
+
+// 3. A refused exit rolls back (thread ⋮)
+const working = sid('Mock: working')
+await ctl('fail=close&delay=800')
+await page.goto(BASE + '/t/' + working)
+await page.waitForSelector('.bar .badge')
+await page.getByRole('button', { name: 'Thread menu' }).click()
+const tItems = await page.locator('.menu [role=menuitem]').allInnerTexts()
+ok(JSON.stringify(tItems) === JSON.stringify(['Rename…', 'Exit session', 'Archive', 'Exit & archive']), `thread ⋮ menu: ${tItems.join(' | ')}`)
+await page.getByRole('menuitem', { name: 'Exit session' }).click()
+await page.getByRole('button', { name: 'End session' }).click()
+await page.waitForTimeout(200)
+ok((await page.locator('.bar .badge').innerText()) === 'ended', 'header says ended at once')
+await page.waitForSelector('.status.failed', { timeout: 5000 })
+ok((await page.locator('.bar .badge').first().innerText()) !== 'ended', `refused → rolled back (${await page.locator('.bar .badge').first().innerText()})`)
+ok((await page.locator('.status.failed').innerText()).includes('could not close'), 'refusal said in the status line')
+await ctl('fail=none&delay=0')
+
+// 4. Archive a shelved thread from the list → it moves at once; Unarchive in its header
+// Whichever thread is shelved now: earlier suites reply into some of them.
+const shelved = first.find((r) => !r.live && !r.archived)?.session
+await page.goto(BASE + '/')
+await page.waitForSelector('.thread-row')
+await rowOf(shelved).dispatchEvent('contextmenu')
+await page.waitForSelector('.action-sheet')
+ok(JSON.stringify(await menuItems()) === JSON.stringify(['Rename…', 'Archive']), `shelved thread menu: no Exit (${(await menuItems()).join(' | ')})`)
+await ctl('delay=1200')
+await page.getByRole('menuitem', { name: 'Archive' }).click()
+await page.waitForTimeout(200)
+ok((await rowOf(shelved).count()) === 0 && (await archivedHead.innerText()).includes('Archived (2)'), 'left the main list at once: Archived (2)')
+await page.waitForTimeout(1300)
+const ap = posts.find((p) => p.p === '/session/archive')
+ok(ap && ap.body.session === shelved && ap.body.archived === true, 'POST /session/archive {session, archived: true}')
+ok((await rowFlags(shelved)).archived === true, 'the mock has it archived')
+await ctl('delay=0')
+await archivedHead.click()
+await rowOf(shelved).click()
+await page.waitForSelector('.badge.archived')
+ok((await page.locator('.badge.archived').innerText()) === 'Archived', 'opened from Archived: the header says Archived')
+await page.screenshot({ path: SHOTS + '/sessions-04-archived-thread.png' })
+await page.getByRole('button', { name: 'Thread menu' }).click()
+ok(JSON.stringify(await page.locator('.menu [role=menuitem]').allInnerTexts()) === JSON.stringify(['Rename…', 'Unarchive']), 'its menu offers Unarchive')
+await page.getByRole('menuitem', { name: 'Unarchive' }).click()
+await page.waitForTimeout(150)
+ok((await page.locator('.badge.archived').count()) === 0, 'Unarchive: the badge goes at once')
+await page.waitForTimeout(400)
+ok((await rowFlags(shelved)).archived === false, 'POST /session/archive {archived: false} landed')
+await page.goto(BASE + '/')
+await page.waitForSelector('.thread-row')
+ok((await rowOf(shelved).count()) === 1 && !(await inArchived(shelved)), 'back in the main list')
+
+// 5. A refused archive rolls back
+await ctl('fail=archive&delay=800')
+await rowOf(shelved).dispatchEvent('contextmenu')
+await page.getByRole('menuitem', { name: 'Archive' }).click()
+await page.waitForTimeout(200)
+ok((await rowOf(shelved).count()) === 0, 'archived optimistically')
+await page.waitForSelector('.notice.error', { timeout: 5000 })
+ok((await rowOf(shelved).count()) === 1 && !(await inArchived(shelved)), 'refused → back in the main list')
+ok((await page.locator('.notice.error').innerText()).includes('could not archive'), 'refusal said on the list')
+await ctl('fail=none&delay=0')
+
+// 6. Exit & archive (thread ⋮): close, then archive; both at once on screen
+await page.goto(BASE + '/t/' + working)
+await page.waitForSelector('.bar .badge')
+const before = posts.length
+await page.getByRole('button', { name: 'Thread menu' }).click()
+await page.getByRole('menuitem', { name: 'Exit & archive' }).click()
+await page.getByRole('button', { name: 'End & archive' }).click()
+await page.waitForTimeout(150)
+ok((await page.locator('.bar .badge').first().innerText()) === 'ended' && (await page.locator('.badge.archived').count()) === 1, 'header: ended and Archived at once')
+await page.waitForTimeout(600)
+const seq = posts.slice(before).map((p) => p.p).filter((p) => p.startsWith('/session/'))
+ok(JSON.stringify(seq) === JSON.stringify(['/session/close', '/session/archive']), `two requests, close then archive (${seq.join(', ')})`)
+const wf = await rowFlags(working)
+ok(wf.live === false && wf.archived === true, 'the mock session is closed and archived')
+await page.screenshot({ path: SHOTS + '/sessions-05-exit-archive.png' })
+
+// 7. The saved list agrees on a cold start (slow network)
+await fetch(BASE + '/mock/delay?ms=3000')
+await page.goto(BASE + '/')
+await page.waitForSelector('.archived-head')
+ok((await archivedHead.innerText()).includes('Archived (2)'), `cold start from the saved list: Archived (2) (${await archivedHead.innerText()})`)
+await archivedHead.click()
+ok((await inArchived(working)) && (await rowOf(working).locator('.badge').count()) === 0, 'the exited thread is archived and not live in the saved list')
+await fetch(BASE + '/mock/delay?ms=0')
+
+// 8. Sending un-archives and resumes
+await page.goto(BASE + '/t/' + working)
+await page.waitForSelector('.badge.archived')
+await page.locator('.composer .input').fill('Back to this one')
+await page.locator('.composer .send').click()
+await page.waitForTimeout(600)
+ok((await page.locator('.badge.archived').count()) === 0, 'sent: the Archived badge goes')
+ok((await page.locator('.bar .badge').first().innerText()) !== 'ended', `sent: live again (${await page.locator('.bar .badge').first().innerText()})`)
+const wf2 = await rowFlags(working)
+ok(wf2.archived === false && wf2.live === true, 'the mock un-archived it on the reply')
+await page.goto(BASE + '/')
+await page.waitForSelector('.thread-row')
+ok((await rowOf(working).count()) === 1 && !(await inArchived(working)), 'the list has it back in the main section')
+ok(!errors.length, `no page errors ${errors.join('; ')}`)
+
+// put the fixtures back
+await fetch(BASE + '/session/archive', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ session: shelved, archived: false }) })
+await b.close()
+console.log(fails ? `${fails} FAILED` : 'ALL PASS')
+process.exit(fails ? 1 : 0)

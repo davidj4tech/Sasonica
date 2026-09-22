@@ -18,11 +18,14 @@ import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
-import { knownLive, knownTitle, useSessionStates } from '../hooks/useThreads'
+import { knownArchived, knownLive, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
+import { useSessionActions } from '../hooks/useSessionActions'
+import { ACTION_LABEL, ConfirmExitSheet, sessionMenuItems, type SessionAction } from '../components/SessionSheets'
+import { archivedOf, clearArchivedOverride, clearEnded, endedHere, useSessionFlags } from '../lib/sessionFlags'
 import { useRename } from '../hooks/useRename'
 import { RenameSheet } from '../components/RenameSheet'
 import { useTitle } from '../lib/titles'
-import { loadTargets } from '../lib/snapshots'
+import { loadTargets, patchTargetRow } from '../lib/snapshots'
 import { buildItems } from '../lib/convert'
 import { draftSent } from '../lib/drafts'
 import { markSeen, setOpenSession } from '../lib/arrivals'
@@ -62,7 +65,11 @@ function ThreadPage({ session }: { session: string }) {
   const title = useTitle(session, serverTitle) || session.slice(0, 8)
   const [renaming, setRenaming] = useState(false)
   const [menu, setMenu] = useState(false)
+  const [confirmExit, setConfirmExit] = useState<{ archive: boolean } | null>(null)
   const rename = useRename()
+  const acts = useSessionActions()
+  useSessionFlags()
+  const archived = archivedOf(session, knownArchived(session))
 
   const log = useThread(session)
   useSeen(session, log.messages.length)
@@ -113,6 +120,14 @@ function ThreadPage({ session }: { session: string }) {
         const res = await reply(session, text)
         sent(id)
         draftSent(session, text)
+        // Sending resumes an ended session and un-archives the thread (the
+        // server clears the flag once the words are in, §6.4).
+        clearEnded(session)
+        clearArchivedOverride(session)
+        if (knownArchived(session)) {
+          patchTargetRow(session, { archived: false })
+          noteRow(session, { archived: false })
+        }
         // A revived session reads the reply once it has loaded, which can
         // take a minute — "sent" there would be a small lie (§6.3).
         if (res.opened) setStatus({ text: 'Session reopened — it will pick this up shortly.' })
@@ -179,10 +194,21 @@ function ThreadPage({ session }: { session: string }) {
   // Live: the stream says so (its snapshot and `state` events), else
   // /sessions/state lists it (polled), else the list said so, else a live
   // follow-along in the thread itself. `closed` only when we know.
-  const state = (log.state && log.state !== 'ended' ? log.state : null) || states[session]
+  // Exited from here: ended at once, until a send resumes it.
+  const ended = endedHere(session)
+  const state = ended ? null : (log.state && log.state !== 'ended' ? log.state : null) || states[session]
   const listLive = knownLive(session)
-  const sessionLive = log.sessionLive ?? (!!state || listLive === true || !!log.live)
-  const closed = !sessionLive && (log.sessionLive === false || listLive === false)
+  const sessionLive = !ended && (log.sessionLive ?? (!!state || listLive === true || !!log.live))
+  const closed = ended || (!sessionLive && (log.sessionLive === false || listLive === false))
+  const onAction = (a: SessionAction) => {
+    setMenu(false)
+    if (a === 'rename') setRenaming(true)
+    else if (a === 'exit' || a === 'exit-archive') setConfirmExit({ archive: a === 'exit-archive' })
+    else {
+      setStatus(null)
+      void acts.archive(session, a === 'archive').then((r) => setStatus({ text: r.message, failed: !r.ok }))
+    }
+  }
 
   let empty: React.ReactNode = null
   if (log.messages.length) {
@@ -215,25 +241,34 @@ function ThreadPage({ session }: { session: string }) {
           </span>
         )}
         {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
+        {archived && <span className="badge archived">Archived</span>}
         <div className="menu-anchor">
           <button className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
             ⋮
           </button>
           {menu && (
             <div className="menu" role="menu" onMouseLeave={() => setMenu(false)}>
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setMenu(false)
-                  setRenaming(true)
-                }}
-              >
-                Rename…
-              </button>
+              {sessionMenuItems(sessionLive, archived).map((a) => (
+                <button key={a} role="menuitem" className={a === 'exit' || a === 'exit-archive' ? 'danger' : ''} onClick={() => onAction(a)}>
+                  {ACTION_LABEL[a]}
+                </button>
+              ))}
             </div>
           )}
         </div>
       </header>
+      {confirmExit && (
+        <ConfirmExitSheet
+          archive={confirmExit.archive}
+          onClose={() => setConfirmExit(null)}
+          onConfirm={() => {
+            const withArchive = confirmExit.archive
+            setConfirmExit(null)
+            setStatus(null)
+            void (withArchive ? acts.exitAndArchive(session) : acts.exit(session)).then((r) => setStatus({ text: r.message, failed: !r.ok }))
+          }}
+        />
+      )}
       {renaming && (
         <RenameSheet
           title={title}
@@ -247,10 +282,10 @@ function ThreadPage({ session }: { session: string }) {
       )}
       <Thread
         items={items}
-        isRunning={log.isRunning}
-        working={log.working}
+        isRunning={log.isRunning && !ended}
+        working={ended ? null : log.working}
         workingAt={log.workingAt}
-        thinking={log.isRunning}
+        thinking={log.isRunning && !ended}
         suggestion={log.suggestion}
         onSend={onSend}
         onStop={onStop}

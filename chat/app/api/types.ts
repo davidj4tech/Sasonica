@@ -39,6 +39,12 @@ export interface SessionRow {
   pane: string | null
   /** Only on shelved (not live) rows: the manifest's mtime, epoch seconds. */
   at?: number
+  /** Filed under Archived (§6.1, 22 Sep 2026). The row stays in /targets; the app files it. */
+  archived?: boolean
+  /** Closed by the idle reaper, `{at, reason}`; always null on a live row. */
+  rested?: { at: number; reason: string } | null
+  /** Kept open against the idle reaper (POST /session/pin). */
+  pinned?: boolean
 }
 
 /** A directory a new chat may be opened in. */
@@ -406,6 +412,21 @@ export interface RenameResponse extends Envelope {
   terminal: boolean
   /** Why the terminal was not renamed (ended, or someone mid-sentence in its box). */
   why: string | null
+}
+
+/** POST /session/close {session} (§6.4): ends the running session; the transcript stays. */
+export interface CloseResponse extends Envelope {
+  session: SessionId
+  pane?: string | null
+  live: false
+  /** false: it was not running (nothing to end). */
+  closed: boolean
+}
+
+/** POST /session/archive {session, archived} (§6.4). Archiving ends nothing. */
+export interface ArchiveResponse extends Envelope {
+  session: SessionId
+  archived: boolean
 }
 
 // ── §6.5 Speech ───────────────────────────────────────────────────────────

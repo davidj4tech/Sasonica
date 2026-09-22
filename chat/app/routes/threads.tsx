@@ -17,6 +17,9 @@ import type { SessionRow, SessionState } from '../api/types'
 import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
 import { Mark } from '../components/Mark'
+import { ConfirmExitSheet, SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
+import { useSessionActions } from '../hooks/useSessionActions'
+import { archivedOf, endedHere, useSessionFlags } from '../lib/sessionFlags'
 
 const STATE_LABEL: Record<SessionState, string> = {
   working: 'working',
@@ -43,8 +46,35 @@ function ThreadList() {
   const states = useSessionStates()
   usePrefetch(sessions, !stale && !loading && !error)
   const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
+  const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean } | null>(null)
+  const [confirm, setConfirm] = useState<{ session: string; archive: boolean } | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null)
   const rename = useRename()
+  const acts = useSessionActions()
+  useSessionFlags()
+  // Archived threads leave the main list for a folded section at its foot;
+  // this app's own archive or exit shows before the server confirms it.
+  const main: SessionRow[] = []
+  const archived: SessionRow[] = []
+  for (const row of sessions) (archivedOf(row.session, row.archived) ? archived : main).push(row)
+  const say = (r: { ok: boolean; message: string }) => setNote(r.ok ? null : { text: r.message, failed: true })
+  const pick = (a: SessionAction) => {
+    const m = menu
+    setMenu(null)
+    if (!m) return
+    if (a === 'rename') setRenaming({ session: m.session, title: m.title })
+    else if (a === 'exit' || a === 'exit-archive') setConfirm({ session: m.session, archive: a === 'exit-archive' })
+    else void acts.archive(m.session, a === 'archive').then(say)
+  }
+  const rowOf = (row: SessionRow) => (
+    <ThreadRow
+      key={row.session}
+      row={row}
+      state={states[row.session]}
+      onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived) })}
+    />
+  )
 
   return (
     <div className="page">
@@ -70,10 +100,32 @@ function ThreadList() {
       {loading && !sessions.length && <p className="notice">Loading…</p>}
 
       <ul className="threads">
-        {sessions.map((row) => (
-          <ThreadRow key={row.session} row={row} state={states[row.session]} onRename={(title) => setRenaming({ session: row.session, title })} />
-        ))}
+        {main.map(rowOf)}
+        {archived.length > 0 && (
+          <li className="archived-head">
+            <button aria-expanded={showArchived} onClick={() => setShowArchived((v) => !v)}>
+              <span className="caret" aria-hidden="true">
+                {showArchived ? '▾' : '▸'}
+              </span>
+              Archived ({archived.length})
+            </button>
+          </li>
+        )}
+        {showArchived && archived.map(rowOf)}
       </ul>
+
+      {menu && <SessionMenuSheet title={menu.title} live={menu.live} archived={menu.archived} onPick={pick} onClose={() => setMenu(null)} />}
+      {confirm && (
+        <ConfirmExitSheet
+          archive={confirm.archive}
+          onClose={() => setConfirm(null)}
+          onConfirm={() => {
+            const c = confirm
+            setConfirm(null)
+            void (c.archive ? acts.exitAndArchive(c.session) : acts.exit(c.session)).then(say)
+          }}
+        />
+      )}
 
       {renaming && (
         <RenameSheet
@@ -100,15 +152,19 @@ function ThreadList() {
   )
 }
 
-/** Held this long, a press on a row is a long press (rename), not a tap. */
+/** Held this long, a press on a row is a long press (the thread's menu), not a tap. */
 const LONG_PRESS_MS = 550
 
 /**
  * One row. A long press (touch or mouse held, or the context menu that
- * Android's long press fires on a link) opens rename instead of the thread.
+ * Android's long press fires on a link) opens the thread's menu (Rename,
+ * Exit, Archive) instead of the thread.
  */
-function ThreadRow({ row, state, onRename }: { row: SessionRow; state: SessionState | undefined; onRename: (title: string) => void }) {
+function ThreadRow({ row, state: polled, onMenu }: { row: SessionRow; state: SessionState | undefined; onMenu: (title: string, live: boolean) => void }) {
   const title = useTitle(row.session, row.title) || row.session.slice(0, 8)
+  // Exited from here: not live, whatever the last poll said.
+  const live = row.live && !endedHere(row.session)
+  const state = live ? polled : undefined
   const unread = useUnread(row.session)
   const timer = useRef<number | null>(null)
   const start = useRef<{ x: number; y: number } | null>(null)
@@ -120,7 +176,7 @@ function ThreadRow({ row, state, onRename }: { row: SessionRow; state: SessionSt
   const long = () => {
     cancel()
     longRef.current = true
-    onRename(title)
+    onMenu(title, live)
   }
   return (
     <li>
@@ -146,18 +202,18 @@ function ThreadRow({ row, state, onRename }: { row: SessionRow; state: SessionSt
           if (!longRef.current) long()
         }}
         onClick={(e) => {
-          // The press that opened rename must not also open the thread.
+          // The press that opened the menu must not also open the thread.
           if (longRef.current) {
             e.preventDefault()
             longRef.current = false
           }
         }}
       >
-        <span className={`dot ${row.live ? state || 'live' : 'shelved'}`} />
+        <span className={`dot ${live ? state || 'live' : 'shelved'}`} />
         <span className="title">{title}</span>
         {hasDraft(row.session) && <span className="draft-mark">Draft</span>}
         {unread && <span className="unread-dot" aria-label="New reply" />}
-        {row.live ? (
+        {live ? (
           <span className={`badge ${state || ''}`}>{state ? STATE_LABEL[state] : 'live'}</span>
         ) : (
           <span className="when">{ago(row.at)}</span>

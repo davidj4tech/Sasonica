@@ -12,6 +12,8 @@ import { authHeaders, serverBase } from './auth'
 import { readSse } from '../lib/sse'
 import type {
   AnswerRequest,
+  ArchiveResponse,
+  CloseResponse,
   AnswerResponse,
   AskRequest,
   AskResponse,
@@ -276,6 +278,19 @@ export async function answer(body: AnswerRequest): Promise<AnswerResult> {
  */
 export function renameThread(session: SessionId, title: string) {
   return request<RenameResponse>('POST', '/rename', { session, title })
+}
+
+/**
+ * POST /session/close (§6.4): end the running session (pane or headless).
+ * REAL on the canvas: it kills the agent. The next message resumes it.
+ */
+export function closeSession(session: SessionId) {
+  return request<CloseResponse>('POST', '/session/close', { session })
+}
+
+/** POST /session/archive (§6.4): file the thread under Archived, or take it out. */
+export function archiveSession(session: SessionId, archived: boolean) {
+  return request<ArchiveResponse>('POST', '/session/archive', { session, archived })
 }
 
 // ── Speech (§6.5) ─────────────────────────────────────────────────────────

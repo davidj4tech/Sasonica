@@ -1,4 +1,4 @@
-// Rename a thread: long press in the list, title tap and ⋮ in the thread;
+// Rename a thread: long press in the list (→ its menu → Rename…), title tap and ⋮ in the thread;
 // optimistic everywhere (list, header, speech bar, saved list), rolled back
 // on refusal; empty names disabled. Mock only: a real POST /rename types
 // into a running session.
@@ -31,8 +31,11 @@ await page.mouse.move(box.x + 60, box.y + box.height / 2)
 await page.mouse.down()
 await page.waitForTimeout(800)
 await page.mouse.up()
-await page.waitForSelector('.rename-sheet')
-ok(page.url() === BASE + '/', 'long press opened rename, not the thread')
+// The long press opens the thread's menu (Rename, Exit, Archive: sessions.mjs).
+await page.waitForSelector('.action-sheet')
+ok(page.url() === BASE + '/', 'long press opened the menu, not the thread')
+await page.getByRole('menuitem', { name: 'Rename…' }).click()
+await page.waitForSelector('.rename-sheet input')
 ok((await page.locator('.rename-sheet input').inputValue()) === 'Mock: shelved conversation', 'sheet prefilled with the current title')
 await page.locator('.rename-sheet input').fill('   ')
 ok(await page.locator('.rename-sheet button[type=submit]').isDisabled(), 'whitespace-only name: Rename disabled')
@@ -88,7 +91,8 @@ await page.waitForSelector('.speech-bar .speech-title')
 await page.evaluate(() => document.querySelector(`a.thread-row[href^="/t/"]`) && 0)
 const r4 = rowOf(speaking)
 await r4.dispatchEvent('contextmenu')
-await page.waitForSelector('.rename-sheet')
+await page.getByRole('menuitem', { name: 'Rename…' }).click()
+await page.waitForSelector('.rename-sheet input')
 await page.locator('.rename-sheet input').fill('The voice, renamed')
 await page.locator('.rename-sheet button[type=submit]').click()
 await page.waitForTimeout(300)
