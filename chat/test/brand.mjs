@@ -19,7 +19,7 @@ for (const f of ['favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'icon-
 
 const b = await chromium.launch()
 const wide = (page) => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
-for (const [name, vp, size, px] of [['portrait', { width: 390, height: 780 }, 'default', 19], ['landscape', { width: 844, height: 390 }, 'default', 19], ['portrait-larger', { width: 390, height: 780 }, 'largest', 25]]) {
+for (const [name, vp, size, px] of [['portrait', { width: 390, height: 780 }, 'default', 19], ['landscape', { width: 844, height: 390 }, 'default', 19], ['portrait-larger', { width: 390, height: 780 }, 'largest', 28]]) {
   const ctx = await b.newContext({ viewport: vp, isMobile: true, hasTouch: true, colorScheme: 'dark' })
   const page = await ctx.newPage()
   await page.route('**/input', (r) => r.abort())
@@ -56,7 +56,7 @@ for (const [name, vp, size, px] of [['portrait', { width: 390, height: 780 }, 'd
     return { text: h?.textContent, family: h && getComputedStyle(h).fontFamily, mark: m && Math.round(m.width), root: getComputedStyle(document.documentElement).fontSize, body: getComputedStyle(document.body).fontFamily, bg: getComputedStyle(document.body).backgroundColor }
   })
   ok(wm.text === 'Sasonica' && wm.family.includes('Fraunces'), `${name}: list header is the wordmark in Fraunces`)
-  ok(wm.mark >= 24 && wm.mark <= 44, `${name}: the mark is ~28 px (${wm.mark})`)
+  ok(wm.mark >= 24 && wm.mark <= 48, `${name}: the mark is ~28 px (${wm.mark})`)
   ok(wm.root === px + 'px', `${name}: root font-size is the text-size setting (${wm.root})`)
   ok(wm.body.includes('IBM Plex Sans'), `${name}: body in IBM Plex Sans`)
   ok(wm.bg === 'rgb(13, 20, 18)', `${name}: ground #0D1412`)

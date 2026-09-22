@@ -9,7 +9,8 @@
  * storage means the default, every time.
  *
  * Default is what was Large (19 px). The small end goes down to 13 px for
- * smart glasses, where a line has to fit a narrow display.
+ * smart glasses, where a line has to fit a narrow display — three steps
+ * below Default, three above.
  */
 
 export const TEXT_SIZES = [
@@ -18,7 +19,8 @@ export const TEXT_SIZES = [
   { id: 'small', label: 'Small', px: 17 },
   { id: 'default', label: 'Default', px: 19 },
   { id: 'large', label: 'Large', px: 22 },
-  { id: 'largest', label: 'Largest', px: 25 }
+  { id: 'larger', label: 'Larger', px: 25 },
+  { id: 'largest', label: 'Largest', px: 28 }
 ] as const
 
 export type TextSizeId = (typeof TEXT_SIZES)[number]['id']
