@@ -4,7 +4,8 @@
 //   smart     needs you → working → the rest, pinned on top of the rest
 //   recent    newest first: the pinned old thread falls to its place
 //   project   headings in the order of their newest thread, "Other" last,
-//             each row under its own project; the Archived section too
+//             each row under its own project (no project line on the rows —
+//             the heading says it); the Archived section too
 //   fold      a group heading folds its rows away; the fold survives a reload
 //   device    the choice survives a reload (localStorage)
 //   menu      the sort menu closes on a tap outside without changing it
@@ -76,9 +77,14 @@ let right = true
 for (const x of all) {
   if (x.archived) break
   if (x.head) under = x.head
-  else if (x.title && (under === 'Other' ? x.project !== null : x.project !== under)) right = false
+  else if (x.title && (byTitle[x.title]?.project || 'Other') !== under) right = false
 }
 ok(right, 'every row sits under its own project ("Other" rows have none)')
+// The heading says it: no line under the title (it is back under Smart).
+ok(
+  all.every((x) => !x.title || x.project === null),
+  'no project line under a title while the list is grouped by project'
+)
 await page.screenshot({ path: SHOTS + '/sort-02-project.png' })
 
 // The groups fold
@@ -126,7 +132,8 @@ await page.mouse.click(200, 500)
 await page.waitForTimeout(150)
 ok((await page.locator('.sort-menu').count()) === 0 && page.url() === BASE + '/threads' && (await page.locator('.sort-button').innerText()).startsWith('Sort: By project'), 'a tap outside closes the sort menu; nothing opened, nothing changed')
 
-// The project line
+// The project line (Smart: no headings, so each row says its own)
+await sortTo('Smart')
 const rowProject = async (t) => page.locator(`a.thread-row[href="/t/${sid(t)}"] .row-project`)
 ok((await (await rowProject('Mock: working')).innerText()) === 'agent-media', 'a row shows its project under the title')
 ok((await (await rowProject('Mock: not on the shelf yet')).count()) === 0, 'no line where the project is null')

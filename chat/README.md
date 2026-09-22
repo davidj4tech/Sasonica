@@ -247,9 +247,10 @@ device code and passed through.
   and By project (headings from each row's `project`, "Other" last); the
   Archived section follows it; kept per device (localStorage). Under By
   project each heading folds its group away (a caret and the group's count;
-  the folded names are kept per device too). Rows, Home's
-  recap and working cards, and the thread header carry the project really
-  small under the title, when there is one.
+  the folded names are kept per device too), and the rows drop their project
+  line — the heading says it. Everywhere else rows, Home's recap and working
+  cards, and the thread header carry the project really small under the
+  title, when there is one.
 - Menus and sheets (the ⋮ menu, the long-press menu, rename and exit
   sheets, the sort menu, speech controls and output) all close on a tap
   outside — a scrim takes that tap, so it never presses what is under it —

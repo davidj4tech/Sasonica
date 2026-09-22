@@ -137,6 +137,7 @@ function ThreadList() {
       row={row}
       state={states[row.session]}
       markArchived={filter.show === 'all' && isArchived(row)}
+      hideProject={sort === 'project'}
       onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived) })}
     />
   )
@@ -274,11 +275,14 @@ function ThreadRow({
   row,
   state: polled,
   markArchived,
+  hideProject,
   onMenu
 }: {
   row: SessionRow
   state: SessionState | undefined
   markArchived?: boolean
+  /** By project: the heading above already says it — no line under the title. */
+  hideProject?: boolean
   onMenu: (title: string, live: boolean) => void
 }) {
   const title = useTitle(row.session, row.title) || row.session.slice(0, 8)
@@ -332,7 +336,7 @@ function ThreadRow({
         <span className={`dot ${live ? state || 'live' : 'shelved'}`} />
         <span className="title-col">
           <span className="title">{title}</span>
-          {row.project && <span className="row-project">{row.project}</span>}
+          {row.project && !hideProject && <span className="row-project">{row.project}</span>}
         </span>
         {markArchived && <span className="draft-mark archived-mark">Archived</span>}
         {hasDraft(row.session) && <span className="draft-mark">Draft</span>}
