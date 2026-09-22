@@ -15,7 +15,7 @@ import { Link } from 'react-router'
 import { getTargets } from '../api'
 import { credentialKind, hasLegacyToken, pairedDevice, serverBase, setBaseUrl, setLegacyToken, storedBaseUrl, unpair } from '../api/auth'
 import { LEAD_DEFAULT_S, LEAD_MAX_S, LEAD_MIN_S, LEAD_STEP_S, setFollowLead, useFollowLead } from '../lib/followLead'
-import { backgroundNotifyStatus, setBackgroundNotify, syncBackgroundNotify, type BackgroundNotifyStatus } from '../lib/native'
+import { backgroundNotifyStatus, setBackgroundNotify, syncBackgroundNotify, speechStatus, setSpeechHere, type BackgroundNotifyStatus, type SpeechStatus } from '../lib/native'
 import { getShowAmbient, setShowAmbient } from '../lib/pictures'
 import { setAdvanced, useAdvanced } from '../lib/advanced'
 import { getTextSize, setTextSize, TEXT_SIZE_EVENT, TEXT_SIZES, type TextSizeId } from '../lib/textSize'
@@ -47,9 +47,12 @@ export default function Settings() {
   const advanced = useAdvanced()
   // Background notifications: the Android shell only (null elsewhere).
   const [bg, setBg] = useState<BackgroundNotifyStatus | null>(null)
+  // Speech played here: the Android shell only, and off until turned on.
+  const [speech, setSpeech] = useState<SpeechStatus | null>(null)
   useEffect(() => {
     let live = true
     void backgroundNotifyStatus().then((s) => live && setBg(s))
+    void speechStatus().then((s) => live && setSpeech(s))
     return () => {
       live = false
     }
@@ -214,6 +217,30 @@ export default function Settings() {
                 : bg.enabled
                   ? `Keeps one quiet connection to the server open, shown as “Sasonica · listening for replies”.${bg.state ? ` Now: ${bg.state}` : ''}`
                   : 'Off: replies are told only while the app is open.'}
+            </small>
+          </fieldset>
+        )}
+        {speech && (
+          <fieldset data-testid="speech-here">
+            <legend>Speech</legend>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={speech.enabled}
+                onChange={(e) => {
+                  const on = e.target.checked
+                  setSpeech({ ...speech, enabled: on })
+                  void setSpeechHere(on).then((s) => s && setSpeech(s))
+                }}
+              />
+              Speak replies on this phone
+            </label>
+            <small>
+              {speech.enabled
+                ? speech.listening
+                  ? `Listening on ${speech.listening}. Point the server at it with media say --target next.`
+                  : 'Starting\u2026'
+                : `Off: replies are spoken by the old Sasonica app. While both are installed this one answers on port ${speech.port}, so you can try it without losing the other.`}
             </small>
           </fieldset>
         )}

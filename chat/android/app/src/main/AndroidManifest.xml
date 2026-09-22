@@ -60,6 +60,16 @@
                 android:value="Keeps one connection open to the user's own self-hosted Sasonica server so it can notify them when a reply finishes or a question waits, without Firebase Cloud Messaging." />
         </service>
 
+        <!-- Speech (SpeechService): the player red5 drives over a socket,
+             and a foreground service because a player on an activity is
+             frozen about a minute after it leaves the screen. mediaPlayback,
+             which is what it is; that type may not start from BOOT_COMPLETED
+             on Android 15, so opening the app is what starts it. -->
+        <service
+            android:name=".speech.SpeechService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <!-- Restarts it after a reboot or an update, when it is on. -->
         <receiver
             android:name=".NotifyBootReceiver"
@@ -79,6 +89,8 @@
     <!-- Background notifications (NotifyService). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Speech (SpeechService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 

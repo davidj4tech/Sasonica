@@ -506,12 +506,13 @@ It passed the mock and failed on the phone because real live lines differ:
 
 `chat/` is also a Capacitor 7 project: `capacitor.config.ts` + `android/`.
 The app is **Sasonica Next**, applicationId `com.sasonica.next`, installed
-BESIDE the old Sasonica (`com.sasonica.app`), which keeps playing speech and
-owns the phone's ports 8773 / 6613 and its MediaSession. Next binds no port
-and has no MediaSession; its one foreground service is the background
-notifier below, and its notification channels (`replies`, `needs-you`,
-`listening`) are its own package's. It takes over
-`com.sasonica.app` only when it replaces the old app.
+BESIDE the old Sasonica (`com.sasonica.app`), which owns the phone's ports
+8773 / 6613 and its MediaSession. Next has no MediaSession, and the one port
+it binds is **6614**, its own speech listener (below) — so both apps can
+answer for speech while the two are compared. Its foreground services are
+the background notifier and the speech player, and its notification channels
+(`replies`, `needs-you`, `listening`, `speech`) are its own package's. It
+takes over `com.sasonica.app` only when it replaces the old app.
 
 - **Build:** CI only (red5 has no Android SDK). `.github/workflows/build-next-apk.yml`
   runs on every push to `android-next`: `pnpm install` → `typecheck` →
@@ -566,6 +567,20 @@ What is native (all of it goes through `app/lib/native.ts`, a no-op on the web):
   decision logic is plain Java with JUnit tests (`NotifyRules`, `Backoff`,
   `SseReader`; CI runs `testDebugUnitTest`). Needs a server with
   `/sessions/events`; an older one leaves it retrying, then parked.
+- **Speech played here** (David, 23 Sep 2026): `speech/SpeechService.java`,
+  a `mediaPlayback` foreground service — a player on an activity is frozen
+  about a minute after it leaves the screen, which was measured. red5 drives
+  it the way it drives mpv: `MpvServer` answers mpv's JSON IPC on the
+  phone's tailnet address, port **6614** (the old app keeps 6613), and
+  `Media3Speech` plays the clips with ExoPlayer — one playlist, pitch held
+  at 1.0, focus taken honestly (Next has no other player), and clips fetched
+  to the cache one ahead because HTTP `prepare()` measured 8.5–9.8 s against
+  red5 and 44–78 ms off disk. Settings → Speech has the toggle, **off until
+  turned on**; point red5 at it with `MEDIA_SPEECH_SOCKET_NEXT=tcp://p8a:6614`
+  and `media say --target next`. It cannot start itself after a reboot
+  (Android 15 refuses a `mediaPlayback` service from `BOOT_COMPLETED`);
+  opening the app does. `MpvServerTest` replays what `sinks/speech.py`
+  really sends, on the JVM, in CI.
 - **Output…** in the speech sheet opens Android's own output picker
   (`OutputSwitcherPlugin.java`, androidx.mediarouter's
   `SystemOutputSwitcherDialogController`), falling back to Bluetooth
@@ -586,8 +601,11 @@ What is native (all of it goes through `app/lib/native.ts`, a no-op on the web):
   `ACTION_RECOGNIZE_SPEECH`), so the app has no RECORD_AUDIO permission;
   the manifest's `<queries>` make the recogniser visible on Android 11+.
 
-Native code here is written fresh (SPDX Apache-2.0 headers); nothing is
-copied from the ABS-derived old app.
+Native code here is written fresh (SPDX Apache-2.0 headers) with one
+exception, and it is not an ABS one: `speech/MpvServer.java`, `Json.java` and
+`ClipCache.java` come from agent-media's companion app by way of the old
+Sasonica fork, Apache-2.0 at both ends, carried over unchanged but for their
+package. Nothing is copied from Audiobookshelf.
 
 ## Stubbed / not done
 

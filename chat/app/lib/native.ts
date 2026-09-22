@@ -17,6 +17,10 @@
  *   foreground service holding one GET /sessions/events stream (§6.13) while
  *   the app is closed. While it runs it owns the system notifications, and
  *   notifyArrival() stands aside. Settings has its toggle.
+ * - Speech: replies played by this app (speech/SpeechService.java) — a
+ *   Media3 player behind the mpv socket agent-media already drives, on its
+ *   own port while the old Sasonica app still has 6613. Settings has its
+ *   toggle; it is off until turned on.
  */
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
@@ -310,6 +314,47 @@ export async function nativeVersion(): Promise<string | null> {
     const info = await cap()?.Plugins?.App?.getInfo?.()
     if (!info?.version) return null
     return info.build && info.build !== info.version ? `${info.version} (${info.build})` : info.version
+  } catch {
+    return null
+  }
+}
+
+// ── Speech in this app (speech/SpeechService.java) ────────────────────────
+
+export interface SpeechStatus {
+  /** The Settings toggle: off until turned on. */
+  enabled: boolean
+  /** The service is up. */
+  running: boolean
+  /** Where it listens ("100.x.y.z:6614"), or "" when it is not up yet. */
+  listening: string
+  /** A reply is playing here now. */
+  speaking: boolean
+  /** The port it takes; 6613 is the old Sasonica app's. */
+  port: number
+}
+
+interface SpeechPlugin {
+  status(): Promise<SpeechStatus>
+  setEnabled(o: { enabled: boolean }): Promise<SpeechStatus>
+}
+const Speech = registerPlugin<SpeechPlugin>('Speech')
+
+/** Where speech-in-this-app stands; null on the web or an older shell. */
+export async function speechStatus(): Promise<SpeechStatus | null> {
+  if (!isNative()) return null
+  try {
+    return await Speech.status()
+  } catch {
+    return null
+  }
+}
+
+/** The Settings toggle. Starts or stops the player at once. */
+export async function setSpeechHere(enabled: boolean): Promise<SpeechStatus | null> {
+  if (!isNative()) return null
+  try {
+    return await Speech.setEnabled({ enabled })
   } catch {
     return null
   }

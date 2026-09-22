@@ -13,4 +13,6 @@ ext {
     androidxJunitVersion = '1.2.1'
     androidxEspressoCoreVersion = '3.6.1'
     cordovaAndroidVersion = '10.1.1'
+    // Speech (com.sasonica.next.speech). Apache-2.0.
+    media3Version = '1.5.1'
 }
