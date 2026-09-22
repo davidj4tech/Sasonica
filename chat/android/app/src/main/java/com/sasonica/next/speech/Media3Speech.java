@@ -294,6 +294,12 @@ final class Media3Speech implements MpvServer.Player {
     private int generation;
 
     /**
+     * A "read from here" for a sentence the player has not been handed yet,
+     * or -1. Applied by the append that makes it real. Player thread.
+     */
+    private int pending = -1;
+
+    /**
      * Clearing the playlist, on the way into another clip. Player thread.
      *
      * ExoPlayer ends playback when its timeline empties, and it says so the
@@ -357,7 +363,10 @@ final class Media3Speech implements MpvServer.Player {
                 playlist.clear();
                 playlist.add(uri);
             }
-            run(() -> startAt(0));
+            run(() -> {
+                pending = -1;
+                startAt(0);
+            });
             return;
         }
         // append does NOT auto-play, and the sink depends on that: it builds a
@@ -371,7 +380,16 @@ final class Media3Speech implements MpvServer.Player {
         // sentence after the first becomes a local file while the first plays.
         warm(uri);
         volunteer("playlist-count");
-        run(this::queueAhead);
+        run(() -> {
+            if (pending >= 0 && pending < playlistCount()) {
+                // The sentence someone asked for has arrived.
+                int go = pending;
+                pending = -1;
+                startAt(go);
+                return;
+            }
+            queueAhead();
+        });
     }
 
     @Override
@@ -413,6 +431,7 @@ final class Media3Speech implements MpvServer.Player {
             base = -1;
             queued = -1;
             generation++;    // a clip still being fetched is no longer wanted
+            pending = -1;
             restarting = false;  // this clear IS the end, and may be reported
             ended = false;   // idle by the empty-playlist half of the test
             ExoPlayer p = exo();
@@ -429,10 +448,26 @@ final class Media3Speech implements MpvServer.Player {
     public void playlistPos(int index) {
         lastCommandAt = System.currentTimeMillis();
         run(() -> {
-            if (index < 0 || index >= playlistCount()) {
+            if (index >= 0 && index >= playlistCount()) {
+                // A sentence that has not been rendered yet.
+                //
+                // "Read from here" on a reply still streaming in names a clip
+                // the player has not been handed: the sink appends them as
+                // they render, so the tapped index routinely runs ahead of
+                // the list. Stopping the player for it — which is what this
+                // used to do — silenced a reply because someone asked to hear
+                // a later part of it. Remember it instead, and go there when
+                // it arrives; until then the reply carries on where it is.
+                pending = index;
+                log.line("speech: read from here at " + index
+                        + ", which has not arrived yet; waiting for it");
+                return;
+            }
+            if (index < 0) {
                 pos = index;
                 base = -1;
                 queued = -1;
+                pending = -1;
                 generation++;
                 ExoPlayer p = exo();
                 if (p != null) {
@@ -442,6 +477,7 @@ final class Media3Speech implements MpvServer.Player {
                 volunteer("playlist-pos");
                 return;
             }
+            pending = -1;
             startAt(index);
         });
     }
