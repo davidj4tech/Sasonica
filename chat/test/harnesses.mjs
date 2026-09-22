@@ -1,5 +1,5 @@
 // Coding agents, from Settings: a row per harness with its version and
-// sign-in state; Codex's Sign in opens the window, shows its link, and a
+// sign-in state; Sign out only where it is signed in, and it asks first; Codex's Sign in opens the window, shows its link, and a
 // pasted code + Enter signs it in (the list says so after Done); pi's
 // Install runs to "finished" and pi is then installed; pi has no Sign in,
 // Hermes no sign-in state. Portrait, landscape and the largest text size.
@@ -48,7 +48,7 @@ for (const [name, vp, size] of [
   // Sign in to Codex: the link shows, a code goes back, the list agrees.
   await row('codex').getByRole('button', { name: 'Sign in' }).click()
   await page.waitForSelector('.setup-window .setup-screen:has-text("auth.example.com")')
-  ok((await page.locator('.setup-cmd').innerText()) === 'codex login', `${name}: the window names its command`)
+  ok((await page.locator('.setup-cmd').innerText()) === 'codex login --device-auth', `${name}: the window names its command`)
   ok(await row('claude').getByRole('button', { name: 'Update' }).isDisabled(), `${name}: other buttons wait while a window is open`)
   await page.screenshot({ path: path.join(SHOTS, `harnesses-${name}-signin.png`) })
   await page.getByLabel('Type into the window').fill('ABCD-1234')
@@ -61,6 +61,20 @@ for (const [name, vp, size] of [
   ok((await page.locator('.setup-window').count()) === 0, `${name}: Done closes the window`)
   ok((await row('codex').innerText()).includes('signed in (you@example.com)'), `${name}: Codex now signed in`)
 
+  // Sign out is offered only where the row says signed in, and asks first.
+  ok((await row('pi').getByRole('button', { name: 'Sign out' }).count()) === 0, `${name}: nothing to sign out of on a missing agent`)
+  await row('codex').getByRole('button', { name: 'Sign out' }).click()
+  ok((await row('codex').innerText()).includes('New Codex chats'), `${name}: the confirm names what it costs`)
+  await row('codex').getByRole('button', { name: 'Cancel' }).click()
+  ok((await row('codex').innerText()).includes('signed in'), `${name}: Cancel signs nothing out`)
+  ok(((await (await fetch(BASE + '/mock/harnesses')).json()).logouts).length === 0, `${name}: and asked the server nothing`)
+  await row('codex').getByRole('button', { name: 'Sign out' }).click()
+  await row('codex').getByRole('button', { name: 'Sign out' }).click()
+  await page.waitForFunction(() => document.querySelector('.setup-item[data-agent=codex]')?.textContent?.includes('signed out'))
+  ok((await page.locator('.setup-window').count()) === 0, `${name}: signing out opens no window`)
+  ok(((await (await fetch(BASE + '/mock/harnesses')).json()).logouts).join() === 'codex', `${name}: exactly one sign-out, of Codex`)
+  ok((await row('codex').getByRole('button', { name: 'Sign out' }).count()) === 0, `${name}: and the button is gone with it`)
+
   // Install pi: runs to finished, then pi is there.
   await row('pi').getByRole('button', { name: 'Install' }).click()
   await page.waitForSelector('.setup-exit.ok', { timeout: 10000 })
@@ -70,6 +84,21 @@ for (const [name, vp, size] of [
   const log = await (await fetch(BASE + '/mock/harnesses')).json()
   ok(JSON.stringify(log.runs) === JSON.stringify([{ agent: 'codex', action: 'login' }, { agent: 'pi', action: 'install' }]), `${name}: ran exactly codex login, pi install`)
   ok(log.closed.length === 2, `${name}: both windows closed on the server`)
+
+  // New chat offers what could answer: Codex is here but signed out (dimmed,
+  // with the way to fix it), and nothing that is not installed is offered.
+  await fetch(BASE + '/mock/harnesses?reset=1')
+  await page.goto(BASE + '/new')
+  await page.waitForSelector('.new-pickers .chip')
+  const agentChips = page.locator('.new-pickers p.picker-label:text("Agent") + .chips .chip')
+  await page.waitForFunction(() => !![...document.querySelectorAll('.chips .chip')].find((c) => c.textContent === 'Codex' && c.classList.contains('chip-out')))
+  ok((await agentChips.filter({ hasText: 'pi' }).count()) === 0, `${name}: an agent this host has not got is not offered`)
+  ok((await agentChips.filter({ hasText: 'Claude' }).count()) === 1, `${name}: the signed-in one is`)
+  await agentChips.filter({ hasText: 'Codex' }).click()
+  ok((await page.locator('.picker-note').innerText()).includes('Signed out'), `${name}: picking it says why it would not answer`)
+  ok((await page.locator('.picker-note a').getAttribute('href')) === '/harnesses', `${name}: and links to Coding agents`)
+  await page.goto(BASE + '/settings/agents')
+  await page.waitForSelector('.setup-item[data-agent=codex]')
 
   const small = await page.evaluate(() => [...document.querySelectorAll('.setup-actions button')].filter((e) => e.getBoundingClientRect().height < 32).length)
   ok(small === 0, `${name}: action buttons are tappable`)

@@ -7,11 +7,14 @@
  *
  * Install and sign-in both run in a window on the server, watched here
  * through components/SetupWindow — the sign-in's OAuth code is pasted back
- * into its line. Reached from Settings.
+ * into its line. Signing out is the odd one: it deletes the stored
+ * credentials and exits, so there is no window, and it is the only button
+ * here that takes something away — it asks first, in the row.
+ * Reached from Settings.
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
-import { getHarnesses, runHarness, type HarnessRow } from '../api'
+import { getHarnesses, logoutHarness, runHarness, type HarnessRow } from '../api'
 import { hasCredential } from '../api/auth'
 import { BackLink } from '../components/Nav'
 import { SetupWindow } from '../components/SetupWindow'
@@ -47,8 +50,11 @@ function HarnessesPage() {
   const [rows, setRows] = useState<HarnessRow[] | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
-  const [note, setNote] = useState('')
+  // A line under the header: a failure, or (signing out) what just happened.
+  const [note, setNote] = useState<{ text: string; bad?: boolean } | null>(null)
   const [pane, setPane] = useState<{ pane: string; label: string } | null>(null)
+  // Which row is asking "sign out?" — one at a time, cleared on any answer.
+  const [confirm, setConfirm] = useState('')
 
   const load = useCallback((signal?: AbortSignal) => {
     getHarnesses(signal)
@@ -69,15 +75,34 @@ function HarnessesPage() {
 
   const run = async (h: HarnessRow, action: 'install' | 'login') => {
     setBusy(`${h.name}:${action}`)
-    setNote('')
+    setNote(null)
     try {
       const r = await runHarness(h.name, action)
       const what = action === 'login' ? 'Sign in' : h.installed_action === 'update' ? 'Update' : 'Install'
       setPane({ pane: r.pane, label: `${LABEL[h.name] || h.name}: ${what}` })
     } catch (err) {
-      setNote(message(err))
+      setNote({ text: message(err), bad: true })
     } finally {
       setBusy('')
+    }
+  }
+
+  const signOut = async (h: HarnessRow) => {
+    setConfirm('')
+    setBusy(`${h.name}:logout`)
+    setNote(null)
+    try {
+      const r = await logoutHarness(h.name)
+      // Its own last words when it complained; otherwise say what happened,
+      // since the row alone changing is easy to miss.
+      setNote(r.exit === 0
+        ? { text: `${LABEL[h.name] || h.name}: signed out.` }
+        : { text: r.lines.join(' ') || `exit ${r.exit}`, bad: true })
+    } catch (err) {
+      setNote({ text: message(err), bad: true })
+    } finally {
+      setBusy('')
+      load()
     }
   }
 
@@ -92,7 +117,7 @@ function HarnessesPage() {
       </header>
 
       {error && <p className="notice error">{error}</p>}
-      {note && <p className="notice error">{note}</p>}
+      {note && <p className={note.bad ? 'notice error' : 'notice'}>{note.text}</p>}
       {!rows && !error && <p className="notice">Checking…</p>}
 
       <div className="note-list">
@@ -105,7 +130,22 @@ function HarnessesPage() {
                   <span className="setup-label">{LABEL[h.name] || h.name}</span>
                 </div>
                 <p className="setup-detail">{describe(h)}</p>
-                {h.actions.length > 0 && (
+                {confirm === h.name ? (
+                  <>
+                    <p className="setup-why">
+                      Sign {LABEL[h.name] || h.name} out on the server? New {LABEL[h.name] || h.name} chats
+                      will not start until it is signed in again from this page.
+                    </p>
+                    <div className="setup-actions">
+                      <button className="notes-button danger" onClick={() => void signOut(h)}>
+                        Sign out
+                      </button>
+                      <button className="notes-button" onClick={() => setConfirm('')}>
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : h.actions.length > 0 && (
                   <div className="setup-actions">
                     {h.actions.includes('install') && (
                       <button className={h.present ? 'notes-button' : 'notes-button primary'} disabled={!!busy || !!pane} onClick={() => void run(h, 'install')}>
@@ -115,6 +155,11 @@ function HarnessesPage() {
                     {h.actions.includes('login') && (
                       <button className={h.auth === 'out' ? 'notes-button primary' : 'notes-button'} disabled={!!busy || !!pane} onClick={() => void run(h, 'login')}>
                         {busy === `${h.name}:login` ? '…' : 'Sign in'}
+                      </button>
+                    )}
+                    {h.actions.includes('logout') && (
+                      <button className="notes-button" disabled={!!busy || !!pane} onClick={() => setConfirm(h.name)}>
+                        {busy === `${h.name}:logout` ? '…' : 'Sign out'}
                       </button>
                     )}
                   </div>

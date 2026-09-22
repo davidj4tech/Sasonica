@@ -291,6 +291,9 @@ a { color: var(--accent); }
 /* New chat */
 .new-pickers { padding: 8px 4px; }
 .picker-label { margin: 10px 0 6px; color: var(--muted); font-size: 0.867rem; }
+.picker-note { margin: 6px 0 0; color: var(--muted); font-size: 0.8rem; }
+/* Installed but signed out: still pickable, visibly not ready. */
+.chip.chip-out { opacity: .55; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { border: 1px solid var(--line); background: var(--panel); border-radius: 99px; padding: 5px 12px; cursor: pointer; }
 .chip.on { border-color: var(--accent); color: var(--accent); }

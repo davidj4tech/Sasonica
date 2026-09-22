@@ -2,7 +2,8 @@
 // and the screen / keys / close of the windows run opened. Claude is signed
 // in, Codex is installed but signed out, pi is missing, Hermes can't say.
 // A sign-in shows its link and waits for a code; typing one (then Enter)
-// signs Codex in. An install finishes on its third screen and installs pi.
+// signs Codex in. Sign out (only on a row that is signed in) needs no
+// window: it answers at once and the row goes back to signed out. An install finishes on its third screen and installs pi.
 // Panes that aren't ours fall through to the notes window (mock/notes.mjs).
 
 const fixtures = () => ({
@@ -12,18 +13,21 @@ const fixtures = () => ({
   hermes: { present: true, version: 'Hermes 0.9', auth: 'unknown', account: '' }
 })
 const INSTALL = { claude: 'npm install -g @anthropic-ai/claude-code', codex: 'npm install -g @openai/codex', pi: 'npm install -g @mariozechner/pi-coding-agent', hermes: 'hermes update' }
-const LOGIN = { claude: 'claude auth login', codex: 'codex login' }
+const LOGIN = { claude: 'claude auth login', codex: 'codex login --device-auth' }
+// Signing out has no window: it deletes the credentials and exits.
+const LOGOUT = { claude: 'claude auth logout', codex: 'codex logout' }
 
 let H = fixtures()
 let WIN = new Map()
 let next = 910
-export const HARNESS_LOG = { runs: [], keys: [], closed: [] }
+export const HARNESS_LOG = { runs: [], keys: [], closed: [], logouts: [] }
 
 function rows() {
   return Object.entries(H).map(([name, h]) => {
     const actions = []
     if (INSTALL[name] && (name !== 'hermes' || h.present)) actions.push('install')
     if (h.present && LOGIN[name]) actions.push('login')
+    if (h.present && h.auth === 'in' && LOGOUT[name]) actions.push('logout')
     return { name, present: h.present, path: h.present ? `/home/you/.local/bin/${name}` : null, version: h.present ? h.version : '', auth: h.present ? h.auth : 'unknown', account: h.account, actions, installed_action: h.present ? 'update' : 'install' }
   })
 }
@@ -39,6 +43,15 @@ export function harnessRoute(method, path, q, body, ok, err) {
     WIN.set(pane, { agent, action, cmd, polls: 0, typed: '', done: false, exit: null })
     HARNESS_LOG.runs.push({ agent, action })
     return ok({ pane, agent, action, cmd })
+  }
+  if (method === 'POST' && path === '/harnesses/logout') {
+    const { agent } = body
+    if (!(agent in H)) return err(400, `not an agent: '${agent}'`)
+    if (!LOGOUT[agent] || !H[agent].present) return err(409, `${agent} has no sign-out to run`)
+    H[agent].auth = 'out'
+    H[agent].account = ''
+    HARNESS_LOG.logouts.push(agent)
+    return ok({ agent, cmd: LOGOUT[agent], exit: 0, lines: ['Signed out.'], auth: 'out' })
   }
   const pane = method === 'GET' ? q.get('pane') : body?.pane
   const w = WIN.get(pane)
@@ -86,6 +99,7 @@ export function mockHarnessControl(q) {
     H = fixtures()
     WIN = new Map()
     HARNESS_LOG.runs.length = HARNESS_LOG.keys.length = HARNESS_LOG.closed.length = 0
+    HARNESS_LOG.logouts.length = 0
   }
   return { ...HARNESS_LOG, harnesses: rows() }
 }

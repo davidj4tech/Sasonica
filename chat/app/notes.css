@@ -85,6 +85,7 @@
 .setup-detail { margin: .3rem 0 0; color: var(--muted); font-size: .867rem; overflow-wrap: anywhere; }
 .setup-why { margin: .3rem 0 0; font-size: .867rem; }
 .setup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .6rem; }
+.setup-actions .notes-button.danger { color: var(--bad); border-color: var(--bad); }
 .setup-foot { color: var(--muted); font-size: .8rem; padding: 0 16px; }
 .setup-window { margin: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
 .setup-window-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-weight: 600; }

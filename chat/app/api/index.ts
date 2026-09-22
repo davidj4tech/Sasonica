@@ -29,6 +29,7 @@ import type {
   ConversationLog,
   DraftResponse,
   HarnessesResponse,
+  HarnessLogout,
   HarnessRun,
   RenameResponse,
   ReplyRequest,
@@ -431,6 +432,15 @@ export function getHarnesses(signal?: AbortSignal) {
  */
 export function runHarness(agent: Agent, action: 'install' | 'login') {
   return request<HarnessRun>('POST', '/harnesses/run', { agent, action })
+}
+
+/**
+ * Forget the server's credentials for a harness. No window: it deletes them
+ * and exits, so this answers with what it said. The one call here that takes
+ * something away — ask before making it.
+ */
+export function logoutHarness(agent: Agent) {
+  return request<HarnessLogout>('POST', '/harnesses/logout', { agent })
 }
 
 export type { SessionRow }

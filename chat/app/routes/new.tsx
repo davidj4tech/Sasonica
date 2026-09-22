@@ -5,10 +5,10 @@
  * the thread id (§14 onSwitchToNewThread / onNew in a new thread).
  */
 import { BackLink } from '../components/Nav'
-import { useCallback, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router'
-import { askNew } from '../api'
-import type { Agent } from '../api/types'
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { askNew, getHarnesses } from '../api'
+import type { Agent, HarnessRow } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import { useTargets } from '../hooks/useThreads'
@@ -20,6 +20,18 @@ const AGENTS: { id: Agent; label: string }[] = [
   { id: 'pi', label: 'pi' },
   { id: 'hermes', label: 'Hermes' }
 ]
+
+/**
+ * What each agent's chip does with what the server says about it (§6.6):
+ * an agent that is not installed here is not offered at all — there is
+ * nothing to pick — while one that is merely signed out stays on show,
+ * dimmed, because that is two taps from fixed and a chip that vanished
+ * would read as the app losing Codex. /ask refuses either way; this is so
+ * the refusal is rarely the way you find out.
+ */
+function pickable(rows: HarnessRow[] | null, id: Agent): HarnessRow | null {
+  return rows ? rows.find((r) => r.name === id) || null : null
+}
 
 const noAnswer = { answer: async () => ({ error: 'nothing to answer', key: '' }) }
 
@@ -34,6 +46,18 @@ export default function NewThread() {
     return a && AGENTS.some((x) => x.id === a) ? a : 'claude'
   })
   const [status, setStatus] = useState<{ text: string; failed?: boolean } | null>(null)
+  // What the host has. Null until it answers: all four are offered until
+  // there is a reason not to, so a slow check never holds up a chat.
+  const [harnesses, setHarnesses] = useState<HarnessRow[] | null>(null)
+  useEffect(() => {
+    const ac = new AbortController()
+    getHarnesses(ac.signal)
+      .then((r) => setHarnesses(r.agents))
+      .catch(() => {})
+    return () => ac.abort()
+  }, [])
+  const chosen = pickable(harnesses, agent)
+  const signedOut = chosen?.present && chosen.auth === 'out'
   // Opened by the phone's assistant button (components/NativeHooks.tsx): a
   // stamp per press, and each new one listens straight away.
   const assist = (useLocation().state as { assist?: number } | null)?.assist
@@ -97,12 +121,33 @@ export default function NewThread() {
             </div>
             <p className="picker-label">Agent</p>
             <div className="chips">
-              {AGENTS.map((a) => (
-                <button key={a.id} className={agent === a.id ? 'chip on' : 'chip'} onClick={() => setAgent(a.id)}>
-                  {a.label}
-                </button>
-              ))}
+              {AGENTS.filter((a) => {
+                const row = pickable(harnesses, a.id)
+                return !row || row.present || a.id === agent
+              }).map((a) => {
+                const row = pickable(harnesses, a.id)
+                const out = row ? !row.present || row.auth === 'out' : false
+                return (
+                  <button
+                    key={a.id}
+                    className={`${agent === a.id ? 'chip on' : 'chip'}${out ? ' chip-out' : ''}`}
+                    onClick={() => setAgent(a.id)}
+                  >
+                    {a.label}
+                  </button>
+                )
+              })}
             </div>
+            {chosen && !chosen.present && (
+              <p className="picker-note">
+                {chosen.name} is not installed here. <Link to="/harnesses">Coding agents</Link> installs it.
+              </p>
+            )}
+            {signedOut && (
+              <p className="picker-note">
+                Signed out here, so it would not answer. <Link to="/harnesses">Sign in</Link>.
+              </p>
+            )}
             {error && <p className="error">{error}</p>}
           </div>
         }

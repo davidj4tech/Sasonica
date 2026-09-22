@@ -550,8 +550,9 @@ export interface HarnessRow {
   /** Only Claude and Codex will say; pi and Hermes are honestly "unknown". */
   auth: 'in' | 'out' | 'unknown'
   account: string
-  /** The buttons worth showing: what the host has a recipe for. */
-  actions: ('install' | 'login')[]
+  /** The buttons worth showing: what the host has a recipe for. `logout`
+   *  only where `auth` is already `in`. */
+  actions: ('install' | 'login' | 'logout')[]
   /** An install of something already here is an update. */
   installed_action: 'install' | 'update'
 }
@@ -566,6 +567,16 @@ export interface HarnessRun extends Envelope {
   agent: Agent
   action: 'install' | 'login'
   cmd: string
+}
+
+/** POST /harnesses/logout: it ran and exited; no window to watch. */
+export interface HarnessLogout extends Envelope {
+  agent: Agent
+  cmd: string
+  exit: number
+  lines: string[]
+  /** What the host says now, re-read after the command. */
+  auth: 'in' | 'out' | 'unknown'
 }
 
 export interface AskRequest {
