@@ -23,6 +23,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import type { SessionId, SessionState, SpeechNow } from '../api/types'
+import { clearArrival, notifyArrival } from './native'
 
 export type NoticeKind = 'new' | 'waiting'
 
@@ -99,6 +100,7 @@ export function markSeen(session: SessionId) {
   seenMap()[session] = Date.now()
   save(SEEN_KEY, seenMap())
   notices = notices.filter((n) => n.session !== session)
+  clearArrival(session)
   emit()
 }
 
@@ -137,6 +139,9 @@ export function arrive(session: SessionId, title: string, kind: NoticeKind, urge
   if (old) dismissNoticeQuiet(old.id)
   const n: Notice = { id: nextId++, session, title: title || liveTitles.get(session) || old?.title || '', kind: k, urgent: urgent || !!old?.urgent, at: now }
   notices = [n, ...notices].slice(0, MAX_NOTICES)
+  // In the Android shell, while the app is in the background: a system
+  // notification too (lib/native.ts; a no-op on the web and in the foreground).
+  void notifyArrival(session, n.title, n.urgent ? 'Needs you' : 'New reply', n.urgent)
   timers.set(
     n.id,
     window.setTimeout(() => dismissNotice(n.id), n.urgent ? URGENT_NOTICE_MS : NOTICE_MS)

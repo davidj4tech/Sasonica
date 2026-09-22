@@ -26,6 +26,7 @@ import type { SessionId } from '../api/types'
 import { useSpeech } from '../hooks/useSpeech'
 import { useTitle } from '../lib/titles'
 import { useScrim } from '../lib/layers'
+import { isNative, openOutputSwitcher } from '../lib/native'
 
 // ── Icons (currentColor, sized by the button's font-size) ─────────────────
 
@@ -326,6 +327,12 @@ function SpeechSheet(props: { title: string; session: SessionId | null; inHere: 
               <button className={now?.muted ? 'pill on' : 'pill'} aria-pressed={!!now?.muted} onClick={() => void speech.ctl('mute')}>
                 <IconVolume muted={!!now?.muted} /> {now?.muted ? 'Muted' : 'Mute'}
               </button>
+              {/* Android's own output picker (earbuds / speaker / Cast); only in the shell. */}
+              {isNative() && (
+                <button className="pill" onClick={() => void openOutputSwitcher()}>
+                  <IconVolume muted={false} /> Output…
+                </button>
+              )}
             </div>
             <div className="knob">
               <span className="knob-label">Speed</span>

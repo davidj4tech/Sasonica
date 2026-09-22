@@ -6,6 +6,8 @@ import { usePinchTextSize } from './hooks/usePinchTextSize'
 import { Notices } from './components/Notices'
 import { TEXT_SIZE_BOOT } from './lib/textSize'
 import { Mark } from './components/Mark'
+import { initAuth } from './api/auth'
+import { NativeHooks } from './components/NativeHooks'
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -42,6 +44,14 @@ export function Layout({ children }: { children: ReactNode }) {
     </html>
   )
 }
+
+/** In the Android shell the credentials come from the keystore (async)
+ * before any screen reads them; on the web this resolves at once. */
+export async function clientLoader() {
+  await initAuth()
+  return null
+}
+clientLoader.hydrate = true as const
 
 /** Rendered into index.html at build time, shown until the SPA hydrates. */
 export function HydrateFallback() {
@@ -93,6 +103,7 @@ export default function App() {
   return (
     <SpeechProvider>
       <Outlet />
+      <NativeHooks />
       {/* Replies in other threads: told here, never followed (lib/arrivals.ts).
           Not on Home or the list, which already show what needs you, the
           dots and the states. */}

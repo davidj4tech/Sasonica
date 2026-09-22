@@ -16,13 +16,16 @@
  *    Settings, and what the preview server's own /pair link stores. Kept so
  *    nothing already set up breaks; it goes at the ABS exit.
  *
- * PROTOTYPE STORAGE: both live in WebView/browser localStorage, every access
- * in try/catch (private mode, blocked site data → "not set"). The Capacitor
- * build MUST move the device token to the Android keystore (§9 step 3:
- * "not WebView localStorage") — `readDevice()` / `writeDevice()` below are
- * the only two functions that change; nothing outside this file reads the
- * token.
+ * STORAGE: on the web both live in localStorage, every access in try/catch
+ * (private mode, blocked site data → "not set"). In the Android shell
+ * (Sasonica Next) they are secrets (§9 step 3: "not WebView localStorage"):
+ * sealed under an Android Keystore key by the SecureStore plugin
+ * (lib/native.ts), held in memory for the synchronous readers below, and
+ * loaded once by `initAuth()` before the first screen (root clientLoader).
+ * A token an earlier web build left in localStorage moves across and is
+ * wiped there. Nothing outside this file reads the token.
  */
+import { isNative, SecureStore } from '../lib/native'
 
 const BASE_KEY = 'sasonica.chat.baseUrl'
 /** v0: the Audiobookshelf bearer (the preview server's pairing page writes this key too). */
@@ -49,6 +52,55 @@ function write(key: string, value: string) {
   } catch {
     // Nothing to be done; the setting just does not stick.
   }
+}
+
+// ── Secrets: the credentials ──────────────────────────────────────────────
+
+/** In the shell: what SecureStore holds, mirrored for synchronous reads. */
+const secrets = new Map<string, string>()
+const SECRET_KEYS = [TOKEN_KEY, DEVICE_KEY]
+let ready: Promise<void> | null = null
+
+/**
+ * Load the credentials before anything asks for them. On the web there is
+ * nothing to do. In the shell a failure leaves them empty: the app asks to
+ * pair again rather than failing to start.
+ */
+export function initAuth(): Promise<void> {
+  if (!isNative()) return Promise.resolve()
+  return (ready ??= (async () => {
+    for (const key of SECRET_KEYS) {
+      try {
+        const { value } = await SecureStore.get({ key })
+        if (value) secrets.set(key, value)
+        const left = read(key)
+        if (left) {
+          // From an earlier web build: move it into the keystore, wipe it here.
+          if (!value) {
+            secrets.set(key, left)
+            await SecureStore.set({ key, value: left })
+          }
+          write(key, '')
+        }
+      } catch {
+        // Keystore unavailable: this run has no stored credential.
+      }
+    }
+  })())
+}
+
+function readSecret(key: string): string {
+  return isNative() ? secrets.get(key) || '' : read(key)
+}
+
+function writeSecret(key: string, value: string) {
+  if (!isNative()) return write(key, value)
+  if (value) secrets.set(key, value)
+  else secrets.delete(key)
+  const done = value ? SecureStore.set({ key, value }) : SecureStore.remove({ key })
+  done.catch(() => {
+    // Kept for this run only; the next start asks to pair again.
+  })
 }
 
 // ── The server address ────────────────────────────────────────────────────
@@ -98,10 +150,9 @@ export interface Device {
   pairedAt: number
 }
 
-// KEYSTORE SWAP: these two, and only these two, move to the Android
-// keystore (a Capacitor secure-storage plugin) in the shell build.
+// In the shell these go through the keystore (readSecret / writeSecret).
 function readDevice(): Device | null {
-  const raw = read(DEVICE_KEY)
+  const raw = readSecret(DEVICE_KEY)
   if (!raw) return null
   try {
     const d = JSON.parse(raw) as Device
@@ -111,7 +162,7 @@ function readDevice(): Device | null {
   }
 }
 function writeDevice(d: Device | null) {
-  write(DEVICE_KEY, d ? JSON.stringify(d) : '')
+  writeSecret(DEVICE_KEY, d ? JSON.stringify(d) : '')
 }
 
 /** The paired device, without its token (for Settings). */
@@ -131,11 +182,11 @@ export function unpair() {
 // ── The legacy ABS bearer (v0, §4.1) ──────────────────────────────────────
 
 export function hasLegacyToken(): boolean {
-  return !!read(TOKEN_KEY)
+  return !!readSecret(TOKEN_KEY)
 }
 
 export function setLegacyToken(token: string) {
-  write(TOKEN_KEY, token.trim())
+  writeSecret(TOKEN_KEY, token.trim())
 }
 
 // ── What the rest of the app asks ─────────────────────────────────────────
@@ -153,7 +204,7 @@ export function credentialKind(): 'device' | 'legacy' | null {
 
 /** Headers every app route takes. The header is the same for both kinds. */
 export function authHeaders(): Record<string, string> {
-  const token = readDevice()?.token || read(TOKEN_KEY)
+  const token = readDevice()?.token || readSecret(TOKEN_KEY)
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
@@ -233,7 +284,7 @@ export function shortHostHint(base: string): string {
 export function defaultDeviceName(): string {
   const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
   const kind = /Android/i.test(ua) ? 'Android' : /iPhone|iPad/i.test(ua) ? 'iOS' : 'browser'
-  return `Sasonica chat (${kind})`
+  return isNative() ? `Sasonica Next (${kind})` : `Sasonica chat (${kind})`
 }
 
 /** A refused pairing, with the server's own words (§3). */
