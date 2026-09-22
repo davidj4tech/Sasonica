@@ -35,6 +35,12 @@
  *               _APP_SPEECH_ACTIONS action) and the log's live line agree
  *   approval  — live, stopped on a permission prompt (/session/answer)
  *   asking    — live, an AskUserQuestion on screen, attached to its ask line
+ *   multi     — live, a multi-select question (Pear ticked at the desk),
+ *               answered with the structured /session/answer
+ *   two       — live, two questions (single + multi); the first structured
+ *               answer gets 409 with a changed question, the next one lands
+ *   headless  — live, headless: the pending ask part is in the messages
+ *               (status running) and the card sits on it; `request_id` echoed
  *   working   — live, a turn running (`working` steps advance)
  *   fresh     — live, not on the shelf yet (item: null): readable and
  *               repliable by session all the same (§10)
@@ -145,6 +151,60 @@ const approvalQuestion = (n) => ({
 })
 const withKey = (a) => ({ ...a, key: hex12(JSON.stringify(a)) })
 
+/**
+ * An AskUserQuestion as the thread's `approval` (§6.2, kind "question"):
+ * the v0 fields for old clients plus `questions`, each option numbered from
+ * 1 within its question. `checked` ticks options as if done at the desk;
+ * `options` overrides the v0 list; `id` makes it headless.
+ */
+function questionApproval(qs, { checked = {}, options, id, tool_use_id = '', salt = '' } = {}) {
+  const questions = qs.map((q, i) => ({
+    question: q.question + (i === 0 ? salt : ''),
+    header: q.header || '',
+    multiSelect: !!q.multiSelect,
+    free_text: true,
+    options: q.options.map((o, j) => ({ n: j + 1, label: o.label, description: o.description || '', detail: o.description || '', checked: (checked[i] || []).includes(j + 1) }))
+  }))
+  const one = qs.length === 1 && !qs[0].multiSelect
+  return withKey({
+    question: questions[0].question,
+    partial: !one,
+    options: options || questions[0].options.map((o) => ({ n: o.n, label: o.label, detail: o.description, checked: o.checked })),
+    agent: 'claude',
+    kind: 'question',
+    multiSelect: qs.some((q) => q.multiSelect),
+    free_text: true,
+    questions,
+    tool_use_id,
+    ...(id ? { id } : {})
+  })
+}
+
+/**
+ * The structured answer checked against the question (§6.4): every question
+ * answered, option numbers that exist, at most one choice (an option or your
+ * own words) for a single-select. `{question: "label, label, words"}`, or
+ * the reason it will not do.
+ */
+function structuredAnswers(approval, answers) {
+  if (!Array.isArray(answers) || !answers.length) return 'answers needed'
+  const out = {}
+  for (const a of answers) {
+    const q = approval.questions?.[a?.question_index]
+    if (!q) return `no such question ${a?.question_index}`
+    const sel = Array.isArray(a.selected) ? a.selected.map(Number) : []
+    const other = String(a.other_text || '').trim()
+    const bad = sel.find((n) => !q.options.some((o) => o.n === n))
+    if (bad !== undefined) return `no option ${bad} in question ${a.question_index}`
+    if (!q.multiSelect && sel.length + (other ? 1 : 0) > 1) return `one answer only for ${JSON.stringify(q.question)}`
+    if (!sel.length && !other) return `no answer for ${JSON.stringify(q.question)}`
+    out[q.question] = [...sel.map((n) => q.options.find((o) => o.n === n).label), ...(other ? [other] : [])].join(', ')
+  }
+  const missing = approval.questions.find((q) => !(q.question in out))
+  if (missing) return `no answer for ${JSON.stringify(missing.question)}`
+  return out
+}
+
 add(
   session(randomUUID(), 'Mock: needs approval', {
     pane: '%12',
@@ -176,12 +236,77 @@ add(
       youLine('Ask me something with options.', T0 - 90),
       agentLine('Which screen should the prototype open on?', T0 - 80, { ask: ASK })
     ],
-    approval: withKey({
-      question: 'Which screen should the prototype open on?',
-      partial: false,
-      options: ASK[0].options.map((o, i) => ({ n: i + 1, label: o.label, detail: o.description })).concat([{ n: 4, label: 'Type something.', detail: '' }]),
-      agent: 'claude'
+    approval: questionApproval(ASK, {
+      options: ASK[0].options.map((o, i) => ({ n: i + 1, label: o.label, detail: o.description })).concat([{ n: 4, label: 'Type something.', detail: '' }])
     })
+  })
+)
+
+// The multi-select and several-question forms (§6.2 `approval`, kind
+// "question"): answered with the structured /session/answer only.
+const MULTI = [
+  {
+    question: 'Which fruits do you like?',
+    header: 'Fruit',
+    options: [
+      { label: 'Apple', description: 'crisp' },
+      { label: 'Pear', description: 'soft' },
+      { label: 'Plum', description: 'tart' }
+    ],
+    multiSelect: true
+  }
+]
+add(
+  session(randomUUID(), 'Mock: multi-select question', {
+    pane: '%14',
+    state: 'approval',
+    lines: [youLine('Ask me which fruits I like.', T0 - 70)],
+    // Pear already ticked at the desk: the card starts from the screen.
+    approval: questionApproval(MULTI, { checked: { 0: [2] } })
+  })
+)
+const TWO = [
+  {
+    question: 'Which colour?',
+    header: 'Colour',
+    options: [
+      { label: 'Red', description: 'warm' },
+      { label: 'Blue', description: 'cool' },
+      { label: 'Green', description: 'calm' }
+    ],
+    multiSelect: false
+  },
+  {
+    question: 'Which pets?',
+    header: 'Pets',
+    options: [
+      { label: 'Cat', description: 'independent' },
+      { label: 'Dog', description: 'loyal' },
+      { label: 'Fish', description: 'quiet' }
+    ],
+    multiSelect: true
+  }
+]
+add(
+  session(randomUUID(), 'Mock: two questions', {
+    pane: '%15',
+    state: 'approval',
+    // The first structured answer finds the question changed (409), as if
+    // the desk had moved it on; the card re-renders and the next one lands.
+    changeOnce: true,
+    lines: [youLine('Ask me two things at once.', T0 - 65)],
+    approval: questionApproval(TWO)
+  })
+)
+// A headless session streams its pending ask (status "running"), so the card
+// sits on that ask part rather than at the foot.
+add(
+  session(randomUUID(), 'Mock: headless question', {
+    pane: null,
+    state: 'approval',
+    headless: true,
+    lines: [youLine('Ask me which fruits, headless.', T0 - 50), agentLine('Which fruits do you like?', T0 - 45, { ask: MULTI, pendingAsk: 'toolu_mockheadless01' })],
+    approval: questionApproval(MULTI, { id: 'req-mock-headless-1', tool_use_id: 'toolu_mockheadless01' })
   })
 )
 
@@ -738,7 +863,10 @@ function messagesOf(s, lines) {
     const id = uuidOf(`${s.session}:a:${turn}:${ordinal++}`)
     const next = lines[i + 1]
     let parts
-    if (l.ask) {
+    if (l.ask && l.pendingAsk && s.approval) {
+      // A headless session's ask, streamed while it is still pending.
+      parts = [{ type: 'ask', ask: l.ask, status: 'running', answer: '', tool_use_id: l.pendingAsk }]
+    } else if (l.ask) {
       // Written to the transcript only once answered (§6.2.2).
       if (!next || next.who !== 'you') return
       parts = [{ type: 'ask', ask: l.ask, status: 'done', answer: next.text, tool_use_id: `toolu_${hex12(id)}` }]
@@ -1277,6 +1405,38 @@ async function route(method, path, q, body, res) {
     if (!s.approval) return err(409, 'that session is not waiting on a question')
     tickSession(s)
     if (body.key !== s.approval.key) return err(409, 'the question has changed', { approval: s.approval })
+    if (body.answers !== undefined || body.request_id) {
+      // The structured form (§6.4): a question, every question answered.
+      if (s.approval.kind !== 'question') return err(400, 'this dialog answers by number (choice and key)', { approval: s.approval })
+      if (s.approval.id && body.request_id && body.request_id !== s.approval.id) return err(409, 'the question has changed', { approval: s.approval })
+      const got = structuredAnswers(s.approval, body.answers)
+      if (typeof got === 'string') return err(400, got, { approval: s.approval })
+      s.lastAnswer = body
+      if (s.changeOnce) {
+        delete s.changeOnce
+        s.approval = questionApproval(TWO, { salt: ' (asked again)' })
+        return err(409, 'the question has changed', { approval: s.approval })
+      }
+      const said = Object.values(got).join(', ')
+      s.approval = null
+      s.state = 'working'
+      const asked = s.lines.findLast((l) => l.ask)
+      if (asked?.pendingAsk) delete asked.pendingAsk
+      if (s.lines[s.lines.length - 1]?.ask) s.lines.push(youLine(said, now()))
+      s.pending = true
+      s.jobs = [
+        {
+          at: now() + 4,
+          run: () => {
+            s.working = null
+            s.pending = false
+            s.state = 'waiting'
+            s.lines.push(agentLine(`(mock) You answered: ${said}.`, now()))
+          }
+        }
+      ]
+      return ok({ session: s.session, pane: s.headless ? null : s.pane, answers: got, waiting: false, approval: null, ...(s.headless ? { driver: 'headless', request_id: body.request_id || '' } : {}) })
+    }
     const choice = Number(body.choice)
     const picked = s.approval.options.find((o) => o.n === choice)
     if (!picked) return err(400, `no option ${body.choice}`, { approval: s.approval })
