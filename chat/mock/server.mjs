@@ -14,7 +14,10 @@
  *    its first success (a wrong code does not burn it), and
  *    `GET /mock/pair` re-arms it. Paired tokens start `mock-dev-`; one that
  *    is not (or no longer) paired is refused 401, as a revoked one is.
- *    `GET /mock/devices` lists them, `?revoke=<id>` forgets one.
+ *    `GET /mock/devices` lists them, `?revoke=<id>` forgets one. The answer
+ *    carries `name`, the desk's name for the device ("Pixel 8a";
+ *    `GET /mock/pair?device=NAME` changes it, `?device=` answers with the
+ *    app's own).
  *  - any other non-empty bearer, as an ABS token (legacy), except "bad"
  *    (→ 401, §4.1).
  * With --static (default: build/client if it exists) it also serves the
@@ -654,7 +657,12 @@ function readBody(req) {
 }
 
 /** §9: the one pairing code, and the devices it has paired (token → row). */
-const PAIR = { code: process.env.MOCK_PAIR_CODE || 'c0ffee42', armed: true }
+// `device`: the name given at the desk (`pair --device NAME`), which the
+// real server answers with and which wins over the name the app asks for.
+// `GET /mock/pair?device=NAME` changes it; `?device=` falls back to the app's.
+const PAIR = { code: process.env.MOCK_PAIR_CODE || 'c0ffee42', armed: true, device: 'Pixel 8a' }
+/** §6.2 drafts by session: {text, at}; empty text deletes. `GET /mock/drafts` lists them. */
+const DRAFTS = new Map()
 const DEVICES = new Map()
 
 const SESSION_RE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{8}_\d{6}_[0-9a-f]+)$/
@@ -733,9 +741,14 @@ createServer(async (req, res) => {
   }
   if (path === '/mock/pair') {
     PAIR.armed = true
+    if (url.searchParams.has('device')) PAIR.device = url.searchParams.get('device') || ''
     console.log(`pairing code ${PAIR.code} armed`)
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end(PAIR.code)
+  }
+  if (path === '/mock/drafts') {
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify(Object.fromEntries(DRAFTS)))
   }
   if (path === '/mock/devices') {
     const revoke = url.searchParams.get('revoke')
@@ -768,11 +781,11 @@ createServer(async (req, res) => {
     PAIR.armed = false // dies on its first success, never on a failure
     const token = `mock-dev-${randomUUID().replace(/-/g, '')}`
     const id = `d_${randomUUID().replace(/-/g, '').slice(0, 12)}`
-    const name = String(body.device || '').trim().slice(0, 80) || 'device'
+    const name = PAIR.device || String(body.device || '').trim().slice(0, 80) || 'device'
     DEVICES.set(token, { id, name, created: r3(now()) })
     log(200)
     console.log(`  paired ${id} (${name})`)
-    return send(res, 200, { ok: true, token, device_id: id, server: { name: 'mock', base: `http://${req.headers.host}` } })
+    return send(res, 200, { ok: true, token, device_id: id, name, server: { name: 'mock', base: `http://${req.headers.host}` } })
   }
 
   // §9: a paired device token first; else §4.1, any bearer passes as an
@@ -919,6 +932,22 @@ async function route(method, path, q, body, res) {
       }
     ]
     return ok({ session: s.session, pane: s.pane, answered: choice, label: picked.label, waiting: false, approval: null })
+  }
+
+  if (path === '/draft') {
+    // §6.2: {session, text, at} (at = the writer's clock, stored as given);
+    // empty or whitespace-only text deletes; none is {text: "", at: 0}.
+    const sid = String(method === 'POST' ? body.session || '' : q.get('session') || '')
+    if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
+    if (method === 'POST') {
+      const text = String(body.text || '').slice(0, 8192)
+      const at = Number(body.at) || now()
+      if (text.trim()) DRAFTS.set(sid, { text, at })
+      else DRAFTS.delete(sid)
+      console.log(`  draft ${sid.slice(0, 8)} ${text.trim() ? JSON.stringify(text.slice(0, 40)) : '(deleted)'}`)
+    }
+    const d = DRAFTS.get(sid) || { text: '', at: 0 }
+    return ok({ session: sid, text: d.text, at: d.at })
   }
 
   if (method === 'POST' && path === '/rename') {

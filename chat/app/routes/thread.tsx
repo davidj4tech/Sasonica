@@ -23,6 +23,7 @@ import { RenameSheet } from '../components/RenameSheet'
 import { useTitle } from '../lib/titles'
 import { loadTargets } from '../lib/snapshots'
 import { buildItems } from '../lib/convert'
+import { draftSent } from '../lib/drafts'
 import { withPaused, withSkew, type LiveClock } from '../lib/followAlong'
 import type { SpeechNow } from '../api/types'
 
@@ -97,15 +98,18 @@ function ThreadPage({ session }: { session: string }) {
 
   // The message shows at once ("sending…") and is replaced by the server's
   // own line when that comes back (lib/pending.ts). A refusal keeps the
-  // words in the bubble with Retry; nothing is thrown, so the box empties.
-  const { sending, sent, failed, discard } = log
+  // words in the bubble with Retry; nothing is thrown, so the box empties,
+  // but the draft keeps them too (a reload loses the bubble) until a send
+  // of them succeeds or they are discarded.
+  const { sending, sent, failed, discard: discardSend } = log
   const onSend = useCallback(
-    async (text: string) => {
+    async (text: string): Promise<boolean> => {
       const id = sending(text)
       setStatus(null)
       try {
         const res = await reply(session, text)
         sent(id)
+        draftSent(session, text)
         // A revived session reads the reply once it has loaded, which can
         // take a minute — "sent" there would be a small lie (§6.3).
         if (res.opened) setStatus({ text: 'Session reopened — it will pick this up shortly.' })
@@ -114,10 +118,12 @@ function ThreadPage({ session }: { session: string }) {
         // were never taken — a retry would type them twice.
         if (err instanceof ApiError && err.payload.submitted === false) {
           failed(id, `Typed into ${err.payload.pane || 'the session'} but not taken — press Enter at the desk.`, true)
-          return
+          return false
         }
         failed(id, err instanceof Error ? err.message : String(err))
+        return false
       }
+      return true
     },
     [session, sending, sent, failed]
   )
@@ -131,12 +137,21 @@ function ThreadPage({ session }: { session: string }) {
 
   const optimisticRef = useRef(log.optimistic)
   optimisticRef.current = log.optimistic
+  const discard = useCallback(
+    (id: string) => {
+      const send = optimisticRef.current.find((s) => s.id === id)
+      discardSend(id)
+      // Thrown away on purpose: not a draft any more either.
+      if (send) draftSent(session, send.text)
+    },
+    [session, discardSend]
+  )
   const actions = useMemo(
     () => ({
       retry: (id: string) => {
         const send = optimisticRef.current.find((s) => s.id === id)
         if (!send) return
-        discard(id)
+        discardSend(id)
         void onSend(send.text)
       },
       discard,
@@ -155,7 +170,7 @@ function ThreadPage({ session }: { session: string }) {
         return { error: res.error, key: approval.key }
       }
     }),
-    [session, log, discard, onSend]
+    [session, log, discard, discardSend, onSend]
   )
 
   // Live: /sessions/state lists it (polled), else the list said so, else
@@ -231,6 +246,7 @@ function ThreadPage({ session }: { session: string }) {
         onSend={onSend}
         onStop={onStop}
         actions={actions}
+        draftKey={session}
         empty={empty}
         placeholder={closed ? 'Session closed. Sending resumes it' : undefined}
         speechBar={<SpeechBar here={session} />}

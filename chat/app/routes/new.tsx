@@ -11,6 +11,7 @@ import type { Agent } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import { useTargets } from '../hooks/useThreads'
+import { draftSent, NEW_CHAT } from '../lib/drafts'
 
 const AGENTS: { id: Agent; label: string }[] = [
   { id: 'claude', label: 'Claude' },
@@ -33,6 +34,9 @@ export default function NewThread() {
       setStatus({ text: 'Opening a session…' })
       try {
         const res = await askNew(text, { cwd: cwd || undefined, agent })
+        // Started: the new-chat draft is spent. (A failure throws, and
+        // Thread puts the words back in the box.)
+        draftSent(NEW_CHAT, text)
         if (res.session) {
           navigate(`/t/${encodeURIComponent(res.session)}`, { replace: true, state: { title: res.title || text.slice(0, 60) } })
           return
@@ -68,6 +72,7 @@ export default function NewThread() {
         onStop={() => {}}
         actions={noAnswer}
         placeholder="Start a new chat…"
+        draftKey={NEW_CHAT}
         speechBar={<SpeechBar />}
         empty={
           <div className="new-pickers">

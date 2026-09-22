@@ -15,6 +15,7 @@ import type {
   AskResponse,
   Approval,
   ConversationLog,
+  DraftResponse,
   RenameResponse,
   ReplyRequest,
   ReplyResponse,
@@ -60,10 +61,16 @@ export interface CallOptions {
    * behind anything the person is waiting for. A hint; ignored where unsupported.
    */
   priority?: 'high' | 'low' | 'auto'
+  /**
+   * Let the request outlive the page (a draft flushed as the tab is hidden
+   * or closed). `sendBeacon` cannot carry the Authorization header, so it is
+   * a keepalive fetch.
+   */
+  keepalive?: boolean
 }
 
 async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, opts: AbortSignal | CallOptions = {}): Promise<T> {
-  const { signal, priority } = opts instanceof AbortSignal ? { signal: opts, priority: undefined } : opts
+  const { signal, priority, keepalive } = opts instanceof AbortSignal ? { signal: opts, priority: undefined, keepalive: undefined } : opts
   const base = serverBase()
   if (!base) throw new ApiError('No server address — set one in Settings', 0)
   let res: Response
@@ -71,6 +78,7 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, 
     res = await fetch(`${base}${path}`, {
       method,
       signal,
+      ...(keepalive ? { keepalive: true } : {}),
       ...(priority ? ({ priority } as RequestInit) : {}),
       headers: {
         ...authHeaders(),
@@ -172,6 +180,22 @@ export function askNew(text: string, opts: { cwd?: string; agent?: AskRequest['a
   if (opts.cwd) body.cwd = opts.cwd
   if (opts.agent) body.agent = opts.agent
   return request<AskResponse>('POST', '/ask', body)
+}
+
+// ── Drafts (§6.2) ──────────────────────────────────────────────────────────
+
+/** The server's copy of a thread's unsent words; none is `{text: "", at: 0}`. */
+export function getDraft(session: SessionId, signal?: AbortSignal) {
+  return request<DraftResponse>('GET', `/draft?session=${q(session)}`, undefined, signal)
+}
+
+/**
+ * Keep a thread's unsent words on the server. `at` is this device's clock
+ * (epoch s), stored as given; empty text deletes. Only the words — nothing
+ * is typed anywhere.
+ */
+export function postDraft(session: SessionId, text: string, at: number, opts: CallOptions = {}) {
+  return request<DraftResponse>('POST', '/draft', { session, text, at }, opts)
 }
 
 // ── Managing a thread ─────────────────────────────────────────────────────

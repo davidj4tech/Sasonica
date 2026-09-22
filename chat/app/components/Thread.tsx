@@ -27,6 +27,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
+import { useDraft, type DraftHandle } from '../hooks/useDraft'
 import { useFollowAlong } from '../hooks/useFollowAlong'
 import { APPROVAL_TOOL, ASK_TOOL, convertItem, type ChatItem } from '../lib/convert'
 import {
@@ -100,6 +101,12 @@ function AssistantMessage() {
   )
 }
 
+/** The composer's draft (hooks/useDraft.ts); needs the runtime's context, so it is a component. */
+function DraftKeeper({ draftKey, handle }: { draftKey?: string; handle: React.Ref<DraftHandle> }) {
+  useDraft(draftKey, handle)
+  return null
+}
+
 /** Two keys need at least this much height to not sit on top of each other. */
 const TWO_KEYS_PX = 2 * 44 + 32
 
@@ -169,8 +176,15 @@ export interface ThreadProps {
   workingAt: number
   thinking: boolean
   suggestion: string
-  /** Send the words; throw to leave them in the box. */
-  onSend: (text: string) => Promise<void>
+  /**
+   * Send the words. Throw to put them back in the box (where nothing else
+   * holds them); resolve `false` for a failure that keeps them elsewhere
+   * (the failed bubble with Retry) — the draft is kept either way. The page
+   * clears the draft on success (lib/drafts.ts draftSent).
+   */
+  onSend: (text: string) => Promise<void | boolean>
+  /** Keep the composer's text as a draft under this key (a session, or NEW_CHAT). */
+  draftKey?: string
   onStop: (speech: 'auto' | 'silence') => void
   actions: ThreadActions
   /** Shown above the composer: send status, errors. */
@@ -202,11 +216,17 @@ export function Thread(props: ThreadProps) {
   const newBelow = useNewBelow(props.items, liveIndex, liveKey)
 
   const { toFoot, guarded } = follow
+  const draftRef = useRef<DraftHandle>(null)
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const text = textOf(message)
       if (!text) return
-      await onSend(text)
+      try {
+        if ((await onSend(text)) === false) draftRef.current?.keep(text)
+      } catch (err) {
+        draftRef.current?.restore(text)
+        throw err
+      }
       // A send is the reader taking over: show them their words, even
       // while a reply is being followed.
       if (guarded) toFoot()
@@ -244,6 +264,7 @@ export function Thread(props: ThreadProps) {
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadActionsContext.Provider value={props.actions}>
+        <DraftKeeper draftKey={props.draftKey} handle={draftRef} />
         <ThreadPrimitive.Root className="thread">
           <ThreadPrimitive.Viewport className="viewport" ref={viewportRef} autoScroll={!follow.guarded} scrollToBottomOnRunStart={!follow.guarded}>
             {items.length === 0 && props.empty}

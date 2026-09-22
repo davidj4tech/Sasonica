@@ -24,7 +24,8 @@ pnpm build && pnpm mock        # http://127.0.0.1:8793 — serves the bundle AND
 
 Open it: a fresh browser lands on **Pair this device**. Server address
 `http://127.0.0.1:8793`, code `c0ffee42` (`MOCK_PAIR_CODE`). The code dies on
-its first success, as the real one does; `GET /mock/pair` re-arms it, and
+its first success, as the real one does; `GET /mock/pair` re-arms it
+(`?device=NAME` sets the desk's name it answers with, default "Pixel 8a"), and
 `/?pair=c0ffee42&server=http://127.0.0.1:8793` pairs with no typing.
 `GET /mock/devices` lists paired devices and `?revoke=<id>` forgets one; its
 token then gets 401, as a revoked one does. Settings → Advanced / legacy still
@@ -48,6 +49,7 @@ offsets and a null `sentence`. `GET /mock/real/restart?in=N` starts them
 (`&ended=1` holds them finished); `GET /mock/voice?loop=0` stops the
 speaking fixture coming back after it ends (`loop=1` restores it);
 `POST /rename` renames any fixture (a title containing FAIL gets a 500);
+`/draft` keeps drafts in memory (`GET /mock/drafts` lists them);
 `GET /mock/reply?delay=&skew=&flatten=&fail=` makes /reply slow (the line
 lands in the log first), shifts the server clock, flattens whitespace or
 refuses; `MOCK_REAL_VOICE=1` makes `/speech/now`
@@ -68,11 +70,12 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 ```
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
-and runs `test/{pair,follow,keys,skew,rename,finished,send}.mjs` in headless
+and runs `test/{pair,follow,keys,skew,rename,finished,send,draft}.mjs` in headless
 Chromium at phone size: pairing and the one-request thread open,
 follow-along on the real-shaped speech (default and Larger text), the top
 play/pause key (portrait, landscape, Larger), the skew correction against
-a stale `pos`, rename, the finished speech bar, and the send race. Playwright is not a
+a stale `pos`, rename, the finished speech bar, the send race, and drafts
+(switch threads, reload, hidden, a newer copy from another device, send). Playwright is not a
 dependency; any playwright-core with its browsers in `~/.cache/ms-playwright`
 will do. Screenshots go to `$TMPDIR/sasonica-chat-shots`.
 
@@ -129,6 +132,7 @@ device code and passed through.
 | `app/lib/snapshots.ts`, `app/lib/store.ts` | the last good lines per thread (by session), and the list, in memory over IndexedDB (40 threads LRU); best-effort. `CACHE_VERSION` in store.ts drops old-shaped entries on upgrade |
 | `app/hooks/usePrefetch.ts` | warms the top 5 threads from the list, one at a time, low priority |
 | `app/hooks/useBottomFirst.ts` | newest 20 messages first, older ones added above, scroll pinned to the bottom |
+| `app/lib/drafts.ts`, `app/hooks/useDraft.ts` | the composer's text per thread: local copy, `/draft` push/reconcile, the send rules; the hook binds it to the composer |
 | `app/lib/textSize.ts` | the per-device text size (one root `--text-size`; everything is rem) |
 | `app/hooks/useSpeech.tsx` | the ONE `/speech/now` poll for the app (1.5 s live / 5 s idle / 15 s failing), the `/speech/ctl` keys, optimistic state |
 | `app/components/SpeechBar.tsx` | the speech bar and its full-controls sheet |
@@ -144,7 +148,10 @@ device code and passed through.
 - Pairing (§9): first run lands on Pair this device (a pasted
   `sasonica://pair?…` or `http(s)://…/pair?c=…` link, or server + code); a
   link opened into the app as `/?pair=<code>&server=<base>` pairs at once.
-  Settings shows the paired device (name, server, id) and Unpair; the ABS
+  Settings shows the paired device — "Paired as Pixel 8a with red5", the
+  name given at the desk, which `POST /pair` answers with (`name`; an older
+  server that leaves it out shows the name the app asked for) — its server,
+  id and Unpair; the ABS
   token lives on under Advanced / legacy.
 - Opening a thread is ONE request, `/conversation/log?session=` (§10) — no
   session → item lookup, shelved or not — and it paints first from its saved
@@ -258,6 +265,21 @@ It passed the mock and failed on the phone because real live lines differ:
   502 `submitted: false` says they are in the pane's box but were not taken.
   "Session reopened" when `opened`.
   The composer stays usable while a turn runs (the harness queues typed input).
+- Drafts (§6.2): what is typed in a thread's composer is kept per session —
+  in localStorage at once, and on the server with `POST /draft {session,
+  text, at}` (`at` = this device's clock) 800 ms after typing stops, and at
+  once when the tab is hidden, the page goes away or the thread is left
+  (a keepalive fetch: `sendBeacon` cannot carry the Authorization header).
+  Opening a thread shows the local copy at once, then asks `GET /draft`:
+  the newer `at` wins — a newer server copy (another device) replaces the
+  box unless something was typed since open, in which case that stays and
+  is pushed. An emptied draft is kept as a tombstone `{text: "", at}`, so an
+  older copy never comes back. A good send clears it here and on the
+  server; a refused one keeps it (the bubble has Retry, and the draft
+  survives a reload). The thread list marks threads with a local draft
+  ("Draft"). The new-chat screen keeps its draft on this device only
+  (`NEW_CHAT`), cleared when the chat starts, and a refused start puts the
+  words back in the box.
 - New chat: place picker (`/targets.places`) and agent picker, `/ask {text,
   target: "new", cwd, agent}`, then straight into the new thread.
 
@@ -266,12 +288,10 @@ It passed the mock and failed on the phone because real live lines differ:
 - **Stop**: `onCancel` → `stopSession()` in `app/api/index.ts` throws "not
   available yet"; the double-press → `speech: "silence"` logic is in
   `useStop` (Thread.tsx). When §12 exists, only the function body changes.
-- Drafts (`/draft`), slash menu (`/commands`), resume/close, `/focus`
+- Slash menu (`/commands`), resume/close, `/focus`
   ("answer at the desk" is text only), dictation,
   branch-from-here, `dry: true` routing for words that name a thread, the
   thread-list adapter (routing is React Router instead). Auto-scroll is
   assistant-ui's own, not the 8 s reader hold from ConversationLog.vue.
 - The device token is in localStorage; the Capacitor build moves it to the
   Android keystore (`readDevice`/`writeDevice` in `api/auth.ts`).
-- `POST /pair` does not echo the device's name (the desk's `--device` wins),
-  so Settings shows the name the app asked for until the server says.

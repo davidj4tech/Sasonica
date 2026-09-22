@@ -9,6 +9,7 @@ import { Link, Navigate } from 'react-router'
 import { RenameSheet } from '../components/RenameSheet'
 import { useRename } from '../hooks/useRename'
 import { useTitle } from '../lib/titles'
+import { hasDraft } from '../lib/drafts'
 import { SpeechBar } from '../components/SpeechBar'
 import { hasCredential } from '../api/auth'
 import type { SessionRow, SessionState } from '../api/types'
@@ -145,6 +146,7 @@ function ThreadRow({ row, state, onRename }: { row: SessionRow; state: SessionSt
       >
         <span className={`dot ${row.live ? state || 'live' : 'shelved'}`} />
         <span className="title">{title}</span>
+        {hasDraft(row.session) && <span className="draft-mark">Draft</span>}
         {row.live ? (
           <span className={`badge ${state || ''}`}>{state ? STATE_LABEL[state] : 'live'}</span>
         ) : (

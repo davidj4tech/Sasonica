@@ -185,6 +185,18 @@ export interface ConversationLog extends Envelope {
   suggestion: string
 }
 
+/**
+ * `GET /draft?session=` · `POST /draft {session, text, at}`: half a reply,
+ * kept server-side. `at` is the writer's clock (epoch s), stored as given;
+ * empty text deletes; a missing draft is `{text: "", at: 0}`. Capped at 8192
+ * characters.
+ */
+export interface DraftResponse extends Envelope {
+  session: SessionId
+  text: string
+  at: number
+}
+
 // ── §6.3 Sending ──────────────────────────────────────────────────────────
 
 /** POST /reply — by session (§10). `item` is the v0 form, no longer sent. */
@@ -334,6 +346,8 @@ export interface SpeechCtlResponse extends Envelope {
 export interface PairResponse extends Envelope {
   token: string
   device_id: string
+  /** The device's name as given at the desk (`--device`), which wins over ours. Older servers leave it out. */
+  name?: string
   server: { name: string; base: string }
 }
 

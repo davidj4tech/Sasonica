@@ -87,6 +87,8 @@ a { color: var(--accent); }
 .thread-row { display: flex; align-items: center; gap: 10px; padding: .867rem 16px; border-bottom: 1px solid var(--line); text-decoration: none; color: var(--text); }
 .thread-row .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-row .when { color: var(--muted); font-size: 0.867rem; }
+/* A thread with unsent words in its composer (lib/drafts.ts), as messaging apps mark one. */
+.thread-row .draft-mark { color: var(--warn); font-size: 0.8rem; font-style: italic; flex: none; }
 .dot { width: .6rem; height: .6rem; border-radius: 50%; flex: none; background: var(--muted); }
 .dot.shelved { background: transparent; border: 1.5px solid var(--line); }
 .dot.live, .dot.waiting { background: var(--accent); }

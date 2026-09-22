@@ -233,7 +233,9 @@ export class PairError extends Error {
 
 /**
  * Redeem a pairing code (§9):
- *   POST <server>/pair {code, device} → {ok, token, device_id, server: {name, base}}
+ *   POST <server>/pair {code, device} → {ok, token, device_id, name, server: {name, base}}
+ * `name` is the device's name as given at the desk, which wins over the one
+ * asked for here; an older server leaves it out, and ours is kept.
  * No credential is sent. On success the device is stored and the server
  * address becomes the base the server answered with (the address the
  * request came in on). A 403 is "invalid or expired pairing code" whether
