@@ -494,4 +494,4 @@ It passed the mock and failed on the phone because real live lines differ:
 
 ## Licence
 
-This directory (the chat app and the Sasonica Next shell) is MIT — see `LICENSE` here. The rest of this repository is the Audiobookshelf app fork and stays GPL v3.
+This directory (the chat app and the Sasonica Next shell) is Apache-2.0 — see `LICENSE` and `NOTICE` here. The rest of this repository is the Audiobookshelf app fork and stays GPL v3.
