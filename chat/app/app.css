@@ -614,7 +614,12 @@ a { color: var(--accent); }
 .filter-menu .menu-sep { height: 1px; margin: 4px 0; background: var(--line); }
 .thread-row .archived-mark { color: var(--muted); }
 .filter-empty .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.project-head { padding: 14px 16px 4px; font-size: .8rem; font-weight: 600; letter-spacing: .02em; color: var(--muted); border-bottom: 1px solid var(--line); text-transform: none; }
+.project-head { border-bottom: 1px solid var(--line); }
+/* The heading folds its group (routes/threads.tsx): a whole-width button. */
+.project-head button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 10px 16px 6px; background: none; border: 0; color: var(--muted); font: inherit; font-size: .8rem; font-weight: 600; letter-spacing: .02em; text-align: left; cursor: pointer; }
+.project-head .caret { width: .6rem; font-size: .8em; }
+.project-head .project-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-head .project-count { font-weight: 500; font-variant-numeric: tabular-nums; }
 
 /* ── Background agents (§6.12) ─────────────────────────────────────────── */
 .agents-strip { border-bottom: 1px solid var(--line); background: var(--bg); flex: none; }

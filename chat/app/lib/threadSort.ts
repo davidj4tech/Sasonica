@@ -21,6 +21,7 @@ export const SORTS: ThreadSort[] = ['smart', 'recent', 'project']
 export const OTHER_PROJECT = 'Other'
 
 const KEY = 'sasonica.chat.threadSort'
+const CLOSED_KEY = 'sasonica.chat.threadGroupsClosed'
 
 export function loadThreadSort(): ThreadSort {
   try {
@@ -33,6 +34,27 @@ export function loadThreadSort(): ThreadSort {
 export function saveThreadSort(sort: ThreadSort) {
   try {
     localStorage.setItem(KEY, sort)
+  } catch {
+    // Not kept (a private window): the choice holds for this page.
+  }
+}
+
+/**
+ * By project: which group headings are folded shut, by project name (kept
+ * per device, like the order itself). A name that no longer has a group is
+ * harmless — it is only ever read for the groups on screen.
+ */
+export function loadClosedGroups(): Set<string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(CLOSED_KEY) || '[]')
+    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+export function saveClosedGroups(closed: Set<string>) {
+  try {
+    localStorage.setItem(CLOSED_KEY, JSON.stringify([...closed]))
   } catch {
     // Not kept (a private window): the choice holds for this page.
   }
@@ -62,6 +84,18 @@ function group(row: SessionRow, states: States): number {
 export const projectOf = (row: SessionRow): string => (row.project || '').trim() || OTHER_PROJECT
 
 export type ListEntry = { kind: 'row'; row: SessionRow } | { kind: 'head'; name: string; count: number }
+
+/** The rows of `list` whose group heading is not folded shut. */
+export function openEntries(list: ListEntry[], closed: Set<string>): ListEntry[] {
+  let hidden = false
+  return list.filter((e) => {
+    if (e.kind === 'head') {
+      hidden = closed.has(e.name)
+      return true
+    }
+    return !hidden
+  })
+}
 
 /** The rows in `sort` order; By project interleaves the group headings. */
 export function sortThreads(rows: SessionRow[], sort: ThreadSort, states: States, nowS = Date.now() / 1000): ListEntry[] {

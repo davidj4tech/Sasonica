@@ -5,6 +5,7 @@
 //   recent    newest first: the pinned old thread falls to its place
 //   project   headings in the order of their newest thread, "Other" last,
 //             each row under its own project; the Archived section too
+//   fold      a group heading folds its rows away; the fold survives a reload
 //   device    the choice survives a reload (localStorage)
 //   menu      the sort menu closes on a tap outside without changing it
 //   project   the small line under a row's title, the thread header's, and
@@ -28,7 +29,7 @@ await page.route('**/input', (r) => r.abort())
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 await page.goto(BASE + '/settings')
-await page.evaluate(([base, res]) => { localStorage.setItem('sasonica.chat.baseUrl', base); localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() })); localStorage.removeItem('sasonica.chat.threadSort') }, [BASE, pr])
+await page.evaluate(([base, res]) => { localStorage.setItem('sasonica.chat.baseUrl', base); localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() })); localStorage.removeItem('sasonica.chat.threadSort'); localStorage.removeItem('sasonica.chat.threadGroupsClosed') }, [BASE, pr])
 await page.goto(BASE + '/threads')
 await page.waitForSelector('.thread-row .badge')
 await page.waitForTimeout(800) // /sessions/state's first answer
@@ -36,7 +37,7 @@ const list = () =>
   page.locator('.threads > li').evaluateAll((els) =>
     els.map((li) =>
       li.classList.contains('project-head')
-        ? { head: li.textContent.trim() }
+        ? { head: li.querySelector('.project-name').textContent.trim(), count: li.querySelector('.project-count').textContent.trim(), open: li.querySelector('button').getAttribute('aria-expanded') === 'true' }
         : li.classList.contains('archived-head')
           ? { archived: true }
           : { title: li.querySelector('.title')?.textContent || '', badge: li.querySelector('.badge')?.textContent || '', project: li.querySelector('.row-project')?.textContent || null }
@@ -79,6 +80,34 @@ for (const x of all) {
 }
 ok(right, 'every row sits under its own project ("Other" rows have none)')
 await page.screenshot({ path: SHOTS + '/sort-02-project.png' })
+
+// The groups fold
+const headRow = (name) => page.locator('.project-head button', { hasText: name }).first()
+const first = all.find((x) => x.head)
+ok(all.filter((x) => x.head).every((x) => x.open) && Number(first.count) > 0, `every group starts open, with its count (${first.head}: ${first.count})`)
+await headRow(first.head).click()
+await page.waitForTimeout(100)
+all = await list()
+const shown = (name) => {
+  const a = all.findIndex((x) => x.head === name)
+  const rest = all.slice(a + 1)
+  const end = rest.findIndex((x) => x.head || x.archived)
+  return (end < 0 ? rest : rest.slice(0, end)).filter((x) => x.title).length
+}
+ok(shown(first.head) === 0 && !all.find((x) => x.head === first.head).open, `a tap on ${first.head} folds its rows away`)
+ok(all.filter((x) => x.head).length === heads.length, 'the other headings stay')
+ok(Number(all.find((x) => x.head === first.head).count) === Number(first.count), 'a folded heading still says how many')
+await page.screenshot({ path: SHOTS + '/sort-03-folded.png' })
+await page.reload()
+await page.waitForSelector('.project-head')
+await page.waitForTimeout(300)
+all = await list()
+ok(shown(first.head) === 0, 'the fold survives a reload')
+await headRow(first.head).click()
+await page.waitForTimeout(100)
+all = await list()
+ok(shown(first.head) === Number(first.count), 'a second tap opens it again')
+
 await page.locator('.archived-head button').click()
 all = await list()
 const ai = all.findIndex((x) => x.archived)

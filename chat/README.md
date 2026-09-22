@@ -245,7 +245,9 @@ device code and passed through.
 - Thread list order (22 Sep 2026): "Sort:" offers Smart (needs you →
   working → the rest, pinned on top within each; the default), Most recent,
   and By project (headings from each row's `project`, "Other" last); the
-  Archived section follows it; kept per device (localStorage). Rows, Home's
+  Archived section follows it; kept per device (localStorage). Under By
+  project each heading folds its group away (a caret and the group's count;
+  the folded names are kept per device too). Rows, Home's
   recap and working cards, and the thread header carry the project really
   small under the title, when there is one.
 - Menus and sheets (the ⋮ menu, the long-press menu, rename and exit

@@ -22,7 +22,18 @@ import { SessionMenuSheet, type SessionAction } from '../components/SessionSheet
 import { useSessionActions } from '../hooks/useSessionActions'
 import { archivedOf, endedHere, useSessionFlags } from '../lib/sessionFlags'
 import { Popover } from '../components/Popover'
-import { loadThreadSort, saveThreadSort, SORT_LABEL, SORTS, sortThreads, type ListEntry, type ThreadSort } from '../lib/threadSort'
+import {
+  loadClosedGroups,
+  loadThreadSort,
+  openEntries,
+  saveClosedGroups,
+  saveThreadSort,
+  SORT_LABEL,
+  SORTS,
+  sortThreads,
+  type ListEntry,
+  type ThreadSort
+} from '../lib/threadSort'
 import { DEFAULT_FILTER, filterLabel, filterThreads, loadThreadFilter, projectsOf, saveThreadFilter, SHOW_LABEL, SHOWS, type ThreadFilter } from '../lib/threadFilter'
 
 const STATE_LABEL: Record<SessionState, string> = {
@@ -61,6 +72,17 @@ function ThreadList() {
     setSortState(next)
     saveThreadSort(next)
   }
+  // By project: the headings fold (the choice is kept per device), and a
+  // folded group's rows leave the list.
+  const [closed, setClosedState] = useState<Set<string>>(() => loadClosedGroups())
+  const toggleGroup = (name: string) => {
+    setClosedState((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(name)) next.add(name)
+      saveClosedGroups(next)
+      return next
+    })
+  }
   const [filter, setFilterState] = useState<ThreadFilter>(() => loadThreadFilter())
   const [filterOpen, setFilterOpen] = useState(false)
   const filterButton = useRef<HTMLButtonElement>(null)
@@ -81,8 +103,8 @@ function ThreadList() {
   const projects = projectsOf(sessions)
   if (filter.project && !projects.includes(filter.project)) projects.push(filter.project)
   // The chosen order (lib/threadSort.ts), the Archived section's too.
-  const mainList = sortThreads(main, sort, states)
-  const archivedList = sortThreads(archived, sort, states)
+  const mainList = openEntries(sortThreads(main, sort, states), closed)
+  const archivedList = openEntries(sortThreads(archived, sort, states), closed)
   const say = (r: { ok: boolean; message: string }) => setNote(r.ok ? null : { text: r.message, failed: true })
   const pick = (a: SessionAction) => {
     const m = menu
@@ -98,7 +120,13 @@ function ThreadList() {
   const entryOf = (e: ListEntry, where: string) =>
     e.kind === 'head' ? (
       <li key={`${where}:head:${e.name}`} className="project-head">
-        {e.name}
+        <button type="button" aria-expanded={!closed.has(e.name)} onClick={() => toggleGroup(e.name)}>
+          <span className="caret" aria-hidden="true">
+            {closed.has(e.name) ? '▸' : '▾'}
+          </span>
+          <span className="project-name">{e.name}</span>
+          <span className="project-count">{e.count}</span>
+        </button>
       </li>
     ) : (
       rowOf(e.row)
