@@ -29,6 +29,9 @@
 //           the transcript append with no polling; reasoning collapsed;
 //           steps grouped and lazy; follow-along; reconnect without
 //           duplicates; the polling fallback and back; Load earlier
+//   dashboard  Home (§6.11): every section, a question answered in place,
+//           quick start, machines, Home ⇄ Threads; the + clear of the nav
+//           bar and the last row; the composer's one-line start and keyboard
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -44,20 +47,23 @@ const run = (file, env = {}) =>
     p.on('exit', (code) => r(code || 0))
   })
 
-// E2E_PORT moves both mocks (P and P+1), so two worktrees can run the
+// E2E_PORT moves the mocks (P, P+1, P+2), so two worktrees can run the
 // suites at once without sharing a mock's state.
 const P = Number(process.env.E2E_PORT || 8811)
 const mock = await mockAt(P, { MOCK_SPEECH_REST_S: '0' })
 const skewMock = await mockAt(P + 1, { MOCK_REAL_VOICE: '1' })
+// Home answers the same questions ask.mjs answers: a mock of its own.
+const dashMock = await mockAt(P + 2, { MOCK_SPEECH_REST_S: '0' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['sessions.mjs'], ['brand.mjs'], ['ask.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['sessions.mjs'], ['brand.mjs'], ['ask.mjs'], ['dashboard.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
-    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' ? P + 1 : P}`, ...env })) ? 1 : 0
+    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : P}`, ...env })) ? 1 : 0
   }
 } finally {
   mock.kill()
   skewMock.kill()
+  dashMock.kill()
 }
 console.log(failed ? `\n${failed} suite(s) failed` : '\nall suites pass')
 process.exit(failed ? 1 : 0)

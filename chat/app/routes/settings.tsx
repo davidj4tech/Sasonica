@@ -4,6 +4,7 @@
  * address and an Audiobookshelf bearer (§4.1), used only when this device
  * is not paired. api/auth.ts is the only module that stores any of it.
  */
+import { BackLink } from '../components/Nav'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { getTargets } from '../api'
@@ -52,9 +53,7 @@ export default function Settings() {
   return (
     <div className="page">
       <header className="bar">
-        <Link className="icon" to="/" title="Threads">
-          ←
-        </Link>
+        <BackLink />
         <h1 className="grow">Settings</h1>
       </header>
       <form

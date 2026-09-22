@@ -17,6 +17,7 @@ import type { SessionRow, SessionState } from '../api/types'
 import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
 import { Mark } from '../components/Mark'
+import { HomeTabs } from '../components/Nav'
 import { ConfirmExitSheet, SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { archivedOf, endedHere, useSessionFlags } from '../lib/sessionFlags'
@@ -94,6 +95,7 @@ function ThreadList() {
           ⚙
         </Link>
       </header>
+      <HomeTabs current="threads" />
 
       {error && <p className="notice error">{error}</p>}
       {note && <p className={note.failed ? 'notice error' : 'notice'}>{note.text}</p>}
@@ -143,7 +145,7 @@ function ThreadList() {
       {/* The foot of the list: the speech bar when a voice is live, and the
           + button, which rides above it (app.css .dock). */}
       <div className="dock">
-        <Link to="/new" className="fab" title="New chat">
+        <Link to="/new" className="fab" title="New chat" aria-label="New chat">
           +
         </Link>
         <SpeechBar />

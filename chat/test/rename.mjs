@@ -20,7 +20,7 @@ page.on('request', (r) => { if (r.method() === 'POST') posts.push({ p: new URL(r
 page.on('pageerror', (e) => console.log('  pageerror', e.message))
 await page.goto(BASE + '/settings')
 await page.evaluate(([base, res]) => { localStorage.setItem('sasonica.chat.baseUrl', base); localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() })) }, [BASE, pr])
-await page.goto(BASE + '/')
+await page.goto(BASE + '/threads')
 await page.waitForSelector('.thread-row')
 const rowOf = (session) => page.locator(`a.thread-row[href="/t/${session}"]`)
 
@@ -33,7 +33,7 @@ await page.waitForTimeout(800)
 await page.mouse.up()
 // The long press opens the thread's menu (Rename, Exit, Archive: sessions.mjs).
 await page.waitForSelector('.action-sheet')
-ok(page.url() === BASE + '/', 'long press opened the menu, not the thread')
+ok(page.url() === BASE + '/threads', 'long press opened the menu, not the thread')
 await page.getByRole('menuitem', { name: 'Rename…' }).click()
 await page.waitForSelector('.rename-sheet input')
 ok((await page.locator('.rename-sheet input').inputValue()) === 'Mock: shelved conversation', 'sheet prefilled with the current title')
@@ -86,7 +86,7 @@ await page.screenshot({ path: SHOTS + '/rename-02-why.png' })
 
 // 4. The speech bar follows a rename of the speaking thread
 const speaking = sid('Mock: speaking now')
-await page.goto(BASE + '/')
+await page.goto(BASE + '/threads')
 await page.waitForSelector('.speech-bar .speech-title')
 await page.evaluate(() => document.querySelector(`a.thread-row[href^="/t/"]`) && 0)
 const r4 = rowOf(speaking)

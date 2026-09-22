@@ -32,8 +32,12 @@ const open = async (s) => {
   await page.goto(BASE + '/t/' + s)
   await box().waitFor()
 }
+// ← is a real back: to the list when the thread was opened from it, else
+// to wherever this page came from (a goto from Settings) — then the list.
 const back = async () => {
-  await page.locator('a.icon[title="Threads"]').click()
+  await page.locator('a.icon[title="Back"]').click()
+  await page.waitForURL((u) => !u.pathname.startsWith('/t/'))
+  if (new URL(page.url()).pathname !== '/threads') await page.goto(BASE + '/threads')
   await page.waitForSelector('.thread-row')
 }
 
@@ -134,7 +138,7 @@ await page.goto(BASE + '/new')
 await box().waitFor()
 const before = posts.length
 await box().pressSequentially('an idea for later')
-await page.goto(BASE + '/')
+await page.goto(BASE + '/threads')
 await page.waitForSelector('.thread-row')
 await page.goto(BASE + '/new')
 await box().waitFor()

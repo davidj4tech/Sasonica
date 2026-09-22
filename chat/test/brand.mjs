@@ -48,7 +48,7 @@ for (const [name, vp, size, px] of [['portrait', { width: 390, height: 780 }, 'd
     localStorage.setItem('sasonica.chat.baseUrl', base)
     localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() }))
   }, [BASE, pr])
-  await page.goto(BASE + '/')
+  await page.goto(BASE + '/threads')
   await page.waitForSelector('.thread-row')
   const wm = await page.evaluate(() => {
     const h = document.querySelector('.bar h1.wordmark')

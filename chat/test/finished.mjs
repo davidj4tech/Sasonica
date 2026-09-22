@@ -15,7 +15,7 @@ const page = await (await b.newContext({ viewport: { width: 390, height: 780 } }
 await page.route('**/input', (r) => r.abort())
 await page.goto(BASE + '/settings')
 await page.evaluate(([base, res]) => { localStorage.setItem('sasonica.chat.baseUrl', base); localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() })); }, [BASE, pr])
-await page.goto(BASE + '/')
+await page.goto(BASE + '/threads')
 await page.waitForSelector('.thread-row')
 const bar = () => page.evaluate(() => {
   const b = document.querySelector('.speech-bar')

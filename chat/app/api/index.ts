@@ -18,6 +18,10 @@ import type {
   AskRequest,
   AskResponse,
   Approval,
+  AudioChannel,
+  AudioTargetsResponse,
+  DashboardResponse,
+  Envelope,
   ConversationLog,
   DraftResponse,
   RenameResponse,
@@ -321,6 +325,27 @@ export async function stopSession(body: StopRequest): Promise<StopResponse> {
   void body
   // When §12 lands: return request<StopResponse>('POST', '/session/stop', body)
   throw new ApiError('Stop is not available yet (needs POST /session/stop, server-contract.md §12)', 0)
+}
+
+// ── The home screen (§6.11) ───────────────────────────────────────────────
+
+/** Everything the home screen shows, in one answer. Polled every 5 s while visible. */
+export function getDashboard(signal?: AbortSignal) {
+  return request<DashboardResponse>('GET', '/dashboard', undefined, signal)
+}
+
+// ── Audio destinations (§6.9) ─────────────────────────────────────────────
+
+export function getAudioTargets(signal?: AbortSignal) {
+  return request<AudioTargetsResponse>('GET', '/audio/targets', undefined, signal)
+}
+
+/**
+ * Where the NEXT reply plays (null = back to the default). REAL on the
+ * canvas: it moves David's speech. Test on the mock.
+ */
+export function setAudioTarget(channel: 'speech' | 'music', target: string | null) {
+  return request<Envelope & AudioChannel & { channel: string }>('POST', '/audio/target', { channel, target })
 }
 
 export type { SessionRow }

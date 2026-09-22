@@ -45,6 +45,15 @@ export interface SessionRow {
   rested?: { at: number; reason: string } | null
   /** Kept open against the idle reaper (POST /session/pin). */
   pinned?: boolean
+  /** "Where this thread was" (§6.1 Recaps), or null. */
+  recap?: Recap | null
+}
+
+/** A recap (§6.1): Claude Code's "while you were away", or the reaper's own. */
+export interface Recap {
+  text: string
+  at: number
+  source: 'claude' | 'agent-media' | string
 }
 
 /** A directory a new chat may be opened in. */
@@ -504,6 +513,8 @@ export interface SpeechNow extends Envelope {
   replay?: boolean
   /** Replies said but not heard yet, likely play order (urgent first). Always present on a current server. */
   queued?: QueuedReply[]
+  /** Where the voice is (live), or where the next reply will play (§6.9 names). */
+  target?: string | null
 }
 
 /** One reply waiting for the voice (§6.5 `queued`). */
@@ -572,4 +583,94 @@ export interface StopResponse extends Envelope {
   speech: 'left' | 'stopped' | 'idle' | 'other_thread'
   cutoff?: number
   state: string
+}
+
+// ── §6.9 Audio destinations ───────────────────────────────────────────────
+
+export interface AudioOption {
+  name: string
+  label: string
+  available: boolean
+  why: string | null
+}
+
+export interface AudioChannel {
+  current: string | null
+  default?: string
+  next?: string
+  overridden: boolean
+  options: AudioOption[]
+}
+
+export interface AudioTargetsResponse extends Envelope {
+  channels: { speech: AudioChannel; music?: AudioChannel }
+}
+
+// ── §6.11 Dashboard ───────────────────────────────────────────────────────
+
+/** A session stopped on something only you can answer. */
+export interface DashNeed {
+  session: SessionId
+  title: string
+  kind: 'approval' | 'question'
+  approval: Approval
+  driver?: 'headless'
+}
+
+/** A session in the middle of a turn. */
+export interface DashWorking {
+  session: SessionId
+  title: string
+  /** The step in progress, in plain English; "" between steps. */
+  current: string
+  /** When the turn started (server epoch s), or null. */
+  since: number | null
+  count: number
+}
+
+export interface DashRecent {
+  session: SessionId
+  title: string
+  recap: Recap | null
+  at: number | null
+  live: boolean
+  rested: { at: number; reason: string } | null
+}
+
+export interface DashService {
+  service: string
+  /** null: could not tell. */
+  active: boolean | null
+}
+
+export interface DashHost {
+  name: string
+  role: string
+  local: boolean
+  /** null: could not tell. */
+  online: boolean | null
+  last_seen: number | null
+  sessions: number | null
+  mem_used_mb: number | null
+  mem_total_mb: number | null
+  mem_available_mb: number | null
+  sessions_mem_mb: number | null
+  tight: boolean | null
+  reaper: { mode: string | null; last_run_at: number | null; closed_last_run: number } | null
+  shell: DashService | null
+  sessiond: DashService | null
+}
+
+export interface DashboardResponse extends Envelope {
+  at: number
+  needs_you: DashNeed[]
+  working: DashWorking[]
+  speech: {
+    now: Pick<SpeechNow, 'live' | 'speaking' | 'paused' | 'session' | 'title' | 'sentence'> & { target: string | null; replay?: boolean }
+    queued: QueuedReply[]
+  }
+  recent: DashRecent[]
+  places: Place[]
+  agents: { name: Agent; present: boolean }[]
+  hosts: DashHost[]
 }

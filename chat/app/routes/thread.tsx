@@ -10,6 +10,7 @@
  * (lib/snapshots.ts), with "updating…" in the header until the first
  * snapshot — never a spinner over content.
  */
+import { BackLink } from '../components/Nav'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { answer, ApiError, reply, stopSession } from '../api'
@@ -232,9 +233,7 @@ function ThreadPage({ session }: { session: string }) {
   return (
     <div className="page thread-page">
       <header className="bar">
-        <Link className="icon" to="/" title="Threads">
-          ←
-        </Link>
+        <BackLink />
         <h1 className="grow">
           <button className="title-button" onClick={() => setRenaming(true)} title="Rename">
             {title}

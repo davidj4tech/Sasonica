@@ -26,7 +26,7 @@ export function sessionMenuItems(live: boolean, archived: boolean): SessionActio
   return items
 }
 
-function Sheet(props: { label: string; onClose: () => void; children: ReactNode; className?: string }) {
+export function Sheet(props: { label: string; onClose: () => void; children: ReactNode; className?: string }) {
   const { onClose } = props
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()

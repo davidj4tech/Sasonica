@@ -92,8 +92,9 @@ export default function App() {
     <SpeechProvider>
       <Outlet />
       {/* Replies in other threads: told here, never followed (lib/arrivals.ts).
-          Not on the list, whose rows already carry the dots and states. */}
-      {location.pathname !== '/pairing' && location.pathname !== '/' && <Notices />}
+          Not on Home or the list, which already show what needs you, the
+          dots and the states. */}
+      {!['/pairing', '/', '/threads'].includes(location.pathname) && <Notices />}
     </SpeechProvider>
   )
 }

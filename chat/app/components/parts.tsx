@@ -445,8 +445,14 @@ export function QuestionCard({ approval }: { approval: Approval }) {
 }
 
 /** A permission prompt / Codex approval / any dialog, as its own message. */
-export const ApprovalToolUI: ToolCallMessagePartComponent<ApprovalArgs> = ({ args }) => {
-  const approval = args.approval
+export const ApprovalToolUI: ToolCallMessagePartComponent<ApprovalArgs> = ({ args }) => <ApprovalCard approval={args.approval} />
+
+/**
+ * The card for whatever a session is stopped on — a question card for an
+ * AskUserQuestion, numbered options for anything else. Answers go through
+ * the nearest ThreadActionsContext (the thread page, or the home screen).
+ */
+export function ApprovalCard({ approval }: { approval: Approval }) {
   if (approval.kind === 'question') {
     return (
       <div className="tool-card approval ask">

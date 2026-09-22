@@ -9,6 +9,7 @@
  *
  * No notes on this server yet (no inbox view) → the setup checklist.
  */
+import { BackLink } from '../components/Nav'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
 import { hasCredential } from '../api/auth'
@@ -123,9 +124,7 @@ function NotesPage() {
   return (
     <div className="page notes-page">
       <header className="bar">
-        <Link className="icon" to="/" title="Threads">
-          ←
-        </Link>
+        <BackLink />
         <h1>Notes</h1>
         <button className="icon" onClick={() => setSearching((s) => !s)} title={searching ? 'Close search' : 'Search'} aria-pressed={searching}>
           {searching ? '✕' : '⌕'}

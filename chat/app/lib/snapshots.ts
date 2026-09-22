@@ -20,7 +20,7 @@
  * Bounded: at most MAX_THREADS threads (least recently opened or refreshed
  * goes first) and the newest MAX_MESSAGES messages each.
  */
-import type { Message, SessionId, SessionRow, SessionsStateResponse, TargetsResponse } from '../api/types'
+import type { DashboardResponse, Message, SessionId, SessionRow, SessionsStateResponse, TargetsResponse } from '../api/types'
 import { plainMessage } from './messages'
 import { idbDel, idbGet, idbSet } from './store'
 
@@ -32,6 +32,7 @@ const threadKey = (session: SessionId) => `thread:${session}`
 const INDEX_KEY = 'threads:index'
 const TARGETS_KEY = 'list:targets'
 const STATES_KEY = 'list:states'
+const DASH_KEY = 'home:dashboard'
 
 /** What the thread page gets back. */
 export interface ThreadSnapshot {
@@ -206,4 +207,24 @@ export function saveStates(res: SessionsStateResponse) {
   if (json === lastStatesJson) return
   lastStatesJson = json
   void idbSet(STATES_KEY, res)
+}
+
+// ── The home screen ──────────────────────────────────────────────────────
+
+let dashMemory: DashboardResponse | undefined
+let lastDashJson = ''
+export function peekDashboard() {
+  return dashMemory
+}
+export async function loadDashboard(): Promise<DashboardResponse | undefined> {
+  if (!dashMemory) dashMemory = await idbGet<DashboardResponse>(DASH_KEY)
+  return dashMemory
+}
+/** Polled every 5 s; written to disk only when it changed (the clock aside). */
+export function saveDashboard(res: DashboardResponse) {
+  dashMemory = res
+  const json = JSON.stringify({ ...res, at: 0 })
+  if (json === lastDashJson) return
+  lastDashJson = json
+  void idbSet(DASH_KEY, res)
 }

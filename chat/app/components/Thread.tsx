@@ -14,6 +14,7 @@
  * takes typed input mid-turn, so a message sent then goes straight to the
  * server, as the Nuxt reply box does. Nothing is held client-side.
  */
+import { AutoGrowTextarea } from './AutoGrow'
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
@@ -465,13 +466,15 @@ export function Thread(props: ThreadProps) {
                   (§6.3 compose()), but records the text as written.
                 */}
                 <ComposerPrimitive.Input
+                  asChild
                   className="input"
-                  rows={1}
-                  maxRows={8}
                   submitMode="ctrlEnter"
                   enterKeyHint="enter"
                   placeholder={props.placeholder || 'Say something back…'}
-                />
+                >
+                  {/* One line when empty, up to 8 as it fills (AutoGrow.tsx says why not assistant-ui's). */}
+                  <AutoGrowTextarea rows={1} maxRows={8} />
+                </ComposerPrimitive.Input>
                 {isRunning && (
                   // STUB until §12: the button is here so the gesture exists.
                   <ComposerPrimitive.Cancel className="stop" title="Stop (not in v0)">

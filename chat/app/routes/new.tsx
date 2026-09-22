@@ -4,8 +4,9 @@
  * POST /ask {text, target: "new", cwd?, agent?}; the returned session becomes
  * the thread id (§14 onSwitchToNewThread / onNew in a new thread).
  */
+import { BackLink } from '../components/Nav'
 import { useCallback, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { askNew } from '../api'
 import type { Agent } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
@@ -25,8 +26,13 @@ const noAnswer = { answer: async () => ({ error: 'nothing to answer', key: '' })
 export default function NewThread() {
   const navigate = useNavigate()
   const { places, error } = useTargets()
-  const [cwd, setCwd] = useState('')
-  const [agent, setAgent] = useState<Agent>('claude')
+  // Preset from Home's quick start: /new?cwd=<a place's path>&agent=<agent>.
+  const [params] = useSearchParams()
+  const [cwd, setCwd] = useState(() => params.get('cwd') || '')
+  const [agent, setAgent] = useState<Agent>(() => {
+    const a = params.get('agent') as Agent | null
+    return a && AGENTS.some((x) => x.id === a) ? a : 'claude'
+  })
   const [status, setStatus] = useState<{ text: string; failed?: boolean } | null>(null)
 
   const onSend = useCallback(
@@ -56,9 +62,7 @@ export default function NewThread() {
   return (
     <div className="page thread-page">
       <header className="bar">
-        <Link className="icon" to="/" title="Threads">
-          ←
-        </Link>
+        <BackLink />
         <h1 className="grow">{where ? `New chat in ${where}` : 'New chat'}</h1>
       </header>
       <Thread

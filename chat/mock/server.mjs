@@ -123,6 +123,7 @@ function add(s) {
 add(
   session(randomUUID(), 'Mock: speaking now', {
     pane: '%11',
+    recap: { text: 'The follow-along is being tried on a long reply; the bold sentence should stay on screen.', at: r3(T0 - 100), source: 'claude' },
     state: 'waiting',
     suggestion: 'what happens when it ends?',
     lines: [
@@ -327,6 +328,7 @@ add(
   session(randomUUID(), 'Mock: shelved conversation', {
     live: false,
     state: null,
+    recap: { text: 'We drew the thread layout: the list on the left, the thread on the right, the composer pinned at the foot. Next: try it at phone width and decide where the ambient art goes, then pick up the colours for the badges.', at: r3(T0 - 86400 * 2 + 60), source: 'claude' },
     at: r3(T0 - 86400 * 2),
     suggestion: 'can we pick this back up?',
     lines: [
@@ -357,7 +359,7 @@ add(
       )
     )
   }
-  add(session(randomUUID(), 'Mock: long conversation', { live: false, state: null, at: r3(T0 - 86400 * 3 + 45 * 120), lines }))
+  add(session(randomUUID(), 'Mock: long conversation', { live: false, state: null, at: r3(T0 - 86400 * 3 + 45 * 120), lines, rested: { at: r3(T0 - 86400 * 2.5), reason: 'idle-tight' }, recap: { text: 'Forty-five steps answered one by one. Next: nothing pending.', at: r3(T0 - 86400 * 2.5), source: 'agent-media' } }))
 }
 
 // Filed under Archived (§6.4), and one the idle reaper rested.
@@ -758,7 +760,7 @@ function liveLine(line) {
 
 // §6.1 (22 Sep 2026): every row carries archived, rested (null while live) and pinned.
 const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned })
-const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, ...flags(s) })
+const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, recap: s.recap || null, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, recap: s.recap || null, ...flags(s) })
 
 function logOf(s, q = null) {
   tickSession(s)
@@ -1110,7 +1112,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/pair', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
+const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://mock')
@@ -1213,6 +1215,13 @@ createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
     return res.end(JSON.stringify(out))
   }
+  if (path === '/mock/dashboard') {
+    // Tests: `?hosts=tight` (default: red5 short of memory, sessiond down,
+    // hpo offline) or `?hosts=ok` (red5 at ease, everything up, hpo online).
+    const h = url.searchParams.get('hosts')
+    if (h) DASH.hosts = h
+    return send(res, 200, { ok: true, ...DASH })
+  }
   if (path === '/mock/drafts') {
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
     return res.end(JSON.stringify(Object.fromEntries(DRAFTS)))
@@ -1294,6 +1303,43 @@ createServer(async (req, res) => {
   for (const s of Object.values(S)) console.log(`  ${s.session}  ${s.title}`)
 })
 
+const PLACES = () => [
+  { name: 'demo', path: '/home/you/projects/demo', at: r3(now()) },
+  { name: 'agent-media', path: '/home/you/projects/agent-media', at: r3(now() - 3600) }
+]
+
+// §6.9: where the voice plays. POST /audio/target moves it (mock state only).
+const AUDIO = { speech: 'app', default: 'app', overridden: false }
+const AUDIO_OPTIONS = [
+  { name: 'app', label: 'Phone (Sasonica)', available: true, why: null },
+  { name: 'phone', label: 'Phone (Termux player)', available: true, why: 'was slow or unreachable a moment ago' },
+  { name: 'rooms', label: 'House speakers', available: true, why: null },
+  { name: 'local', label: 'red5', available: false, why: 'no speech player running on red5' }
+]
+const audioSpeech = () => ({ current: AUDIO.speech, default: AUDIO.default, overridden: AUDIO.overridden, options: AUDIO_OPTIONS })
+
+// §6.11 hosts: `GET /mock/dashboard?hosts=tight|ok` picks the scenario.
+const DASH = { hosts: process.env.MOCK_DASH_HOSTS || 'tight' }
+function dashHosts() {
+  const tight = DASH.hosts !== 'ok'
+  const live = Object.values(S).filter((x) => x.live).length
+  const total = 7758
+  const avail = tight ? 820 : 4300
+  return [
+    {
+      name: 'red5', role: 'origin', local: true, online: true, last_seen: null, sessions: live,
+      mem_used_mb: total - avail, mem_total_mb: total, mem_available_mb: avail, sessions_mem_mb: tight ? 5200 : 2100, tight,
+      reaper: { mode: 'apply', last_run_at: r3(now() - 420), closed_last_run: tight ? 2 : 0 },
+      shell: { service: 'sasonica-shell', active: true },
+      sessiond: { service: 'agent-media-sessiond', active: !tight }
+    },
+    {
+      name: 'hpo', role: 'peer', local: false, online: !tight, last_seen: tight ? r3(now() - 7200) : r3(now() - 5), sessions: null,
+      mem_used_mb: null, mem_total_mb: null, mem_available_mb: null, sessions_mem_mb: null, tight: null, reaper: null, shell: null, sessiond: null
+    }
+  ]
+}
+
 async function route(method, path, q, body, res) {
   const ok = (b) => (send(res, 200, { ok: true, ...b }), 200)
   const err = (status, error, extra) => (fail(res, status, error, extra), status)
@@ -1301,17 +1347,40 @@ async function route(method, path, q, body, res) {
   const notes = (await notesRoute(method, path, q, body, ok, err)) || setupWindowRoute(method, path, q, body, ok, err)
   if (notes) return notes
 
+  if (method === 'GET' && path === '/dashboard') {
+    // §6.11: one answer for the home screen, from the same fixtures (recent:
+    // 12 here, not ~8, so the older fixtures with recaps make the cut).
+    const all = Object.values(S)
+    all.forEach(tickSession)
+    const lastAt = (x) => Math.max(x.at || 0, ...x.lines.map((l) => l.at || 0))
+    const sp = speechNow()
+    return ok({
+      at: r3(now()),
+      needs_you: all.filter((x) => x.live && x.approval).map((x) => ({ session: x.session, title: x.title, kind: x.approval.kind === 'question' ? 'question' : 'approval', approval: x.approval, ...(x.headless ? { driver: 'headless' } : {}) })),
+      working: all.filter((x) => x.live && x.state === 'working').map((x) => ({ session: x.session, title: x.title, current: x.working?.current || '', since: x.working?.since ?? null, count: x.working?.count || 0 })),
+      speech: { now: { live: sp.live, speaking: sp.speaking, paused: sp.paused, session: sp.session, title: sp.title, sentence: sp.sentence, target: AUDIO.speech, replay: false }, queued: sp.queued },
+      recent: all.filter((x) => !x.archived).sort((a, b) => lastAt(b) - lastAt(a)).slice(0, 12).map((x) => ({ session: x.session, title: x.title, recap: x.recap || null, at: r3(lastAt(x)) || null, live: !!x.live, rested: x.live ? null : x.rested || null })),
+      places: PLACES(),
+      agents: [{ name: 'claude', present: true }, { name: 'codex', present: true }, { name: 'pi', present: false }, { name: 'hermes', present: false }],
+      hosts: dashHosts()
+    })
+  }
+
+  if (method === 'GET' && path === '/audio/targets') return ok({ channels: { speech: audioSpeech() } })
+  if (method === 'POST' && path === '/audio/target') {
+    if (body.channel !== 'speech') return err(400, `unknown channel ${body.channel}`)
+    const t = body.target
+    if (t && !AUDIO_OPTIONS.some((o) => o.name === t && o.available)) return err(400, `cannot play on ${t}`)
+    AUDIO.speech = t || AUDIO.default
+    AUDIO.overridden = !!t
+    return ok({ channel: 'speech', ...audioSpeech() })
+  }
+
   if (method === 'GET' && (path === '/targets' || path === '/conversations')) {
     const all = Object.values(S)
     const sessions = [...all.filter((s) => s.live).map(row), ...all.filter((s) => !s.live).sort((a, b) => b.at - a.at).map(row)]
     if (path === '/conversations') return ok({ sessions })
-    return ok({
-      sessions,
-      places: [
-        { name: 'demo', path: '/home/you/projects/demo', at: r3(now()) },
-        { name: 'agent-media', path: '/home/you/projects/agent-media', at: r3(now() - 3600) }
-      ]
-    })
+    return ok({ sessions, places: PLACES() })
   }
 
   if (method === 'GET' && path === '/sessions/state') {

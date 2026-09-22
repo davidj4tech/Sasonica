@@ -70,7 +70,7 @@ const r3 = await watch('please retry me', 4000)
 ok(r3.worst === 1 && r3.final.length === 1 && r3.final[0] === 'server', 'Retry → sent once, reconciled')
 
 // 4. Cache paint: away and back shows each message once.
-await page.goto(BASE + '/')
+await page.goto(BASE + '/threads')
 await page.waitForSelector('.thread-row')
 await page.locator(`a.thread-row[href="/t/${thread}"]`).click()
 await page.waitForSelector('.msg.user')

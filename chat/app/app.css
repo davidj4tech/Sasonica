@@ -303,9 +303,20 @@ a { color: var(--accent); }
  * with the composer instead of covering either) and at the foot of the list.
  * Every key is at least 44 px square, whatever the text size.
  */
-.dock { position: relative; flex: none; }
-.dock .fab { position: absolute; right: 20px; bottom: calc(100% + 16px); }
-.dock .speech-bar { margin: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); }
+/*
+ * The dock carries the bottom safe-area inset itself (a web page drawn under
+ * a gesture bar or 3-button nav with viewport-fit=cover; in Sasonica Next the
+ * shell pads the WebView clear of the bars natively, so the inset is 0 there
+ * and nothing is counted twice). The + rides --fab-gap above the dock's top:
+ * above the speech bar when it shows, else above the inset — never on the
+ * navigation bar. Lists under it end with room for it (--fab-room), so the
+ * last row is never under the button.
+ */
+:root { --fab-size: 3.733rem; --fab-gap: 20px; --fab-room: calc(var(--fab-size) + var(--fab-gap) + 16px); }
+.dock { position: relative; flex: none; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.dock .fab { position: absolute; right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(100% + var(--fab-gap)); width: var(--fab-size); height: var(--fab-size); z-index: 3; }
+.dock .speech-bar { margin: 8px 12px; }
+.threads, .dash { padding-bottom: var(--fab-room); }
 .speech-bar { position: relative; display: flex; align-items: center; gap: 2px; min-height: 48px; padding: 2px 4px 2px .8rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .speech-progress { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
 .speech-progress i { display: block; height: 100%; background: var(--accent); transition: width 1.5s linear; }
@@ -420,9 +431,9 @@ a { color: var(--accent); }
   .icon { padding: 2px 8px; }
   .footer { padding: 4px 0 6px; gap: 4px; }
   .viewport { padding-top: 6px; gap: 8px; }
+  :root { --fab-size: 3rem; --fab-gap: 16px; }
   .fab { bottom: 12px; width: 3rem; height: 3rem; font-size: 1.6rem; }
-  .dock .fab { bottom: calc(100% + 10px); }
-  .dock .speech-bar { margin: 4px 12px calc(4px + env(safe-area-inset-bottom, 0px)); }
+  .dock .speech-bar { margin: 4px 12px; }
   .speech-bar { min-height: 44px; }
   .speech-title { padding-top: 2px; }
   .speech-sentence { padding-bottom: 2px; }
@@ -440,4 +451,102 @@ a { color: var(--accent); }
   /* The bar keeps its keys and title; the sentence waits for more room. */
   .speech-sentence { display: none; }
   .speech-title { padding: 10px 0; }
+}
+
+/*
+ * Home | Threads (components/Nav.tsx): a segmented control under the header.
+ */
+.tabs { display: flex; gap: 4px; margin: 8px 16px 4px; padding: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: 99px; flex: none; }
+.tab { flex: 1; min-height: 40px; border: 0; border-radius: 99px; background: none; color: var(--muted); font: inherit; font-weight: 500; cursor: pointer; }
+.tab.on { background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent-2); }
+@media (max-height: 520px) { .tabs { margin: 4px 16px 2px; } .tab { min-height: 34px; } }
+
+/*
+ * Home (routes/home.tsx). One scrolling column of sections.
+ */
+.dash { flex: 1; overflow-y: auto; padding-top: 4px; }
+.dash-section { padding: 10px 16px 6px; }
+.dash-section > h2 { display: flex; align-items: center; gap: 8px; margin: 6px 0 8px; font: 600 .8rem/1.2 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.dash-count { font-size: .75rem; letter-spacing: 0; padding: 1px 7px; border-radius: 99px; background: var(--panel-2); color: var(--text); }
+.dash-needs .dash-count { background: var(--bad); color: var(--on-accent); }
+.dash-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dash-row { display: flex; align-items: center; gap: 10px; padding: .6rem .8rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); text-decoration: none; min-height: 48px; }
+.dash-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dash-title { font-weight: 600; color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dash-sub { color: var(--muted); font-size: .867rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-when { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; flex: none; }
+
+/* Needs you: the thread's own card, under its title. */
+.need-card { background: var(--panel); border: 1px solid var(--warn); border-radius: var(--radius); padding: 10px 12px 12px; margin-bottom: 10px; }
+.need-card > header { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.need-title { flex: 1; min-width: 0; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 32px; display: flex; align-items: center; }
+.need-card .tool-card { margin-top: 4px; border: 0; padding: 0; background: none; }
+
+/* Working now: a live dot that breathes. */
+.live-pulse { width: .7rem; height: .7rem; border-radius: 50%; background: var(--warn); flex: none; box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 55%, transparent); animation: live-ring 2s ease-out infinite; }
+@keyframes live-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 55%, transparent); } 80%, 100% { box-shadow: 0 0 0 .45rem transparent; } }
+
+/* Listening */
+.listening-line { display: flex; align-items: center; gap: 10px; padding: .5rem .8rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); min-height: 48px; }
+.listening-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listening-what b { font-weight: 600; }
+.listening-what .queued { color: var(--muted); }
+.listening-what .queued.urgent { color: var(--warn); }
+.speak-dot { width: .6rem; height: .6rem; border-radius: 50%; flex: none; background: none; border: 1.5px solid var(--muted); }
+.speak-dot.on { background: var(--accent); border-color: var(--accent); animation: pulse 1.6s infinite; }
+.speak-dot.paused { background: var(--accent-2); border-color: var(--accent-2); }
+.output-chip { flex: none; min-height: 36px; color: var(--muted); }
+
+/* Recaps */
+.recap-row { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .8rem; }
+.recap-head { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.recap-head .dash-title { flex: 1; }
+.badge.resting { color: var(--muted); border: 1px dashed var(--line); background: none; }
+.recap-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 2px 0 0; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: .933rem; text-align: left; cursor: pointer; width: 100%; }
+.recap-text.open { -webkit-line-clamp: unset; display: block; color: var(--text); }
+.recap-text.none { cursor: default; font-style: italic; }
+.all-threads { display: inline-flex; align-items: center; min-height: 44px; margin-top: 2px; color: var(--accent); text-decoration: none; font-weight: 500; }
+
+/* Quick start */
+.quick-chips .chip.quick { min-height: 40px; display: inline-flex; align-items: center; color: var(--text); text-decoration: none; font: inherit; font-size: .933rem; }
+
+/* Machines: a ring, a count, service dots; tap for the numbers. */
+.machines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.machine { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.machine-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: .5rem .8rem; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.machine-name { flex: 1; min-width: 0; font-weight: 600; display: flex; flex-direction: column; }
+.machine-name small { font-weight: 400; color: var(--muted); font-size: .8rem; }
+.machine-icons { display: flex; align-items: center; gap: 12px; flex: none; }
+.machine-note { color: var(--muted); font-size: .8rem; }
+.mem-ring { flex: none; width: 2.4rem; height: 2.4rem; }
+.mem-ring .track { fill: none; stroke: var(--panel-2); stroke-width: 4; }
+.mem-ring .arc { fill: none; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset .8s ease, stroke .8s ease; }
+.mem-ring.ok .arc { stroke: var(--accent); }
+.mem-ring.warm .arc { stroke: var(--warn); }
+.mem-ring.tight .arc { stroke: var(--bad); }
+.mem-ring text { fill: var(--text); font: 600 11px var(--font-body); }
+.mem-ring.tight text { fill: var(--bad); }
+.count-badge { min-width: 1.6rem; height: 1.6rem; padding: 0 6px; border-radius: 99px; background: var(--panel-2); color: var(--text); font-size: .8rem; font-weight: 600; display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; }
+.svc { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
+.svc-name { font-size: .667rem; color: var(--muted); line-height: 1; }
+.svc-dot, .online-dot { width: .7rem; height: .7rem; border-radius: 50%; flex: none; }
+.svc-dot.up, .online-dot.up { background: var(--accent); animation: breathe 3.2s ease-in-out infinite; }
+.svc-dot.down { background: none; border: 2px solid var(--bad); }
+.online-dot.down { background: none; border: 2px solid var(--muted); }
+.svc-dot.unknown, .online-dot.unknown { background: none; border: 2px dashed var(--muted); }
+.online-dot { width: 1rem; height: 1rem; margin: 0 .7rem; }
+@keyframes breathe { 50% { opacity: .55; } }
+.machine-details { margin: 0; padding: 0 .8rem .7rem 3.9rem; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: .867rem; }
+.machine-details dt { color: var(--muted); }
+.machine-details dd { margin: 0; }
+
+/* Speech output (components/OutputSheet.tsx) */
+.output-sheet .sheet-title { margin: 0; font: 600 1.067rem var(--font-display); }
+.output-options { display: flex; flex-direction: column; gap: 6px; }
+.output-options .option { min-height: 48px; align-items: center; }
+.output-options .option.on { border-color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .live-pulse, .svc-dot.up, .online-dot.up, .speak-dot.on, .dot.working, .updating { animation: none; }
+  .mem-ring .arc { transition: none; }
 }

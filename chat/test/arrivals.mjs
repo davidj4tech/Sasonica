@@ -35,7 +35,7 @@ const page = await newPage({ width: 390, height: 780 })
 const scrollTop = () => page.evaluate(() => document.querySelector('.viewport').scrollTop)
 
 // 1. Reading A, scrolled into the middle.
-await page.goto(BASE + '/')
+await page.goto(BASE + '/threads')
 await page.waitForSelector('.thread-row')
 await page.waitForTimeout(6000) // the list's first /sessions/state and /speech/now: the baseline
 await page.locator(`a.thread-row[href="/t/${A}"]`).click()
@@ -79,7 +79,7 @@ await page.screenshot({ path: SHOTS + '/arrivals-02-urgent.png' })
 await mock('clear=1')
 
 // 5. The list: unread dots on B and W, not on A; opening B clears its dot.
-await page.locator('a.icon[title="Threads"]').click()
+await page.locator('a.icon[title="Back"]').click()
 await page.waitForSelector('.thread-row')
 const dot = (s) => page.locator(`a.thread-row[href="/t/${s}"] .unread-dot`).count()
 ok((await dot(B)) === 1 && (await dot(W)) === 1, 'list: unread dots on the threads with new replies')
@@ -87,7 +87,7 @@ ok((await dot(A)) === 0, 'list: none on the thread that was open')
 await page.screenshot({ path: SHOTS + '/arrivals-03-list.png' })
 await page.locator(`a.thread-row[href="/t/${B}"]`).click()
 await page.waitForSelector('.msg')
-await page.locator('a.icon[title="Threads"]').click()
+await page.locator('a.icon[title="Back"]').click()
 await page.waitForSelector('.thread-row')
 ok((await dot(B)) === 0, 'opening B clears its dot')
 

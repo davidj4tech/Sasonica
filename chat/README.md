@@ -68,7 +68,13 @@ in another session (spoken now; a turn ending working → waiting in 6 s; or
 listed in `/speech/now`'s `queued`), `?clear=1` empties `queued`;
 `GET /mock/reply?delay=&skew=&flatten=&fail=` makes /reply slow (the line
 lands in the log first), shifts the server clock, flattens whitespace or
-refuses; `MOCK_REAL_VOICE=1` makes `/speech/now`
+refuses; `GET /dashboard` (§6.11) is built from the same fixtures (their questions,
+the working turn, the voice and its `queued`, recaps — `recent` keeps 12 so
+the older fixtures with recaps make the cut) plus invented hosts:
+`GET /mock/dashboard?hosts=tight` (the default: red5 short of memory,
+sessiond down, hpo offline) or `?hosts=ok`; `/audio/targets` and
+`POST /audio/target` keep the speech target in memory.
+`MOCK_REAL_VOICE=1` makes `/speech/now`
 speak the streamed one with its `pos` lagging `elapsed`. The speaking thread's long reply
 (with a figure above it and ambient art on it) is one shared voice clock
 for `/speech/now`, `/speech/ctl` (every action) and the live line; it
@@ -86,7 +92,8 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 ```
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
-and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream,notes,sessions,brand}.mjs` in headless
+(and 8813 for `dashboard.mjs`, which answers the same questions `ask.mjs`
+does) and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream,notes,sessions,brand,ask,dashboard}.mjs` in headless
 Chromium at phone size: pairing and the one-request thread open (its stream),
 follow-along on the real-shaped speech (default and Larger text), the top
 play/pause key (portrait, landscape, Larger), the skew correction against
@@ -102,7 +109,15 @@ reader's place), Exit and Archive (`sessions.mjs`: the long-press menu and
 the thread's ⋮, the confirm, optimistic with rollback, the folded Archived
 section, Exit & archive, the saved list, sending un-archives), and the brand (`brand.mjs`: icons, manifest, the wordmark
 and Pair's tagline, the faces leaving the text-size scale alone, no sideways
-scroll). `E2E_PORT=<n>` moves the mocks to n and n+1, for a second worktree
+scroll), and Home (`dashboard.mjs`: every section; a multi-select question
+answered in place posts `/session/answer` and leaves at once; the working
+step and its ticking time; the queue and the output sheet; recaps clamped
+and expanding; quick start opening New chat preset; the machines' ring and
+dots following the hosts scenario and reduced motion; Home ⇄ Threads and
+the back gesture; the + at least 16 px above the speech bar or a 48 px nav
+inset with the last row clear of it — portrait, landscape, Larger; the
+composer one line when empty, even laid out at zero width first, capped,
+and above a keyboard-shortened viewport). `E2E_PORT=<n>` moves the mocks to n, n+1 and n+2, for a second worktree
 running the suites at the same time. Playwright is not a
 dependency; any playwright-core with its browsers in `~/.cache/ms-playwright`
 will do. Screenshots go to `$TMPDIR/sasonica-chat-shots`.
@@ -179,10 +194,38 @@ device code and passed through.
 | `app/components/Thread.tsx` | the assistant-ui runtime and thread layout |
 | `app/components/parts.tsx` | follow-along text, reasoning ("Thinking" / "thought"), tool steps and the "Worked · N steps" block, pictures, ask/approval tool UIs, working indicator |
 | `app/routes/*` | thread list, thread, new chat, settings |
+| `app/routes/home.tsx`, `app/hooks/useDashboard.ts` | Home, the landing screen: GET /dashboard (§6.11) every 5 s while visible, painted from the saved answer; a card answered here hides at once (and a 409 swaps in the new question) until a later poll agrees |
+| `app/components/Nav.tsx` | Home \| Threads (Threads pushes, Home pops it) and ←, a real back when there is one |
+| `app/components/Machines.tsx` | the hosts: memory ring (green → amber at 70 % → red at 85 % or the reaper's "tight"), session count, service and online dots, a tap for the numbers |
+| `app/components/OutputSheet.tsx` | where speech plays: /audio/targets, POST /audio/target (§6.9) |
+| `app/components/AutoGrow.tsx` | the composer's box: one line empty, grows to 8 rows, re-measured when its width changes |
 | `app/api/notes.ts`, `app/routes/notes.tsx`, `note.tsx`, `notes-setup.tsx`, `app/lib/org.tsx`, `app/notes.css` | the Notes tab (§6.10): views, one note, the setup checklist and its window; Org rendered for reading; its own stylesheet. Pages live under `/notebook/…` so they never share a path with the `/notes` API on a one-port server |
 | `mock/notes.mjs` | the notes routes on the mock: an invented Org tree; `GET /mock/notes` shows captures/says/setup (`?reset=1`, `?unset=1`) |
 
 ## What works
+
+- Home (`/`, the landing screen; the thread list is `/threads`, one tap away
+  on the Home | Threads switch). One GET /dashboard (§6.11) every 5 s while
+  visible, stale-while-revalidate like the list. Top to bottom: **Needs you**
+  (every question or permission prompt, answered in place with the thread's
+  own card — single, multi-select, Other; the title opens the thread),
+  **Working now** (the step in progress, a breathing dot, the time so far),
+  **Listening** (what the voice is doing and how many replies wait, from the
+  app's one /speech/now poll; the chip opens the speech output sheet), **Recaps**
+  (the recent threads' "where it was", three lines, a tap for all of it,
+  live / resting), **Quick start** (the top places × the main agent, the top
+  place × each other agent, straight into New chat preset via
+  `/new?cwd=&agent=`), **Machines** (a row per host). The speech bar stays
+  global; the + rides above it.
+- The + (22 Sep 2026, David's Pixel 8a with 3-button nav: it sat on the
+  navigation bar and covered the last row's time): the dock carries the
+  bottom safe-area inset, the + sits 20 px (16 in landscape) above the dock's
+  top — the speech bar when it shows — and the list and Home end with room
+  for it. In Sasonica Next the shell pads the WebView clear of the bars
+  itself, so the inset there is 0 and nothing is counted twice.
+- The composer starts at one line and grows to 8 (then scrolls): its own
+  autosize (`AutoGrow.tsx`), because assistant-ui's measured once before the
+  WebView had a width and drew all 8 rows in Next.
 
 - Pairing (§9): first run lands on Pair this device (a pasted
   `sasonica://pair?…` or `http(s)://…/pair?c=…` link, or server + code); a

@@ -20,7 +20,7 @@ await page.goto(BASE + '/settings')
 await page.evaluate(([base, res]) => { localStorage.setItem('sasonica.chat.baseUrl', base); localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() })); localStorage.removeItem('sasonica.notes.view') }, [BASE, pr])
 
 // 1. From the thread list to Notes; the agenda first, grouped by day
-await page.goto(BASE + '/')
+await page.goto(BASE + '/threads')
 await page.waitForSelector('.thread-row')
 await page.click('a[href="/notebook"]')
 await page.waitForSelector('.agenda-day')
