@@ -78,7 +78,21 @@ ok(note.includes('Not moved') && note.includes('working'), 'a working session is
 ok((await rowOf(working).locator('.row-project').innerText()) === 'agent-media', 'and it did not move')
 await page.screenshot({ path: SHOTS + '/move-03-refused.png' })
 
-// 4. The same from inside a thread, through ⋮
+// 4. Its files could not follow: the thread moved, and it says so
+await fetch(BASE + '/mock/session?fail=move-folder')
+const stream = sid('Mock: stream')
+await longPress(stream)
+await page.getByRole('menuitem', { name: 'Move to project…' }).click()
+await page.waitForSelector('.action-sheet .action-note')
+await page.getByRole('menuitem', { name: 'runlet' }).click()
+await page.waitForTimeout(400)
+const stuck = await page.locator('.notice').innerText()
+ok(stuck.includes('Moved to runlet') && stuck.includes('files stayed put'), 'a folder that could not move is said beside the move')
+ok((await rowOf(stream).locator('.row-project').innerText()) === 'runlet', 'and the thread moved anyway')
+await fetch(BASE + '/mock/session?fail=none')
+await page.screenshot({ path: SHOTS + '/move-04-files-stuck.png' })
+
+// 5. The same from inside a thread, through ⋮
 await page.goto(BASE + '/t/' + shelved)
 await page.waitForSelector('.thread-project')
 await page.locator('header button[aria-label="Thread menu"]').click()
@@ -87,7 +101,7 @@ await page.waitForSelector('.action-sheet .action-note')
 await page.getByRole('menuitem', { name: 'sasonica' }).click()
 await page.waitForTimeout(400)
 ok((await page.locator('.thread-project').innerText()) === 'sasonica', 'the thread header follows the move')
-await page.screenshot({ path: SHOTS + '/move-04-thread.png' })
+await page.screenshot({ path: SHOTS + '/move-05-thread.png' })
 
 await b.close()
 console.log(fails ? `${fails} failed` : 'all pass')

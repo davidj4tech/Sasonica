@@ -1903,7 +1903,14 @@ async function route(method, path, q, body, res) {
     if (SESSION_OPS.fail === 'move') return err(500, 'could not move the transcript')
     s.project = project || null
     s.cwd = cwd || `/home/you/projects/${project}`
-    return ok({ session: sid, project: s.project, cwd: s.cwd, restarted: !!s.live, pane: s.live ? s.pane : null, live: !!s.live })
+    // Its own files follow (§6.15); MOCK 'move-folder' keeps them behind.
+    const folder = SESSION_OPS.fail === 'move-folder' ? null : `/conversations/${project}/${s.title}`
+    s.folder = folder || s.folder
+    return ok({
+      session: sid, project: s.project, cwd: s.cwd, restarted: !!s.live,
+      pane: s.live ? s.pane : null, live: !!s.live, folder,
+      ...(folder ? {} : { folder_error: `/conversations/${project}/${s.title} is already there` })
+    })
   }
 
   if (method === 'POST' && path === '/rename') {

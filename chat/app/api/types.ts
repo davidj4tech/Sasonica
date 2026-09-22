@@ -643,6 +643,10 @@ export interface MoveResponse extends Envelope {
   restarted: boolean
   pane: string | null
   live: boolean
+  /** Where the conversation's own files now are, null when it has none yet. */
+  folder?: string | null
+  /** Set when the thread moved but its files could not follow. */
+  folder_error?: string
 }
 
 // ── §6.5 Speech ───────────────────────────────────────────────────────────

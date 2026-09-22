@@ -56,6 +56,9 @@ async function move(session: string, project: string): Promise<ActionOutcome> {
     setProjectOverride(session, res.project)
     patchTargetRow(session, { project: res.project, cwd: res.cwd })
     noteRow(session, { project: res.project, cwd: res.cwd })
+    // Its files could not follow (§6.15): the thread moved, so this is not a
+    // failure — but it is the one thing about a move worth hearing about.
+    if (res.folder_error) return { ok: false, message: `Moved to ${project}, but its files stayed put: ${res.folder_error}` }
     return {
       ok: true,
       message: res.restarted ? `Moved to ${project}. The session restarted there.` : `Moved to ${project}.`
