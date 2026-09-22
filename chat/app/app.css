@@ -341,6 +341,9 @@ a { color: var(--accent); }
  */
 :root { --fab-size: 3.733rem; --fab-gap: 20px; --fab-room: calc(var(--fab-size) + var(--fab-gap) + 16px); }
 .dock { position: relative; flex: none; padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* The + is drawn, not typed: a glyph sits on the font's baseline and lands
+ * low in the circle; a path centres exactly at every text size. */
+.fab-plus { width: 45%; height: 45%; display: block; }
 .dock .fab { position: absolute; right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(100% + var(--fab-gap)); width: var(--fab-size); height: var(--fab-size); z-index: 3; }
 .dock .speech-bar { margin: 8px 12px; }
 .threads, .dash { padding-bottom: var(--fab-room); }
