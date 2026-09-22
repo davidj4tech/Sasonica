@@ -16,6 +16,9 @@
         <domain includeSubdomains="true">ts.net</domain>
         <!-- red5, the canvas the app pairs with -->
         <domain includeSubdomains="false">100.103.43.93</domain>
+        <!-- red5 by its MagicDNS short name (http://red5:8781): the desk's
+             pairing links name it that way -->
+        <domain includeSubdomains="false">red5</domain>
         <!-- the app's own page (http://localhost, served in-process) -->
         <domain includeSubdomains="false">localhost</domain>
     </domain-config>
