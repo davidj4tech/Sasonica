@@ -23,7 +23,7 @@ import { knownArchived, knownLive, knownProject, knownTitle, noteRow, useSession
 import { useSessionActions } from '../hooks/useSessionActions'
 import { ACTION_LABEL, ConfirmExitSheet, sessionMenuItems, type SessionAction } from '../components/SessionSheets'
 import { archivedOf, clearArchivedOverride, clearEnded, endedHere, useSessionFlags } from '../lib/sessionFlags'
-import { useRename } from '../hooks/useRename'
+import { useAutoRename, useRename } from '../hooks/useRename'
 import { RenameSheet } from '../components/RenameSheet'
 import { Popover } from '../components/Popover'
 import { AgentsStrip } from '../components/AgentsStrip'
@@ -71,6 +71,7 @@ function ThreadPage({ session }: { session: string }) {
   const menuButton = useRef<HTMLButtonElement>(null)
   const [confirmExit, setConfirmExit] = useState<{ archive: boolean } | null>(null)
   const rename = useRename()
+  const autoRename = useAutoRename()
   const acts = useSessionActions()
   useSessionFlags()
   const archived = archivedOf(session, knownArchived(session))
@@ -215,7 +216,10 @@ function ThreadPage({ session }: { session: string }) {
   const onAction = (a: SessionAction) => {
     setMenu(false)
     if (a === 'rename') setRenaming(true)
-    else if (a === 'exit' || a === 'exit-archive') setConfirmExit({ archive: a === 'exit-archive' })
+    else if (a === 'auto-rename') {
+      setStatus({ text: 'Thinking of a name…' })
+      void autoRename(session).then((r) => setStatus({ text: r.message, failed: !r.ok }))
+    } else if (a === 'exit' || a === 'exit-archive') setConfirmExit({ archive: a === 'exit-archive' })
     else {
       setStatus(null)
       void acts.archive(session, a === 'archive').then((r) => setStatus({ text: r.message, failed: !r.ok }))

@@ -4,7 +4,7 @@
  * patched on success so a cold start shows the new name too.
  */
 import { useCallback } from 'react'
-import { renameThread } from '../api'
+import { autoRenameThread, renameThread } from '../api'
 import { clearTitleOverride, setTitleOverride } from '../lib/titles'
 import { renameInTargets } from '../lib/snapshots'
 import { noteRenamed } from './useThreads'
@@ -35,6 +35,25 @@ export function useRename() {
       return { ok: true, message: res.terminal || !res.why ? 'Renamed.' : `Renamed. ${sentence(res.why)}` }
     } catch (err) {
       clearTitleOverride(session)
+      return { ok: false, message: `Not renamed: ${err instanceof Error ? err.message : String(err)}` }
+    }
+  }, [])
+}
+
+/**
+ * Auto rename: the server names the thread from its conversation (§6.4
+ * Auto). Nothing to show until it answers, so not optimistic; the name it
+ * chose is then applied everywhere, as a typed one is.
+ */
+export function useAutoRename() {
+  return useCallback(async (session: string): Promise<RenameOutcome> => {
+    try {
+      const res = await autoRenameThread(session)
+      setTitleOverride(session, res.title)
+      renameInTargets(session, res.title)
+      noteRenamed(session, res.title)
+      return { ok: true, message: `Renamed “${res.title}”.` }
+    } catch (err) {
       return { ok: false, message: `Not renamed: ${err instanceof Error ? err.message : String(err)}` }
     }
   }, [])

@@ -1,5 +1,5 @@
 /**
- * The thread's actions as sheets: the list's long-press menu (Rename, Exit
+ * The thread's actions as sheets: the list's long-press menu (Rename, Auto rename, Exit
  * session, Archive / Unarchive, Exit & archive) and the confirmation an exit
  * asks for. The thread header's ⋮ menu offers the same items
  * (sessionMenuItems), so both places say the same thing.
@@ -8,10 +8,11 @@ import type { ReactNode } from 'react'
 import { useScrim } from '../lib/layers'
 import { createPortal } from 'react-dom'
 
-export type SessionAction = 'rename' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
+export type SessionAction = 'rename' | 'auto-rename' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
 
 export const ACTION_LABEL: Record<SessionAction, string> = {
   rename: 'Rename…',
+  'auto-rename': 'Auto rename',
   exit: 'Exit session',
   archive: 'Archive',
   unarchive: 'Unarchive',
@@ -20,7 +21,7 @@ export const ACTION_LABEL: Record<SessionAction, string> = {
 
 /** What a thread offers: exit only while it runs, one archive toggle, the pair when it runs and is not archived. */
 export function sessionMenuItems(live: boolean, archived: boolean): SessionAction[] {
-  const items: SessionAction[] = ['rename']
+  const items: SessionAction[] = ['rename', 'auto-rename']
   if (live) items.push('exit')
   items.push(archived ? 'unarchive' : 'archive')
   if (live && !archived) items.push('exit-archive')

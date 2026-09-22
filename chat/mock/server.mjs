@@ -57,7 +57,8 @@
  *   nooffsets — live, `offsets: []` and `sentence: null`, `elapsed` advancing
  *               (the app estimates the sentence)
  * POST /rename renames any fixture (`terminal: false` with a `why` for an
- * ended or working one); a title containing FAIL is refused 500.
+ * ended or working one); a title containing FAIL is refused 500; `auto`
+ * names it "Named: <title>".
  * MOCK_REAL_VOICE=1 makes /speech/now speak `real` with a player behind
  * `elapsed` and a stale, slow `pos`, as red5's phone lane does.
  */
@@ -1709,7 +1710,11 @@ async function route(method, path, q, body, res) {
   if (method === 'POST' && path === '/rename') {
     // §6.4: {session (or item), title} → {session, title, terminal, why}.
     // A title containing FAIL is refused 500, for the rollback path.
-    const title = String(body.title || '').replace(/\s+/g, ' ').trim()
+    // `auto` with no title names it "Named: <old title>"; one whose title
+    // contains NONAME gets the 502 the gateway's silence gives.
+    const cur = body.session !== undefined ? S[String(body.session)] : byItem(body.item || '')
+    if (body.auto && !body.title && cur?.title?.includes('NONAME')) return err(502, 'could not think of a name')
+    const title = String(body.title || (body.auto && cur ? `Named: ${cur.title.replace(/^Named: /, '')}` : '')).replace(/\s+/g, ' ').trim()
     if (!title) return err(400, 'no title')
     const s = body.session !== undefined ? S[String(body.session)] : byItem(body.item || '')
     if (!s) return err(404, 'no such session')

@@ -7,7 +7,7 @@
 import { useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
 import { RenameSheet } from '../components/RenameSheet'
-import { useRename } from '../hooks/useRename'
+import { useAutoRename, useRename } from '../hooks/useRename'
 import { useTitle } from '../lib/titles'
 import { hasDraft } from '../lib/drafts'
 import { useUnread } from '../lib/arrivals'
@@ -62,6 +62,7 @@ function ThreadList() {
     saveThreadSort(next)
   }
   const rename = useRename()
+  const autoRename = useAutoRename()
   const acts = useSessionActions()
   useSessionFlags()
   // Archived threads leave the main list for a folded section at its foot;
@@ -78,7 +79,10 @@ function ThreadList() {
     setMenu(null)
     if (!m) return
     if (a === 'rename') setRenaming({ session: m.session, title: m.title })
-    else if (a === 'exit' || a === 'exit-archive') setConfirm({ session: m.session, archive: a === 'exit-archive' })
+    else if (a === 'auto-rename') {
+      setNote({ text: 'Thinking of a name…' })
+      void autoRename(m.session).then((r) => setNote(r.ok ? null : { text: r.message, failed: true }))
+    } else if (a === 'exit' || a === 'exit-archive') setConfirm({ session: m.session, archive: a === 'exit-archive' })
     else void acts.archive(m.session, a === 'archive').then(say)
   }
   const entryOf = (e: ListEntry, where: string) =>

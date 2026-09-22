@@ -303,6 +303,11 @@ export function renameThread(session: SessionId, title: string) {
   return request<RenameResponse>('POST', '/rename', { session, title })
 }
 
+/** Rename a thread with a name the server thinks of from what was said (§6.4 Auto). */
+export function autoRenameThread(session: SessionId) {
+  return request<RenameResponse>('POST', '/rename', { session, auto: true })
+}
+
 /**
  * POST /session/close (§6.4): end the running session (pane or headless).
  * REAL on the canvas: it kills the agent. The next message resumes it.
