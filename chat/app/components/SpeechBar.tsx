@@ -12,10 +12,12 @@
  * so the bar leaves it out and says only the time (or "Paused" and the time).
  *
  * Shown while a reply is live (speaking or paused); a reply that has just
- * ended keeps it for 30 s, since that is when replay is wanted. The first
- * FULL_HINT_TIMES times on a device that says "Finished · play to hear it
- * again"; after that it is just the title and a compact "▶ Replay" key.
- * State and keys come from the one SpeechProvider poll.
+ * ended keeps it for 30 s, since that is when replay is wanted — as a slim
+ * strip, about half the bar's height (it sits over the composer, the
+ * screen's prime real estate): "▶ Replay · <title>" on one line, the whole
+ * strip the replay key, and the chevron for the full set. Each key's hit
+ * area reaches past the strip to 44 px. The full bar is back as soon as
+ * something speaks. State and keys come from the one SpeechProvider poll.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -117,41 +119,6 @@ function progressOf(pos: number | null | undefined, dur: number | null | undefin
   return Math.max(0, Math.min(1, pos / dur))
 }
 
-// ── The finished hint, first few times only ───────────────────────────────
-
-/** How many times the long "Finished · play to hear it again" is shown, per device. */
-const FULL_HINT_TIMES = 3
-const HINT_KEY = 'sasonica.chat.finishedHints'
-/** The finished replies already counted in this page load (a bar per screen, one count each). */
-const counted = new Map<number, boolean>()
-
-/**
- * Whether this finished reply (`endedAt`) gets the full hint. Decided once
- * per reply and remembered, so every bar that shows it agrees; storage
- * blocked means the hint shows every time (never an error).
- */
-function fullHintFor(endedAt: number): boolean {
-  const known = counted.get(endedAt)
-  if (known !== undefined) return known
-  let seen = 0
-  try {
-    seen = Number(window.localStorage.getItem(HINT_KEY)) || 0
-  } catch {
-    counted.set(endedAt, true)
-    return true
-  }
-  const full = seen < FULL_HINT_TIMES
-  if (full) {
-    try {
-      window.localStorage.setItem(HINT_KEY, String(seen + 1))
-    } catch {
-      // Not remembered; shown again next time.
-    }
-  }
-  counted.set(endedAt, full)
-  return full
-}
-
 /** A tap on the bar's title sooner than this after it appeared or changed thread is ignored. */
 const SETTLE_TAP_MS = 800
 
@@ -196,24 +163,39 @@ export function SpeechBar({ here }: { here?: SessionId }) {
     setOpen(true)
   }
 
-  // Finished: the long hint the first few times, then nothing but the key.
-  const compact = !live && !error && !!finished && !fullHintFor(finished.endedAt)
   const second = error
     ? error
     : !live
-      ? compact
-        ? ''
-        : 'Finished · play to hear it again'
+      ? 'Finished · play to hear it again'
       : inHere
         ? // Short: the keys take most of the row, and the dot says "speaking".
           paused ? `Paused${times ? ` · ${times}` : ''}` : times || 'Speaking'
         : now?.sentence || (paused ? 'Paused' : '…')
 
+  // Finished (nothing speaking, nothing wrong): the slim strip.
+  if (!live && !error && finished) {
+    return (
+      <>
+        <div className="speech-bar slim" role="region" aria-label="Speech">
+          <button className="slim-replay" aria-label="Replay" title={`Replay: ${title}`} onClick={speech.toggle}>
+            <IconPlay />
+            <span className="slim-word">Replay</span>
+            <span className="slim-title">{title}</span>
+          </button>
+          <button className="slim-more" aria-label="All speech controls" aria-expanded={open} onClick={() => (open ? setOpen(false) : expand())}>
+            <IconExpand open={open} />
+          </button>
+        </div>
+        {open && typeof document !== 'undefined' && createPortal(<SpeechSheet title={title} session={session || null} inHere={inHere} onOpen={openThread} onClose={() => setOpen(false)} />, document.body)}
+      </>
+    )
+  }
+
   const toggleLabel = !live ? 'Replay' : paused ? 'Resume' : 'Pause'
 
   return (
     <>
-      <div className={`speech-bar${inHere ? ' here' : ''}${paused ? ' paused' : ''}${compact ? ' compact' : ''}`} role="region" aria-label="Speech">
+      <div className={`speech-bar${inHere ? ' here' : ''}${paused ? ' paused' : ''}`} role="region" aria-label="Speech">
         {progress !== null && (
           <div className="speech-progress" aria-hidden="true">
             <i style={{ width: `${progress * 100}%` }} />
@@ -250,15 +232,9 @@ export function SpeechBar({ here }: { here?: SessionId }) {
             <IconBackSentence />
           </button>
         )}
-        {compact ? (
-          <button className="skey main replay-pill" aria-label="Replay" onClick={speech.toggle}>
-            <IconPlay /> <span>Replay</span>
-          </button>
-        ) : (
-          <button className="skey main" aria-label={toggleLabel} aria-pressed={live ? !paused : undefined} onClick={speech.toggle}>
-            {!live ? <IconReplay /> : paused ? <IconPlay /> : <IconPause />}
-          </button>
-        )}
+        <button className="skey main" aria-label={toggleLabel} aria-pressed={live ? !paused : undefined} onClick={speech.toggle}>
+          {!live ? <IconReplay /> : paused ? <IconPlay /> : <IconPause />}
+        </button>
         {live && (
           <button className="skey" aria-label="Next sentence" onClick={() => void speech.ctl('skip+')}>
             <IconFwdSentence />

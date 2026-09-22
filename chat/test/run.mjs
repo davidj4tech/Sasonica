@@ -15,7 +15,8 @@
 //   skew    the bold follows /speech/now's pos when `elapsed` runs ahead
 //   rename  long press / title tap / ⋮ → POST /rename; optimistic
 //           everywhere, rolled back on refusal
-//   finished  the finished bar: full hint 3 times, then compact; ~30 s
+//   finished  the finished bar: a slim Replay strip (portrait, landscape,
+//           Larger), 44 px hit areas, the full bar back on speech; ~30 s
 //   send    a sent message shows once through the /reply race, clock skew
 //           and flattened text; a refused one keeps its words with Retry
 //   arrivals  a reply in another session while reading A: nothing moves, a
