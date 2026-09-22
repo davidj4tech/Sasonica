@@ -65,7 +65,7 @@ function rowsOf(res: TargetsResponse): SessionRow[] {
  * last saved answer first (lib/snapshots.ts); `stale` until the server
  * confirms it.
  */
-export function useTargets() {
+export function useTargets(older = false) {
   const [cached] = useState(() => peekTargets())
   const [sessions, setSessions] = useState<SessionRow[]>(() => (cached ? rowsOf(cached) : []))
   const [places, setPlaces] = useState<Place[]>(() => cached?.places || [])
@@ -76,7 +76,7 @@ export function useTargets() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await getTargets()
+      const res = await getTargets(undefined, older)
       saveTargets(res)
       confirmTitles(res.sessions)
       confirmFlags(res.sessions)
@@ -89,7 +89,9 @@ export function useTargets() {
     } finally {
       setLoading(false)
     }
-  }, [])
+    // Asking for all of time is a different list, so the window is a
+    // dependency: turning "Older conversations" on reloads.
+  }, [older])
 
   useEffect(() => {
     let fresh = false

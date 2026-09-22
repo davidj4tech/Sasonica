@@ -151,6 +151,37 @@ await page.locator('.filter-empty .link').click()
 await page.waitForTimeout(100)
 ok((await label()).startsWith('Show: Active') && !(await label()).includes('·') && (await titles()).length > 0, 'Show all goes back to Active, every project, no state')
 
+// The agent a thread belongs to (§6.16): a chip on every row, a section in
+// the menu, and a window that costs a request.
+await page.locator('.filter-button').click()
+await page.getByRole('menuitemradio', { name: 'Codex', exact: true }).click()
+await page.waitForTimeout(150)
+ok((await titles()).join() === 'Mock: codex, never spoke', `only Codex threads (${(await titles()).join(', ')})`)
+ok((await label()).includes('Codex'), 'the button names the agent')
+const chips = await page.locator('.threads .thread-row .harness-chip').allInnerTexts()
+ok(chips.length === 1 && chips[0] === 'Codex', `the row wears its agent (${chips.join(', ')})`)
+await page.screenshot({ path: SHOTS + '/filter-05-agent.png' })
+await page.locator('.filter-button').click()
+await page.getByRole('menuitemradio', { name: 'All agents', exact: true }).click()
+await page.waitForTimeout(150)
+ok((await page.locator('.threads .thread-row .harness-chip').allInnerTexts()).includes('Claude'), 'every row wears one')
+
+// Older than 30 days: a second request, not a second view.
+const asked = []
+page.on('request', (r) => { if (new URL(r.url()).pathname === '/targets') asked.push(new URL(r.url()).search) })
+ok(!(await titles()).includes('Mock: pi, months ago'), 'the old thread is outside the window')
+await page.locator('.filter-button').click()
+await page.getByRole('menuitemcheckbox', { name: 'Older than 30 days', exact: true }).click()
+await page.waitForTimeout(400)
+ok(asked.includes('?history=all'), `the window is asked of the server (${asked.join(' ')})`)
+ok((await titles()).includes('Mock: pi, months ago'), 'and the old thread arrives')
+ok((await label()).includes('all time'), 'the button says so')
+await page.locator('.filter-button').click()
+await page.getByRole('menuitemcheckbox', { name: 'Older than 30 days', exact: true }).click()
+await page.waitForTimeout(300)
+await page.keyboard.press('Escape')
+ok(!(await titles()).includes('Mock: pi, months ago'), 'and off again')
+
 ok(!errors.length, `no page errors ${errors.join('; ')}`)
 await b.close()
 console.log(fails ? `${fails} FAILED` : 'ALL PASS')

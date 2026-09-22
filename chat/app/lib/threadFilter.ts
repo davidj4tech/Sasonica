@@ -10,11 +10,15 @@
  *  - Everything: one list, archived ones marked.
  *
  * And, separately, one project (§6.1 `project`, "Other" for none) or all,
- * and any number of states — Needs you / Working / Your turn (§6.2
+ * one harness (§6.16 — which agent holds the thread) or all, and any number
+ * of states — Needs you / Working / Your turn (§6.2
  * /sessions/state). A state is something a running thread is doing, so
  * picking one leaves the shelved rows out; picking none asks nothing.
+ *
+ * `older` is the one that costs a request: the server lists the last 30 days
+ * of each harness's store, and `history=all` lifts that window (§6.16).
  */
-import type { SessionRow, SessionState } from '../api/types'
+import type { Harness, SessionRow, SessionState } from '../api/types'
 import { OTHER_PROJECT, projectOf } from './threadSort'
 
 export type ThreadShow = 'active' | 'live' | 'closed' | 'archived' | 'all'
@@ -25,8 +29,21 @@ export const SHOWS: ThreadShow[] = ['active', 'live', 'closed', 'archived', 'all
 export const STATE_FILTER_LABEL: Record<SessionState, string> = { approval: 'Needs you', working: 'Working', waiting: 'Your turn' }
 export const STATE_FILTERS: SessionState[] = ['approval', 'working', 'waiting']
 
-export type ThreadFilter = { show: ThreadShow; project: string | null; states: SessionState[] }
-export const DEFAULT_FILTER: ThreadFilter = { show: 'active', project: null, states: [] }
+export const HARNESS_LABEL: Record<Harness, string> = { claude: 'Claude', codex: 'Codex', pi: 'pi', hermes: 'Hermes' }
+export const HARNESSES: Harness[] = ['claude', 'codex', 'pi', 'hermes']
+
+/** A row's agent; rows from before the server said so are Claude's. */
+export const harnessOf = (row: SessionRow): Harness =>
+  (HARNESSES.includes(row.harness as Harness) ? row.harness : 'claude') as Harness
+
+export type ThreadFilter = {
+  show: ThreadShow
+  project: string | null
+  harness: Harness | null
+  states: SessionState[]
+  older: boolean
+}
+export const DEFAULT_FILTER: ThreadFilter = { show: 'active', project: null, harness: null, states: [], older: false }
 
 const KEY = 'sasonica.chat.threadFilter'
 
@@ -36,6 +53,8 @@ export function loadThreadFilter(): ThreadFilter {
     return {
       show: SHOWS.includes(v?.show) ? v.show : 'active',
       project: typeof v?.project === 'string' && v.project ? v.project : null,
+      harness: HARNESSES.includes(v?.harness) ? v.harness : null,
+      older: v?.older === true,
       states: Array.isArray(v?.states) ? STATE_FILTERS.filter((k) => v.states.includes(k)) : []
     }
   } catch {
@@ -54,12 +73,15 @@ export function saveThreadFilter(f: ThreadFilter) {
 export function filterLabel(f: ThreadFilter): string {
   const parts = [SHOW_LABEL[f.show]]
   if (f.project) parts.push(f.project)
+  if (f.harness) parts.push(HARNESS_LABEL[f.harness])
+  if (f.older) parts.push('all time')
   if (f.states.length) parts.push(STATE_FILTERS.filter((k) => f.states.includes(k)).map((k) => STATE_FILTER_LABEL[k]).join(', '))
   return parts.join(' · ')
 }
 
 /** Nothing asked of the list but the default Show. */
-export const isDefaultFilter = (f: ThreadFilter) => f.show === DEFAULT_FILTER.show && !f.project && !f.states.length
+export const isDefaultFilter = (f: ThreadFilter) =>
+  f.show === DEFAULT_FILTER.show && !f.project && !f.harness && !f.states.length && !f.older
 
 /**
  * Split the rows: `main` is the list, `folded` the Archived section at its
@@ -77,6 +99,7 @@ export function filterThreads(
   const folded: SessionRow[] = []
   for (const row of rows) {
     if (f.project && projectOf(row) !== f.project) continue
+    if (f.harness && harnessOf(row) !== f.harness) continue
     // A state belongs to a running thread: with any picked, the rest go.
     if (f.states.length) {
       const st = live(row) ? state(row) : undefined
@@ -87,6 +110,12 @@ export function filterThreads(
     else if (f.show === 'all' || (f.show === 'archived' ? a : !a && live(row) === (f.show === 'live'))) main.push(row)
   }
   return { main, folded }
+}
+
+/** The agents the menu offers: those the rows actually name, in a fixed order. */
+export function harnessesOf(rows: SessionRow[]): Harness[] {
+  const seen = new Set(rows.map(harnessOf))
+  return HARNESSES.filter((h) => seen.has(h))
 }
 
 /** The projects the menu offers: every one the rows name, by name, "Other" last. */

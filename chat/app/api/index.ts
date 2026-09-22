@@ -131,8 +131,9 @@ export function pictureUrl(src: string): string {
 
 // ── Threads ───────────────────────────────────────────────────────────────
 
-export function getTargets(signal?: AbortSignal) {
-  return request<TargetsResponse>('GET', '/targets', undefined, signal)
+/** `older`: lift the 30-day window on each harness's store (§6.16). */
+export function getTargets(signal?: AbortSignal, older = false) {
+  return request<TargetsResponse>('GET', `/targets${older ? '?history=all' : ''}`, undefined, signal)
 }
 
 export function getSessionsState(signal?: AbortSignal) {

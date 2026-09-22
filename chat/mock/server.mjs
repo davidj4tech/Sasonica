@@ -142,6 +142,24 @@ add(
   })
 )
 
+// §6.16: conversations known only from their harness's own store — never
+// spoken, not running. The old one is outside the server's 30-day window,
+// so it is listed only when the app asks for `history=all`.
+add(
+  session(randomUUID(), 'Mock: codex, never spoke', {
+    live: false, state: null, pane: null, item: null, harness: 'codex', store: true,
+    project: 'p-demo', at: r3(T0 - 86400 * 4),
+    lines: [youLine('what broke the build', T0 - 86400 * 4)]
+  })
+)
+add(
+  session(randomUUID(), 'Mock: pi, months ago', {
+    live: false, state: null, pane: null, item: null, harness: 'pi', store: true,
+    older: true, at: r3(T0 - 86400 * 90),
+    lines: [youLine('play my book', T0 - 86400 * 90)]
+  })
+)
+
 const approvalQuestion = (n) => ({
   question: n ? `Do you want to run \`pnpm build\`? (asked ${n + 1} times)` : 'Do you want to run `pnpm build`?',
   partial: false,
@@ -785,7 +803,7 @@ function liveLine(line) {
 }
 
 // §6.1 (22 Sep 2026): every row carries archived, rested (null while live) and pinned.
-const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, project: s.project ?? null, cwd: s.cwd ?? null })
+const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, project: s.project ?? null, cwd: s.cwd ?? null, harness: s.harness || 'claude', ...(s.store ? { source: 'store' } : {}) })
 const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, recap: s.recap || null, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, recap: s.recap || null, ...flags(s) })
 
 // ── Search (§6.14) ────────────────────────────────────────────────────────
@@ -1674,7 +1692,9 @@ async function route(method, path, q, body, res) {
   }
 
   if (method === 'GET' && (path === '/targets' || path === '/conversations')) {
-    const all = Object.values(S)
+    // The window on each harness's store (§6.16): rows older than it are
+    // listed only for `history=all`.
+    const all = Object.values(S).filter((s) => !s.older || q.get('history') === 'all')
     const sessions = [...all.filter((s) => s.live).map(row), ...all.filter((s) => !s.live).sort((a, b) => b.at - a.at).map(row)]
     if (path === '/conversations') return ok({ sessions })
     return ok({ sessions, places: PLACES() })

@@ -39,6 +39,9 @@ import {
   DEFAULT_FILTER,
   filterLabel,
   filterThreads,
+  HARNESS_LABEL,
+  harnessesOf,
+  harnessOf,
   isDefaultFilter,
   loadThreadFilter,
   projectsOf,
@@ -71,7 +74,10 @@ export default function Threads() {
 }
 
 function ThreadList() {
-  const { sessions, error, loading, stale, reload } = useTargets()
+  // Read before the list is asked for: "Older conversations" is a different
+  // request, not a different view of the same rows (§6.16).
+  const [filter, setFilterState] = useState<ThreadFilter>(() => loadThreadFilter())
+  const { sessions, error, loading, stale, reload } = useTargets(filter.older)
   const states = useSessionStates()
   usePrefetch(sessions, !stale && !loading && !error)
   const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
@@ -98,7 +104,6 @@ function ThreadList() {
       return next
     })
   }
-  const [filter, setFilterState] = useState<ThreadFilter>(() => loadThreadFilter())
   const [filterOpen, setFilterOpen] = useState(false)
   const filterButton = useRef<HTMLButtonElement>(null)
   const setFilter = (next: ThreadFilter) => {
@@ -132,6 +137,10 @@ function ThreadList() {
   )
   const projects = projectsOf(sessions)
   if (filter.project && !projects.includes(filter.project)) projects.push(filter.project)
+  // The agents these rows name (§6.16); the chosen one stays offered even
+  // when nothing it holds is in view, so it can be turned off again.
+  const harnesses = harnessesOf(sessions)
+  if (filter.harness && !harnesses.includes(filter.harness)) harnesses.push(filter.harness)
   // The chosen order (lib/threadSort.ts), the Archived section's too.
   const mainList = openEntries(sortThreads(main, sort, states), closed)
   const archivedList = openEntries(sortThreads(archived, sort, states), closed)
@@ -237,6 +246,27 @@ function ThreadList() {
               {STATE_FILTER_LABEL[k]}
             </button>
           ))}
+          <div className="menu-head" role="presentation">Agent</div>
+          {[null, ...harnesses].map((hn) => (
+            <button key={hn ?? ''} role="menuitemradio" aria-checked={filter.harness === hn} className={filter.harness === hn ? 'on' : ''} onClick={() => setFilter({ ...filter, harness: hn })}>
+              <span className="mark" aria-hidden="true">
+                {filter.harness === hn ? '✓' : ''}
+              </span>
+              {hn ? HARNESS_LABEL[hn] : 'All agents'}
+            </button>
+          ))}
+          <div className="menu-head" role="presentation">When</div>
+          <button
+            role="menuitemcheckbox"
+            aria-checked={filter.older}
+            className={filter.older ? 'on' : ''}
+            onClick={() => setFilter({ ...filter, older: !filter.older })}
+          >
+            <span className="mark" aria-hidden="true">
+              {filter.older ? '✓' : ''}
+            </span>
+            Older than 30 days
+          </button>
           <div className="menu-head" role="presentation">Project</div>
           {[null, ...projects].map((p) => (
             <button key={p ?? ''} role="menuitemradio" aria-checked={filter.project === p} className={filter.project === p ? 'on' : ''} onClick={() => setFilter({ ...filter, project: p })}>
@@ -346,6 +376,7 @@ function ThreadRow({
   onMenu: (title: string, live: boolean) => void
 }) {
   const title = useTitle(row.session, row.title) || row.session.slice(0, 8)
+  const harness = harnessOf(row)
   // Moved from here: the new project, until /targets says it too (§6.15).
   const rowProject = projectOverrideOf(row.session, row.project)
   // Exited from here: not live, whatever the last poll said.
@@ -398,7 +429,11 @@ function ThreadRow({
         <span className={`dot ${live ? state || 'live' : 'shelved'}`} />
         <span className="title-col">
           <span className="title">{title}</span>
-          {rowProject && !hideProject && <span className="row-project">{rowProject}</span>}
+          {/* Which agent holds it, and where it runs: one small line (§6.16). */}
+          <span className="row-sub">
+            <span className={`harness-chip ${harness}`}>{HARNESS_LABEL[harness]}</span>
+            {rowProject && !hideProject && <span className="row-project">{rowProject}</span>}
+          </span>
         </span>
         {markArchived && <span className="draft-mark archived-mark">Archived</span>}
         {hasDraft(row.session) && <span className="draft-mark">Draft</span>}

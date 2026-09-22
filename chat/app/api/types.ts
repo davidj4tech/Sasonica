@@ -51,7 +51,15 @@ export interface SessionRow {
   project?: string | null
   /** Its working directory, or null. */
   cwd?: string | null
+  /** Which agent holds it (§6.16, 23 Sep 2026). */
+  harness?: Harness
+  /** `"store"` when the conversation is known only from its harness's own
+   *  store: it never spoke and is not running (§6.16). */
+  source?: string
 }
+
+/** The coding agents a conversation can belong to (§6.16). */
+export type Harness = 'claude' | 'codex' | 'pi' | 'hermes'
 
 /** A recap (§6.1): Claude Code's "while you were away", or the reaper's own. */
 export interface Recap {
