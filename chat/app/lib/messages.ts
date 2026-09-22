@@ -127,3 +127,25 @@ export function signature(list: Message[]): string {
   if (!last) return '0'
   return `${list.length}|${last.id}|${last.parts.length}|${last.turn?.running ? 1 : 0}|${last.spoken?.id ?? ''}`
 }
+
+/**
+ * A jump's page (`?around=`, §6.14) — from a few before the message searched
+ * for through the newest — laid over what is held: the page's messages in
+ * its order (the held copy of any the stream has updated since), then any
+ * held ones newer than its last. The next snapshot joins on below it
+ * (`mergeSnapshot` keeps what is held before its first message).
+ */
+export function mergeAround(held: Message[], page: Message[]): Message[] {
+  if (!page.length) return held
+  const byId = new Map(held.map((m) => [m.id, m]))
+  const ids = new Set(page.map((m) => m.id))
+  const lastAt = page[page.length - 1].at
+  return [...page.map((m) => byId.get(m.id) || m), ...held.filter((m) => !ids.has(m.id) && m.at > lastAt)]
+}
+
+/** The message a jump lands on when its id is not held: the last one at or before `at`. */
+export function nearestAt(list: Message[], at: number): Message | null {
+  let best: Message | null = null
+  for (const m of list) if (m.at <= at + 0.5) best = m
+  return best || list[0] || null
+}

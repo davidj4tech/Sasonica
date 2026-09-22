@@ -40,7 +40,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, getConversationLog, getEarlier, openThreadStream } from '../api'
 import type { AgentCounts, Approval, ConversationLog, LiveEvent, Message, Recap, ThreadEvent, ThreadState, Working } from '../api/types'
 import { liveClockFrom, withGrowth, type LiveClock } from '../lib/followAlong'
-import { applyMessage, liveFields, liveOf, mergeSnapshot, signature } from '../lib/messages'
+import { applyMessage, liveFields, liveOf, mergeAround, mergeSnapshot, nearestAt, signature } from '../lib/messages'
 import { saidOf, unmatched, type PendingSend } from '../lib/pending'
 import { loadThread, peekThread, saveThreadMessages } from '../lib/snapshots'
 import { usePoll } from './usePoll'
@@ -436,6 +436,60 @@ export function useThread(session: string) {
     }
   }, [session])
 
+  // ── A jump from search (§6.14) ──────────────────────────────────────────
+  /**
+   * Hold the message `id` (a search hit), and say which message to show:
+   * `id` itself, or — for a thread read from its spoken lines, whose ids are
+   * not the index's — the one nearest `at`. One `?around=` request; when the
+   * message is so far back that the page stops short of the newest
+   * (`newer`), older pages are read from the foot instead, until it is held.
+   * Null when it cannot be found.
+   */
+  const loadAround = useCallback(
+    async (id: string, at: number | null): Promise<string | null> => {
+      const held = () => viewRef.current.messages.some((m) => m.id === id)
+      const settled = async () => {
+        for (let i = 0; i < 40 && (viewRef.current.stale || !viewRef.current.loaded); i++) await new Promise((r) => setTimeout(r, 250))
+        return !viewRef.current.stale && viewRef.current.loaded
+      }
+      const back = async (until: () => boolean) => {
+        for (let i = 0; i < 12 && !until(); i++) {
+          const v = viewRef.current
+          if (!v.older || !v.messages[0]) return
+          const res = await getEarlier(session, v.messages[0].id, 500)
+          const got = res.messages || []
+          setView((cur) => {
+            const have = new Set(cur.messages.map((m) => m.id))
+            const add = got.filter((m) => !have.has(m.id))
+            return { ...cur, messages: [...add, ...cur.messages], older: !!res.older && add.length > 0 }
+          })
+          await new Promise((r) => setTimeout(r, 60))
+          if (!got.length) return
+        }
+      }
+      try {
+        if (held()) return id
+        const res = await getConversationLog(session, undefined, { messages: true, around: id, limit: 60 })
+        const page = res.messages || []
+        if (res.around?.found && !res.newer && page.length) {
+          setView((v) => ({ ...v, messages: mergeAround(v.stale ? [] : v.messages, page), older: !!res.older, loaded: true, stale: false }))
+          return id
+        }
+        if (!(await settled())) return null
+        if (res.around?.found) {
+          await back(held)
+          return held() ? id : null
+        }
+        if (at === null) return null
+        await back(() => (viewRef.current.messages[0]?.at ?? 0) <= at)
+        return nearestAt(viewRef.current.messages, at)?.id ?? null
+      } catch {
+        return null
+      }
+    },
+    [session]
+  )
+
   // ── Sending ─────────────────────────────────────────────────────────────
   const seqRef = useRef(0)
   const sending = useCallback(
@@ -496,6 +550,7 @@ export function useThread(session: string) {
       isRunning,
       earlier,
       loadEarlier,
+      loadAround,
       sending,
       sent,
       failed,
@@ -503,6 +558,6 @@ export function useThread(session: string) {
       setApproval,
       refresh
     }),
-    [view, transport, optimistic, isRunning, earlier, loadEarlier, sending, sent, failed, discard, setApproval, refresh]
+    [view, transport, optimistic, isRunning, earlier, loadEarlier, loadAround, sending, sent, failed, discard, setApproval, refresh]
   )
 }

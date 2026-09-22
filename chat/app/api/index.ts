@@ -31,6 +31,7 @@ import type {
   HarnessRun,
   RenameResponse,
   ReplyRequest,
+  SearchResponse,
   ReplyResponse,
   SessionId,
   SessionRow,
@@ -147,6 +148,8 @@ export interface LogQuery {
   before?: string
   /** How many messages (default 60, at most 500). */
   limit?: number
+  /** A message id: the page holding it, from a few before it to the newest (§6.14 jump). */
+  around?: string
 }
 
 /**
@@ -163,7 +166,27 @@ export function getConversationLog(session: SessionId, opts?: AbortSignal | Call
   if (query.messages) path += '&messages=1'
   if (query.before) path += `&before=${q(query.before)}`
   if (query.limit) path += `&limit=${query.limit}`
+  if (query.around) path += `&around=${q(query.around)}`
   return request<ConversationLog>('GET', path, undefined, opts)
+}
+
+// ── Search (§6.14) ────────────────────────────────────────────────────────
+
+export interface SearchQuery {
+  /** Include tool steps (the Advanced setting). */
+  tools?: boolean
+  /** The next page: a `next` from the last answer. */
+  before?: number | null
+  limit?: number
+}
+
+/** Every thread's messages, titles, recaps and projects, and memory when the host has it. */
+export function search(text: string, query: SearchQuery = {}, signal?: AbortSignal) {
+  let path = `/search?q=${q(text)}`
+  if (query.tools) path += '&tools=1'
+  if (query.before) path += `&before=${query.before}`
+  if (query.limit) path += `&limit=${query.limit}`
+  return request<SearchResponse>('GET', path, undefined, signal)
 }
 
 /** The page of messages before `before` (§6.2 paging). */

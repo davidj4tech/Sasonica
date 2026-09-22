@@ -77,6 +77,7 @@ function ThreadPage({ session }: { session: string }) {
   const archived = archivedOf(session, knownArchived(session))
 
   const log = useThread(session)
+  const jumpTo = useSearchJump(log.loadAround)
   // The project line under the title (§6.1): the stream's, else the list's.
   const project = log.project || knownProject(session)
   useSeen(session, log.messages.length)
@@ -312,6 +313,7 @@ function ThreadPage({ session }: { session: string }) {
         earlierError={log.earlier.error}
         placeholder={closed ? 'Session closed. Sending resumes it' : undefined}
         speechBar={<SpeechBar here={session} />}
+        jumpTo={jumpTo}
         status={
           (status || (log.error && log.messages.length > 0)) && (
             <p className={status?.failed || !status ? 'status failed' : 'status'}>{status ? status.text : log.error}</p>
@@ -320,6 +322,33 @@ function ThreadPage({ session }: { session: string }) {
       />
     </div>
   )
+}
+
+/**
+ * A thread opened from a search hit (routes/search.tsx): `?at=<message>`
+ * (with `t=<its time>` and `hl=<the words>`). The message is loaded in
+ * (useThread's loadAround) and then handed to Thread to scroll to and light.
+ */
+function useSearchJump(loadAround: (id: string, at: number | null) => Promise<string | null>) {
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const at = params.get('at') || ''
+  const t = Number(params.get('t'))
+  const hl = params.get('hl') || ''
+  const [jump, setJump] = useState<{ id: string; terms: string[] } | null>(null)
+  useEffect(() => {
+    if (!at) return
+    let live = true
+    void loadAround(at, Number.isFinite(t) && t > 0 ? t : null).then((id) => {
+      if (live && id) setJump({ id, terms: hl.split(/\s+/).filter(Boolean) })
+    })
+    return () => {
+      live = false
+    }
+    // Once per jump: the page is keyed by session, the URL names the hit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [at])
+  return jump
 }
 
 /** Below this, the log's clock and the player agree well enough (pos is whole seconds). */

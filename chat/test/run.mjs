@@ -44,6 +44,10 @@
 //           sign-in with a pasted code, an install to finished
 //   sort    the thread list: Smart / Most recent / By project (headings,
 //           Archived too), kept per device; the project line under titles
+//   search  ⌕ on Home and Threads → /find: threads, messages and memory as
+//           you type; a hit opens its thread at that message, lit; memory
+//           only when the server has it; Advanced adds "Tool steps"; recent
+//           searches; portrait, landscape, Largest
 //   filter  the thread list's Show: Active / Live / Closed / Archived /
 //           Everything and one project; the empty line; kept per device
 //   tapread  "Read from here": a tap on a sentence of the message being said
@@ -76,7 +80,7 @@ const dashMock = await mockAt(P + 2, { MOCK_SPEECH_REST_S: '0' })
 const agentsMock = await mockAt(P + 3, { MOCK_SPEECH_REST_S: '0', MOCK_AGENT_STEP_S: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['tapread.mjs'], ['peer.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
     failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : P}`, ...env })) ? 1 : 0
   }

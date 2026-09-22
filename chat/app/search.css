@@ -1,0 +1,58 @@
+/* Search (routes/search.tsx) and the jump into a thread (routes/thread.tsx).
+   Sizes are rems of the text size (lib/textSize.ts); every tap target is
+   44 px tall at any size. */
+
+/* The ⌕ at the end of the Home | Threads switch (components/Nav.tsx). */
+.tabs .tab-search { flex: none; min-width: 44px; min-height: 40px; border: 0; border-radius: 99px; background: none; color: var(--muted); font: inherit; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.tabs .tab-search:hover, .tabs .tab-search:focus-visible { color: var(--text); background: var(--panel-2); }
+@media (max-height: 520px) { .tabs .tab-search { min-height: 34px; } }
+
+.search-bar { gap: 4px; }
+.search-field { flex: 1; min-width: 0; display: flex; align-items: center; position: relative; }
+.search-field input[type=search] { flex: 1; min-width: 0; min-height: 44px; box-sizing: border-box; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0 44px 0 12px; }
+.search-field input[type=search]::-webkit-search-cancel-button { display: none; }
+.search-field input[type=search]:focus { outline: 2px solid var(--accent-2); outline-offset: 0; }
+.search-field .search-clear { position: absolute; right: 0; min-width: 44px; min-height: 44px; font-size: 1rem; color: var(--muted); }
+
+.search-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex: none; }
+.chip { min-height: 44px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--line); background: none; color: var(--muted); font: inherit; font-size: .933rem; cursor: pointer; }
+.chip.on { background: var(--panel-2); color: var(--text); border-color: var(--accent-2); }
+.chip.on::before { content: '✓ '; color: var(--accent); }
+
+.search-results { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.search-results .search-head { display: flex; align-items: center; justify-content: space-between; margin: 0; padding: .9rem 16px .35rem; font-size: .8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
+.search-forget { font: inherit; text-transform: none; letter-spacing: 0; min-height: 32px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0 4px; }
+.search-indexing { font-size: .867rem; }
+
+.hits, .recent-searches { list-style: none; margin: 0; padding: 0; }
+.recent-searches button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 16px; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.recent-searches button span { color: var(--muted); }
+
+.hit { display: flex; flex-direction: column; gap: 3px; width: 100%; min-height: 44px; box-sizing: border-box; padding: .6rem 16px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+button.hit:hover, a.hit:hover { background: var(--panel); }
+.hit-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hit-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: .8rem; color: var(--muted); min-width: 0; }
+.hit-meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.hit-thread { color: var(--text); font-weight: 500; flex: 0 1 auto; min-width: 0; }
+.hit-project { color: var(--accent); }
+.hit-when { margin-left: auto; }
+.hit-live { color: var(--accent); }
+.hit-archived { font-style: italic; }
+.hit-who { font-weight: 600; color: var(--muted); }
+.hit-who.user { color: var(--accent); }
+.hit-who.tool { color: var(--warn); }
+.hit-snippet { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow-wrap: anywhere; color: var(--text); }
+.hit-snippet.mono { font-family: ui-monospace, monospace; font-size: .867rem; white-space: pre-wrap; }
+.memory-item .hit-snippet { color: var(--muted); -webkit-line-clamp: 4; }
+.hit mark, .hit-snippet mark { background: color-mix(in srgb, var(--accent) 28%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.search-more { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 16px; }
+.search-more .earlier-button { min-height: 44px; }
+
+/* The jump: the message the search named flashes, its words lit. */
+.msg.jump-hit .bubble { animation: jump-flash 2.4s ease-out; }
+@keyframes jump-flash {
+  0%, 30% { box-shadow: 0 0 0 2px var(--accent); }
+  100% { box-shadow: 0 0 0 2px transparent; }
+}
+::highlight(search-hit) { background-color: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; }
+@media (prefers-reduced-motion: reduce) { .msg.jump-hit .bubble { animation: none; box-shadow: 0 0 0 2px var(--accent); } }

@@ -331,6 +331,68 @@ export interface ConversationLog extends Envelope {
   approval: Approval | null
   suggestion: string
   recap?: Recap | null
+  /** With `?around=` (§6.14 jump): whether that message was found, and whether the thread goes on past this page. */
+  around?: { id: string; found: boolean; newer: boolean }
+  newer?: boolean
+}
+
+// ── §6.14 Search ──────────────────────────────────────────────────────────
+
+/** A piece of text with where the query matched in it (character offsets). */
+export interface Snippet {
+  text: string
+  match: [number, number][]
+}
+
+/** The thread a hit belongs to, as the list names it. */
+export interface SearchThreadRef {
+  title: string
+  project: string | null
+  harness: string
+  live: boolean
+  archived: boolean
+}
+
+export interface SearchThreadHit extends SearchThreadRef {
+  session: SessionId
+  recap: string | null
+  at: number | null
+  /** Offsets per field that matched: title, recap, project. */
+  match: Partial<Record<'title' | 'recap' | 'project', [number, number][]>>
+}
+
+export interface SearchMessageHit {
+  session: SessionId
+  /** The §6.2.2 message id — what `/conversation/log?around=` takes. */
+  message: string
+  role: 'user' | 'assistant'
+  at: number
+  /** `tool` only with `tools=1` (the Advanced setting). */
+  kind: 'text' | 'tool'
+  snippet: Snippet
+  thread: SearchThreadRef
+}
+
+export interface MemoryHit {
+  id: string
+  user: string
+  score: number | null
+  text: string
+}
+
+export interface SearchResponse extends Envelope {
+  q: string
+  /** How `q` was read: highlight these in the thread after a jump. */
+  terms: string[]
+  tools: boolean
+  threads: SearchThreadHit[]
+  messages: SearchMessageHit[]
+  /** Ask again with `before=<next>` for the next page; null at the end. */
+  next: number | null
+  /** The index is still catching up: the newest words may be missing. */
+  indexing: boolean
+  /** First page only; `available: false` when this host has no agent-memory. */
+  memory?: { available: false } | { available: true; items: MemoryHit[]; error?: string }
 }
 
 // ── §11 The per-thread stream ─────────────────────────────────────────────

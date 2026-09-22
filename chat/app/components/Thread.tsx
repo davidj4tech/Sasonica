@@ -32,6 +32,7 @@ import { useBottomFirst } from '../hooks/useBottomFirst'
 import { useDraft, type DraftHandle } from '../hooks/useDraft'
 import { useFollowAlong } from '../hooks/useFollowAlong'
 import { ReadFromHere } from './ReadFromHere'
+import { lightTerms } from '../lib/highlight'
 import { APPROVAL_TOOL, ASK_TOOL, convertItem, groupParts, type ChatItem } from '../lib/convert'
 import {
   ApprovalToolUI,
@@ -70,8 +71,9 @@ const partComponents = {
 
 function UserMessage() {
   const { peer } = useCustom()
+  const id = useAuiState((s) => s.message.id)
   return (
-    <MessagePrimitive.Root className={peer ? 'msg user peer' : 'msg user'}>
+    <MessagePrimitive.Root className={peer ? 'msg user peer' : 'msg user'} data-mid={id}>
       <PeerNote />
       <div className="bubble">
         <CommandChip />
@@ -88,11 +90,12 @@ function AssistantMessage() {
   // empty assistant placeholder. The WorkingIndicator is our in-progress
   // display (§14), so the placeholder draws nothing.
   const empty = useAuiState((s) => s.message.content.length === 0)
+  const id = useAuiState((s) => s.message.id)
   const bubbleRef = useRef<HTMLDivElement>(null)
   const tall = useTallBubble(bubbleRef, !empty)
   if (empty) return null
   return (
-    <MessagePrimitive.Root className={running ? 'msg agent speaking' : 'msg agent'}>
+    <MessagePrimitive.Root className={running ? 'msg agent speaking' : 'msg agent'} data-mid={id}>
       <div className="bubble-row">
         <div className="bubble" ref={bubbleRef}>
           {/* Tool steps (and the reasoning between them) fold into "Worked ·
@@ -286,6 +289,78 @@ export interface ThreadProps {
   earlierError?: string
   /** No composer: a subagent's thread (§6.12) is read, never written to. */
   readOnly?: boolean
+  /** A search hit (§6.14): scroll to this message and light these words, once it is on screen. */
+  jumpTo?: { id: string; terms: string[] } | null
+}
+
+/** How long a jump waits for its message to be drawn before giving up. */
+const JUMP_WAIT_MS = 8000
+/** How long after landing the jump holds its place against the opening scroll. */
+const JUMP_HOLD_MS = 1500
+
+/**
+ * Take the view to `jumpTo`'s message and flash it (search, §6.14). The
+ * thread opens at its foot (useBottomFirst, then assistant-ui's own scroll
+ * to the bottom), so once the message is in the DOM it is put in the middle
+ * of the view and held there for JUMP_HOLD_MS — unless a hand scrolls first.
+ */
+function useJump(viewportRef: React.RefObject<HTMLDivElement | null>, jumpTo: ThreadProps['jumpTo']) {
+  const id = jumpTo?.id || ''
+  const termsKey = (jumpTo?.terms || []).join('\u0000')
+  useEffect(() => {
+    if (!id) return
+    const terms = termsKey ? termsKey.split('\u0000') : []
+    let stopped = false
+    let clearLight = () => {}
+    const started = Date.now()
+    let landed = 0
+    let raf = 0
+    let flashT = 0
+    const stop = () => {
+      stopped = true
+    }
+    const vp = viewportRef.current
+    const onHand = () => {
+      if (landed) stop()
+    }
+    vp?.addEventListener('wheel', onHand, { passive: true })
+    vp?.addEventListener('touchmove', onHand, { passive: true })
+    const find = () => viewportRef.current?.querySelector<HTMLElement>(`[data-mid="${CSS.escape(id)}"]`) || null
+    const tick = () => {
+      if (stopped) return
+      const el = find()
+      const now = Date.now()
+      if (!el) {
+        if (now - started < JUMP_WAIT_MS) raf = requestAnimationFrame(tick)
+        return
+      }
+      const view = viewportRef.current
+      if (view) {
+        // Its top, in the viewport's scroll coordinates; centred when it
+        // fits, its top just below the view's top when it does not.
+        const r = el.getBoundingClientRect()
+        const at = view.scrollTop + r.top - view.getBoundingClientRect().top
+        const want = Math.max(0, at - Math.max(8, (view.clientHeight - r.height) / 2))
+        if (Math.abs(view.scrollTop - want) > 2) view.scrollTop = want
+      }
+      if (!landed) {
+        landed = now
+        el.classList.add('jump-hit')
+        flashT = window.setTimeout(() => el.classList.remove('jump-hit'), 2600)
+        clearLight = lightTerms(el, terms, 5000)
+      }
+      if (now - landed < JUMP_HOLD_MS) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      stopped = true
+      cancelAnimationFrame(raf)
+      window.clearTimeout(flashT)
+      clearLight()
+      vp?.removeEventListener('wheel', onHand)
+      vp?.removeEventListener('touchmove', onHand)
+    }
+  }, [id, termsKey, viewportRef])
 }
 
 /** How long the reader's place is held while an older page is added above. */
@@ -339,6 +414,7 @@ export function Thread(props: ThreadProps) {
   const follow = useFollowAlong(viewportRef, liveKey, !!liveClock && !liveClock.paused)
   const newBelow = useNewBelow(props.items, liveIndex, liveKey)
   const away = useAwayFromEnds(viewportRef)
+  useJump(viewportRef, props.jumpTo)
 
   const { toFoot, guarded, toTop } = follow
 

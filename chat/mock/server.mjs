@@ -781,6 +781,113 @@ function liveLine(line) {
 const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, project: s.project ?? null, cwd: s.cwd ?? null })
 const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, recap: s.recap || null, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, recap: s.recap || null, ...flags(s) })
 
+// ── Search (§6.14) ────────────────────────────────────────────────────────
+//
+// Over the fixtures' §6.2.2 messages, as the index would hold them: every
+// term (case-insensitive) must be in a message's words — the last as a
+// prefix — newest first; tool steps only with `tools=1`. Threads by title,
+// recap and project. Memory: a fixed list, when SEARCH.memory says the host
+// has agent-memory (GET /mock/search?memory=0 says it has not).
+
+const SEARCH = { memory: true, indexing: false }
+const MEMORIES = [
+  { id: 'mem-1', user: 'ryer', score: 0.82, text: 'David prefers the follow-along bold a little ahead of the voice.' },
+  { id: 'mem-2', user: 'sam', score: 0.64, text: 'The long conversation fixture answers forty-five questions.' }
+]
+
+const termsOf = (text) => {
+  const out = []
+  for (const m of String(text || '').matchAll(/"([^"]+)"|(\S+)/g)) {
+    if (m[1]) {
+      const w = m[1].match(/[\p{L}\p{N}_]+/gu)
+      if (w) out.push(w.join(' '))
+    } else out.push(...(m[2].match(/[\p{L}\p{N}_]+/gu) || []))
+  }
+  return out
+}
+
+/** Where every term is in `text` ([start, end] each), or null if one is missing. */
+function spansOf(text, terms) {
+  const low = text.toLowerCase()
+  const spans = []
+  for (const t of terms) {
+    const needle = t.toLowerCase()
+    // At the start of a word, as FTS matches (a word, or the start of one).
+    const found = []
+    for (let i = low.indexOf(needle); i >= 0; i = low.indexOf(needle, i + needle.length)) {
+      if (i === 0 || !/[\p{L}\p{N}_]/u.test(low[i - 1])) found.push([i, i + needle.length])
+    }
+    if (!found.length) return null
+    spans.push(...found)
+  }
+  return spans.sort((a, b) => a[0] - b[0])
+}
+
+/** ~14 words around the first match, with its offsets. */
+function snippetOf(text, terms) {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  const spans = spansOf(flat, terms) || []
+  const first = spans[0]?.[0] ?? 0
+  let start = Math.max(0, flat.lastIndexOf(' ', Math.max(0, first - 50)) + 1)
+  if (first - start > 60) start = first
+  let end = Math.min(flat.length, start + 140)
+  const cut = flat.indexOf(' ', end)
+  end = cut < 0 ? flat.length : cut
+  const pre = start > 0 ? '…' : ''
+  const body = flat.slice(start, end)
+  const snippet = pre + body + (end < flat.length ? '…' : '')
+  const match = spans.filter(([a, b]) => a >= start && b <= end).map(([a, b]) => [a - start + pre.length, b - start + pre.length])
+  return { text: snippet, match }
+}
+
+function searchOf(q) {
+  const text = q.get('q') || ''
+  const terms = termsOf(text)
+  if (!terms.length) return { __status: 400, error: 'nothing to search for' }
+  const tools = q.get('tools') === '1'
+  const limit = Math.min(100, Number(q.get('limit')) || 20)
+  const before = q.get('before') ? Number(q.get('before')) : Infinity
+  const all = Object.values(S)
+  const hits = []
+  for (const s of all) {
+    const msgs = messagesOf(s, s.real ? realState(s).lines : s.lines)
+    const thread = { title: s.title, project: s.project ?? null, harness: 'claude', live: !!s.live, archived: !!s.archived }
+    for (const m of msgs) {
+      if (!(m.at < before)) continue
+      const words = m.parts
+        .map((p) => (p.type === 'text' ? p.text : p.type === 'reasoning' ? p.text : p.type === 'ask' ? [...p.ask.map((x) => x.question), p.answer].join('\n') : ''))
+        .filter(Boolean)
+        .join('\n\n')
+      if (words && spansOf(words, terms)) hits.push({ session: s.session, message: m.id, role: m.role, at: m.at, kind: 'text', snippet: snippetOf(words, terms), thread })
+      if (!tools) continue
+      const steps = m.parts.filter((p) => p.type === 'tool').map((p) => [p.name, p.title, p.input_summary, p.result_summary].filter(Boolean).join('\n')).join('\n\n')
+      if (steps && spansOf(steps, terms)) hits.push({ session: s.session, message: m.id, role: m.role, at: m.at, kind: 'tool', snippet: snippetOf(steps, terms), thread })
+    }
+  }
+  hits.sort((a, b) => b.at - a.at)
+  const messages = hits.slice(0, limit)
+  const out = { q: text, terms, tools, threads: [], messages, next: hits.length > limit ? messages[messages.length - 1].at : null, indexing: SEARCH.indexing }
+  if (before !== Infinity) return out
+  const low = terms.map((t) => t.toLowerCase())
+  for (const s of all) {
+    const fields = { title: s.title || '', recap: s.recap?.text || '', project: s.project || '' }
+    const hay = Object.values(fields).join(' \n').toLowerCase()
+    if (!low.every((t) => hay.includes(t))) continue
+    const match = {}
+    for (const [k, v] of Object.entries(fields)) {
+      const sp = v ? (low.map((t) => spansOf(v, [t])).filter(Boolean).flat()) : []
+      if (sp.length) match[k] = sp.sort((a, b) => a[0] - b[0])
+    }
+    const lastAt = Math.max(s.at || 0, ...s.lines.map((l) => l.at || 0))
+    out.threads.push({ session: s.session, title: s.title, project: s.project ?? null, harness: 'claude', live: !!s.live, archived: !!s.archived, recap: s.recap?.text || null, at: r3(lastAt) || null, match })
+  }
+  out.threads.sort((a, b) => (b.at || 0) - (a.at || 0))
+  if (q.get('memory') !== '0') {
+    out.memory = SEARCH.memory ? { available: true, items: MEMORIES.filter((m) => low.every((t) => m.text.toLowerCase().includes(t))) } : { available: false }
+  }
+  return out
+}
+
 function logOf(s, q = null) {
   tickSession(s)
   vTick()
@@ -789,7 +896,8 @@ function logOf(s, q = null) {
   const pending = s.pending || (!!last && last.who === 'you')
   const out = { ok: true, session: s.session, lines, pending, working: s.working, approval: s.approval, suggestion: pending ? '' : s.suggestion, recap: null }
   // §6.2.2: messages only when asked for (`messages=1`), and always on the stream.
-  if (q && q.messages) Object.assign(out, pageOf(messagesOf(s, lines), q.before, q.limit))
+  if (q && q.around) Object.assign(out, aroundOf(messagesOf(s, lines), q.around, q.limit))
+  else if (q && q.messages) Object.assign(out, pageOf(messagesOf(s, lines), q.before, q.limit))
   // The lines never say a turn is running on their own; the messages do.
   return out
 }
@@ -925,6 +1033,20 @@ function messagesOf(s, lines) {
     out.push({ id: uuidOf(`${s.session}:a:${turn}:0`), role: 'assistant', at: r3(s.working.since), parts, spoken: null, turn: { running: true } })
   }
   return out
+}
+
+/**
+ * §6.14 jump: the page holding `around`, from 5 before it to the newest —
+ * or, past 500, `limit` from there with `newer: true`. Not there: the
+ * newest page, `found: false`.
+ */
+function aroundOf(all, around, limit = 60) {
+  const i = all.findIndex((m) => m.id === around)
+  if (i < 0) return { ...pageOf(all, '', limit), around: { id: around, found: false, newer: false }, newer: false }
+  const start = Math.max(0, i - 5)
+  const newer = all.length - start > 500
+  const messages = newer ? all.slice(start, start + limit) : all.slice(start)
+  return { messages, older: start > 0, around: { id: around, found: true, newer }, newer }
 }
 
 /** §6.2 paging: the newest `limit`, or those before `before`. */
@@ -1207,7 +1329,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
+const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/search'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1346,6 +1468,14 @@ createServer(async (req, res) => {
     if (revoke) for (const [tok, d] of DEVICES) if (d.id === revoke) DEVICES.delete(tok)
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
     return res.end(JSON.stringify([...DEVICES.values()]))
+  }
+  if (path === '/mock/search') {
+    // GET /mock/search?memory=0|1&indexing=0|1 — agent-memory on the host
+    // or not, and whether the index is still catching up.
+    if (url.searchParams.has('memory')) SEARCH.memory = url.searchParams.get('memory') !== '0'
+    if (url.searchParams.has('indexing')) SEARCH.indexing = url.searchParams.get('indexing') === '1'
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify(SEARCH))
   }
   if (path === '/mock/delay') {
     DELAY_MS = Number(url.searchParams.get('ms')) || 0
@@ -1509,6 +1639,11 @@ async function route(method, path, q, body, res) {
     })
   }
 
+  if (method === 'GET' && path === '/search') {
+    const r = searchOf(q)
+    return r.__status ? err(r.__status, r.error) : ok(r)
+  }
+
   if (method === 'GET' && path === '/audio/targets') return ok({ channels: { speech: audioSpeech() } })
   if (method === 'POST' && path === '/audio/target') {
     if (body.channel !== 'speech') return err(400, `unknown channel ${body.channel}`)
@@ -1554,7 +1689,8 @@ async function route(method, path, q, body, res) {
       const s = S[sid]
       if (!s) return err(404, 'no conversation for that session yet')
       STATS.log[sid] = (STATS.log[sid] || 0) + 1
-      const mq = q.get('messages') === '1' ? { messages: true, before: q.get('before') || '', limit: Number(q.get('limit')) || 60 } : null
+      const around = q.get('around') || ''
+      const mq = q.get('messages') === '1' || around ? { messages: true, before: q.get('before') || '', limit: Number(q.get('limit')) || 60, around } : null
       return (send(res, 200, logOf(s, mq)), 200)
     }
     const s = byItem(q.get('item') || '')
