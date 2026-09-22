@@ -268,6 +268,34 @@ function realSession(title, variant) {
 realSession('Mock: real speech (streaming, appends)', 'real')
 realSession('Mock: real speech (no offsets)', 'nooffsets')
 
+// ── The stream fixture (§11) ─────────────────────────────────────────────
+//
+// `Mock: stream`: a live session whose turns are scripted from the tests.
+//   GET /mock/stream/append?text=   an assistant message lands now (the
+//                                   transcript append the stream must show)
+//   GET /mock/stream/turn           a whole turn: the listener's message,
+//                                   reasoning, a tool running → done, a
+//                                   redacted thought, a second tool, the
+//                                   reply, then the reply SPOKEN (live
+//                                   follow-along) and finished
+//   GET /mock/stream/drop           end every open stream (a reconnect)
+//   GET /mock/stream/refuse?on=1    refuse the stream (503) — the polling
+//                                   fallback; on=0 accepts again
+//   GET /mock/stream/stats          streams opened and log polls, by session
+{
+  const base = T0 - 1800
+  const lines = []
+  for (let i = 0; i < 4; i++) {
+    lines.push(youLine(`Stream history question ${i + 1}.`, base + i * 60))
+    lines.push(agentLine(`Stream history answer ${i + 1}. A reply that wraps onto a couple of lines on a phone.`, base + i * 60 + 20, { work: work(6, ['Read the route', 'Run the tests', 'Edit the hook']) }))
+  }
+  add(session(randomUUID(), 'Mock: stream', { pane: '%18', state: 'waiting', lines }))
+}
+const STREAM_REPLY =
+  'The stream delivered every step as it happened. The reasoning came first, then the tool, running and then done. ' +
+  'This reply is spoken now, so its sentences turn bold one after another while the voice reads them. ' +
+  'Nothing here was polled: each change arrived as an event.'
+
 /** The real-shaped sessions' lines and turn state, at this moment. */
 function realState(s) {
   const t = now()
@@ -592,13 +620,17 @@ function liveLine(line) {
 
 const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane } : { session: s.session, title: s.title, live: false, pane: null, at: s.at })
 
-function logOf(s) {
+function logOf(s, q = null) {
   tickSession(s)
   vTick()
   const lines = s.real ? realState(s).lines : s.lines.map((l) => (V.on && V.on.s === s && V.on.line === l ? liveLine(l) : l))
   const last = lines[lines.length - 1]
   const pending = s.pending || (!!last && last.who === 'you')
-  return { ok: true, session: s.session, lines, pending, working: s.working, approval: s.approval, suggestion: pending ? '' : s.suggestion }
+  const out = { ok: true, session: s.session, lines, pending, working: s.working, approval: s.approval, suggestion: pending ? '' : s.suggestion, recap: null }
+  // §6.2.2: messages only when asked for (`messages=1`), and always on the stream.
+  if (q && q.messages) Object.assign(out, pageOf(messagesOf(s, lines), q.before, q.limit))
+  // The lines never say a turn is running on their own; the messages do.
+  return out
 }
 
 /** A reply lands in a session: the listener's line, a turn, an answer. */
@@ -635,6 +667,236 @@ function receive(s, text) {
       }
     }
   ]
+}
+
+// ── Messages (§6.2.2) ─────────────────────────────────────────────────────
+//
+// The fixtures are written as lines; their §6.2.2 messages are derived here,
+// the way the server reads a transcript: a user message per listener line
+// (not the answer to an ask — that is the ask's tool result), an assistant
+// message per agent line with a redacted "thought", the turn's steps as
+// tool parts (from `work`, or the line's own `pre` parts) and the reply as
+// the last text part. Ids are stable as a message grows: an assistant
+// message's id is its turn (the listener line before it) and its place in
+// that turn, as a transcript uuid of the turn's first record would be. A
+// session at work with no reply yet gets a running assistant message from
+// its `working` steps, with the id its reply will have — so the reply
+// REPLACES it, as on the server.
+
+const uuidOf = (text) => {
+  const h = createHash('sha1').update(text).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+const TOOL_NAMES = ['Bash', 'Read', 'Grep', 'Edit']
+const stepPart = (s, turn, k, title, status = 'done') => ({
+  type: 'tool',
+  name: TOOL_NAMES[k % TOOL_NAMES.length],
+  title,
+  input_summary: `(mock) ${title.toLowerCase()} — ` + 'an input summary of the kind the server cuts at 300 characters. '.repeat(1 + (k % 2)),
+  status,
+  result_summary: status === 'running' ? '' : status === 'error' ? 'Exit code 1\n(mock) it failed' : `(mock) ${title}: ok\n` + 'a line of output\n'.repeat(1 + (k % 3)),
+  tool_use_id: `toolu_${hex12(s.session + turn + k)}`
+})
+const LIVE_KEYS = ['sentences', 'sentence', 'offsets', 'elapsed', 'server_time', 'delay', 'paused']
+
+function messagesOf(s, lines) {
+  const out = []
+  let turn = 'start'
+  let ordinal = 0
+  lines.forEach((l, i) => {
+    const prev = lines[i - 1]
+    if (l.who === 'you') {
+      if (prev && prev.who === 'agent' && prev.ask) return // the ask's answer, not a prompt
+      turn = String(l.at)
+      ordinal = 0
+      out.push({
+        id: uuidOf(`${s.session}:u:${l.at}`),
+        role: 'user',
+        at: l.at,
+        parts: [{ type: 'text', text: l.text }],
+        spoken: l.id ? { id: l.id, key: '', at: l.at } : null,
+        turn: { running: false },
+        ...(l.command ? { command: l.command } : {})
+      })
+      return
+    }
+    const id = uuidOf(`${s.session}:a:${turn}:${ordinal++}`)
+    const next = lines[i + 1]
+    let parts
+    if (l.ask) {
+      // Written to the transcript only once answered (§6.2.2).
+      if (!next || next.who !== 'you') return
+      parts = [{ type: 'ask', ask: l.ask, status: 'done', answer: next.text, tool_use_id: `toolu_${hex12(id)}` }]
+    } else if (l.pre) {
+      parts = [...l.pre]
+      if (l.text) parts.push({ type: 'text', text: l.text })
+    } else {
+      parts = [{ type: 'reasoning', text: '', redacted: true }]
+      ;(l.work?.steps || []).forEach((step, k) => {
+        if (k === 1) parts.push({ type: 'reasoning', text: `(mock) Narration between steps: ${step.toLowerCase()} next.`, redacted: false })
+        parts.push(stepPart(s, turn, k, step))
+        if (k % 2 === 0) parts.push({ type: 'reasoning', text: '', redacted: true })
+      })
+      parts.push({ type: 'text', text: l.text })
+    }
+    const spoken =
+      l.id || l.live
+        ? {
+            id: l.live ? null : l.id,
+            key: l.key,
+            at: l.at,
+            ...(l.images ? { images: l.images, figure: !!l.figure } : {}),
+            ...(l.live ? { live: Object.fromEntries(LIVE_KEYS.map((k) => [k, l[k]])) } : {})
+          }
+        : null
+    out.push({ id, role: 'assistant', at: l.at, parts, spoken, turn: { running: !!l.running && s.live } })
+  })
+  // At work, no reply yet: the turn so far.
+  const last = lines[lines.length - 1]
+  if (s.live && s.working && last && last.who === 'you') {
+    const steps = s.working.steps || []
+    const parts = [{ type: 'reasoning', text: '', redacted: true }]
+    steps.forEach((step, k) => parts.push(stepPart(s, turn, k, step, k === steps.length - 1 ? 'running' : 'done')))
+    out.push({ id: uuidOf(`${s.session}:a:${turn}:0`), role: 'assistant', at: r3(s.working.since), parts, spoken: null, turn: { running: true } })
+  }
+  return out
+}
+
+/** §6.2 paging: the newest `limit`, or those before `before`. */
+function pageOf(all, before, limit = 60) {
+  let end = all.length
+  if (before) {
+    const i = all.findIndex((m) => m.id === before)
+    end = i >= 0 ? i : 0
+  }
+  const start = Math.max(0, end - Math.min(500, Math.max(1, limit)))
+  return { messages: all.slice(start, end), older: start > 0 }
+}
+
+// ── The per-thread stream (§11) ──────────────────────────────────────────
+//
+// Each connection is its own watcher (the server shares one per session;
+// the difference is invisible to a client): a `snapshot` first, then every
+// MOCK_STREAM_TICK_MS the thread is read again and what changed is sent —
+// `message` (append / replace by id; the live clock's ticking fields are
+// not a change), `live` (a new reply, a new sentence, pause/resume, offsets,
+// or the clock jumping more than 1 s: never merely ticking), `working`,
+// `approval`, `suggestion`, `state`, `recap` (each without its clock), and
+// `ping` after MOCK_PING_S of silence.
+
+const STREAM_TICK_MS = Number(process.env.MOCK_STREAM_TICK_MS ?? 100)
+const PING_MS = Number(process.env.MOCK_PING_S ?? 15) * 1000
+const STREAM = { refuse: false }
+const STATS = { streams: {}, log: {} }
+const OPEN = new Set()
+
+const stateOf = (s) => ({ state: s.live ? s.state || 'waiting' : 'ended', live: !!s.live, pane: s.live ? s.pane : null })
+function envelopeOf(s) {
+  const env = logOf(s, { messages: true })
+  delete env.ok // REALITY (red5): the snapshot has no `ok`
+  return { ...env, ...stateOf(s), resumable: true }
+}
+const TICKING = new Set(['elapsed', 'server_time', 'sentence', 'paused', 'delay'])
+function sigOf(m) {
+  const live = m.spoken?.live
+  if (!live) return JSON.stringify(m)
+  return JSON.stringify({ ...m, spoken: { ...m.spoken, live: Object.fromEntries(Object.entries(live).filter(([k]) => !TICKING.has(k))) } })
+}
+function liveOfMessages(msgs) {
+  for (const m of msgs) if (m.spoken?.live) return { id: m.id, at: m.spoken.at, ...m.spoken.live }
+  return null
+}
+const noClock = (v) => (v && typeof v === 'object' ? JSON.stringify({ ...v, server_time: undefined }) : JSON.stringify(v))
+
+function openStream(req, res, s) {
+  STATS.streams[s.session] = (STATS.streams[s.session] || 0) + 1
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', ...CORS })
+  res.write('retry: 2000\n\n')
+  const c = { res, s, n: 0, sigs: new Map(), last: {}, live: null, liveRead: 0, wrote: Date.now(), timer: null }
+  const send = (event, data) => {
+    c.n += 1
+    res.write(`id: ${c.n}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    c.wrote = Date.now()
+  }
+  const env = envelopeOf(s)
+  for (const m of env.messages) c.sigs.set(m.id, sigOf(m))
+  c.live = liveOfMessages(env.messages)
+  c.liveRead = now()
+  c.last = { working: noClock(env.working), approval: noClock(env.approval), suggestion: noClock({ text: env.suggestion }), state: noClock(stateOf(s)), recap: noClock(env.recap) }
+  send('snapshot', env)
+  const tick = () => {
+    const e = envelopeOf(s)
+    for (const m of e.messages) {
+      const sig = sigOf(m)
+      const old = c.sigs.get(m.id)
+      if (old === sig) continue
+      c.sigs.set(m.id, sig)
+      send('message', { op: old === undefined ? 'append' : 'replace', message: m })
+    }
+    const live = liveOfMessages(e.messages)
+    const t = now()
+    let changed = !c.live !== !live
+    if (!changed && live) {
+      changed = ['id', 'sentence', 'paused', 'delay'].some((k) => c.live[k] !== live[k]) || JSON.stringify(c.live.offsets) !== JSON.stringify(live.offsets)
+      if (!changed && !live.paused) changed = Math.abs(live.elapsed - (c.live.elapsed + (t - c.liveRead))) > 1
+    }
+    if (changed) send('live', live)
+    if (changed || !live || live.paused) (c.live = live), (c.liveRead = t)
+    else if (live) (c.live = { ...live, elapsed: c.live.elapsed + (t - c.liveRead) }), (c.liveRead = t)
+    const cur = { working: e.working, approval: e.approval, suggestion: { text: e.suggestion }, state: stateOf(s), recap: e.recap }
+    for (const [k, v] of Object.entries(cur)) {
+      const sig = noClock(v)
+      if (c.last[k] === sig) continue
+      c.last[k] = sig
+      send(k, v)
+    }
+    if (Date.now() - c.wrote >= PING_MS) send('ping', {})
+  }
+  c.timer = setInterval(() => {
+    try {
+      tick()
+    } catch (e) {
+      console.error('stream tick', e)
+    }
+  }, STREAM_TICK_MS)
+  OPEN.add(c)
+  const end = () => {
+    clearInterval(c.timer)
+    OPEN.delete(c)
+  }
+  req.on('close', end)
+  res.on('close', end)
+}
+
+/** The scripted turn in `Mock: stream` (GET /mock/stream/turn). */
+function streamTurn(s) {
+  const t0 = now()
+  s.lines.push(youLine('Stream test: show me a turn.', t0))
+  s.state = 'working'
+  const L = agentLine('', t0 + 0.4, { pre: [], running: true })
+  delete L.id // not spoken yet
+  const at = (dt, fn) => setTimeout(fn, dt * 1000)
+  at(0.4, () => {
+    L.pre = [{ type: 'reasoning', text: 'Reading the stream route first, then running the tests.', redacted: false }]
+    s.lines.push(L)
+    s.working = { since: r3(t0), count: 1, current: 'Read the stream route', current_at: r3(now()), steps: ['Read the stream route'], server_time: r3(now()) }
+  })
+  at(1.0, () => (L.pre = [...L.pre, stepPart(s, 'stream', 0, 'Run the stream tests', 'running')]))
+  at(2.2, () => {
+    L.pre = [...L.pre.slice(0, -1), stepPart(s, 'stream', 0, 'Run the stream tests', 'done'), { type: 'reasoning', text: '', redacted: true }, stepPart(s, 'stream', 1, 'Read the result', 'running')]
+    s.working = { ...s.working, count: 2, current: 'Read the result', steps: ['Read the stream route', 'Read the result'] }
+  })
+  at(3.0, () => {
+    L.pre = [...L.pre.slice(0, -1), stepPart(s, 'stream', 1, 'Read the result', 'done')]
+    L.text = STREAM_REPLY
+    L.running = false
+    s.working = null
+    s.state = 'waiting'
+  })
+  at(3.5, () => {
+    L.id = 1000 + seq++
+    vSay(s, L)
+  })
 }
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
@@ -782,6 +1044,23 @@ createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
     return res.end(JSON.stringify({ session: s?.session || null, queued: QUEUED }))
   }
+  if (path.startsWith('/mock/stream/')) {
+    const st = Object.values(S).find((x) => x.title === 'Mock: stream')
+    const what = path.slice('/mock/stream/'.length)
+    const out = { ok: true, at: Date.now() }
+    if (what === 'append') {
+      const text = url.searchParams.get('text') || '(mock) appended'
+      const role = url.searchParams.get('role') || 'agent'
+      st.lines.push(role === 'you' ? youLine(text, now()) : agentLine(text, now()))
+    } else if (what === 'turn') streamTurn(st)
+    else if (what === 'drop') {
+      out.dropped = OPEN.size
+      for (const c of [...OPEN]) c.res.destroy()
+    } else if (what === 'refuse') STREAM.refuse = url.searchParams.get('on') === '1'
+    else if (what === 'stats') Object.assign(out, STATS, { open: OPEN.size, session: st.session })
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify(out))
+  }
   if (path === '/mock/drafts') {
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
     return res.end(JSON.stringify(Object.fromEntries(DRAFTS)))
@@ -797,6 +1076,25 @@ createServer(async (req, res) => {
     console.log(`delay now ${DELAY_MS} ms`)
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end(String(DELAY_MS))
+  }
+
+  const events = path.match(/^\/threads\/([^/]+)\/events$/)
+  if (events) {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, { ...CORS, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '3600' })
+      return res.end()
+    }
+    // §11: the bearer header, or ?access_token= for a plain EventSource.
+    const tok = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || url.searchParams.get('access_token') || ''
+    if (!tok || tok === 'bad' || (tok.startsWith('mock-dev-') && !DEVICES.get(tok))) return (log(401), fail(res, 401, 'Audiobookshelf rejected that login'))
+    const sid = decodeURIComponent(events[1])
+    if (!SESSION_RE.test(sid)) return (log(400), fail(res, 400, 'not a session id'))
+    const s = S[sid]
+    if (!s) return (log(404), fail(res, 404, 'no such session'))
+    if (STREAM.refuse) return (log(503), fail(res, 503, 'too many open threads'))
+    if (DELAY_MS) await sleep(DELAY_MS)
+    log('stream')
+    return openStream(req, res, s)
   }
 
   if (!API.has(path)) {
@@ -888,7 +1186,9 @@ async function route(method, path, q, body, res) {
       if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
       const s = S[sid]
       if (!s) return err(404, 'no conversation for that session yet')
-      return (send(res, 200, logOf(s)), 200)
+      STATS.log[sid] = (STATS.log[sid] || 0) + 1
+      const mq = q.get('messages') === '1' ? { messages: true, before: q.get('before') || '', limit: Number(q.get('limit')) || 60 } : null
+      return (send(res, 200, logOf(s, mq)), 200)
     }
     const s = byItem(q.get('item') || '')
     if (!s) return err(404, 'no such item')

@@ -17,7 +17,16 @@
  * (MATCH_WINDOW_S, in either clock) keeps an old, identical message out,
  * should the "before" set have come from a stale snapshot.
  */
-import type { Line } from '../api/types'
+import type { Line, Message } from '../api/types'
+import { userText } from './messages'
+
+/** What the matcher reads of a line or a message: who said it, when, the words, the chip. */
+export type Said = Pick<Line, 'who' | 'at' | 'text' | 'command'>
+
+/** The listener's messages as matcher input (§6.2.2: `role: "user"`, its text parts). */
+export function saidOf(messages: Message[]): Said[] {
+  return messages.filter((m) => m.role === 'user').map((m) => ({ who: 'you', at: m.at, text: userText(m), command: m.command ?? undefined }))
+}
 
 export type SendState = 'sending' | 'sent' | 'failed' | 'untaken'
 
@@ -46,7 +55,7 @@ export function normaliseWords(text: string): string {
 /** `Re: “…” — ` (or straight quotes / a hyphen) in front of a quoted reply. */
 const QUOTE_PREFIX = /^Re:\s*[“"][\s\S]*?[”"]\s*[—–-]\s*/
 
-function sameWords(line: Line, sent: string): boolean {
+function sameWords(line: Said, sent: string): boolean {
   const want = normaliseWords(sent)
   if (!want) return false
   const got = normaliseWords(line.text || '')
@@ -61,7 +70,7 @@ function sameWords(line: Line, sent: string): boolean {
  * The sends still waiting, given the lines now on screen. Each "you" line
  * retires at most one send (two identical messages need two lines).
  */
-export function unmatched(sends: PendingSend[], lines: Line[], nowMs = Date.now()): PendingSend[] {
+export function unmatched(sends: PendingSend[], lines: Said[], nowMs = Date.now()): PendingSend[] {
   if (!sends.length) return sends
   const claimed = new Set<number>()
   const out: PendingSend[] = []

@@ -1,10 +1,11 @@
 /**
  * One thread on assistant-ui's ExternalStoreRuntime (server-contract.md §14).
  *
- * The state lives in the page (the log poll); the runtime reads it through
- * `convertItem` and calls back:
- *   messages  ← /conversation/log lines (+ an approval, + optimistic sends)
- *   isRunning ← `pending` (or `working`, or a send not yet answered)
+ * The state lives in the page (the thread's stream, hooks/useThread.ts); the
+ * runtime reads it through `convertItem` and calls back:
+ *   messages  ← §6.2.2 messages (+ an approval, + optimistic sends)
+ *   isRunning ← state "working", the last message's turn.running, `working`,
+ *               a derived pending, or a send not yet answered
  *   onNew     → the page's `send` (/reply, or /ask for a new thread)
  *   onCancel  → STUB: POST /session/stop is v1 (§12)
  *   suggestions ← `suggestion`
@@ -29,7 +30,7 @@ import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
 import { useDraft, type DraftHandle } from '../hooks/useDraft'
 import { useFollowAlong } from '../hooks/useFollowAlong'
-import { APPROVAL_TOOL, ASK_TOOL, convertItem, type ChatItem } from '../lib/convert'
+import { APPROVAL_TOOL, ASK_TOOL, convertItem, groupParts, type ChatItem } from '../lib/convert'
 import {
   ApprovalToolUI,
   AskToolUI,
@@ -37,11 +38,12 @@ import {
   LineText,
   MessageSpeechKey,
   OptimisticMark,
+  PartGroup,
   Picture,
   PictureData,
+  Reasoning,
   ThreadActionsContext,
-  ToolFallback,
-  WorkSummary,
+  ToolStep,
   WorkingIndicator,
   type ThreadActions
 } from './parts'
@@ -52,12 +54,14 @@ const SEND_KEYS =
 
 const partComponents = {
   Text: LineText,
+  Reasoning,
   Image: Picture,
   data: { by_name: { picture: PictureData } },
   tools: {
     by_name: { [ASK_TOOL]: AskToolUI, [APPROVAL_TOOL]: ApprovalToolUI },
-    Fallback: ToolFallback
-  }
+    Fallback: ToolStep
+  },
+  Group: PartGroup
 }
 
 function UserMessage() {
@@ -65,7 +69,7 @@ function UserMessage() {
     <MessagePrimitive.Root className="msg user">
       <div className="bubble">
         <CommandChip />
-        <MessagePrimitive.Parts components={partComponents} />
+        <MessagePrimitive.Unstable_PartsGrouped groupingFunction={groupParts} components={partComponents} />
         <OptimisticMark />
       </div>
     </MessagePrimitive.Root>
@@ -83,10 +87,12 @@ function AssistantMessage() {
   if (empty) return null
   return (
     <MessagePrimitive.Root className={running ? 'msg agent speaking' : 'msg agent'}>
-      <WorkSummary />
       <div className="bubble-row">
         <div className="bubble" ref={bubbleRef}>
-          <MessagePrimitive.Parts components={partComponents} />
+          {/* Tool steps (and the reasoning between them) fold into "Worked ·
+              N steps" blocks, mounted only when opened (lib/convert.ts
+              groupParts, parts.tsx PartGroup). */}
+          <MessagePrimitive.Unstable_PartsGrouped groupingFunction={groupParts} components={partComponents} />
         </div>
         {/* The play/pause key at the foot of a spoken reply, and — on a
             reply too tall to see whole — the same key at its top, so a long
@@ -229,9 +235,9 @@ function useStop(onStop: (speech: 'auto' | 'silence') => void) {
  * as a hint instead of scrolling to them (the view is following the voice).
  * Resets with each new live line.
  */
-function useNewBelow(items: ChatItem[], liveIndex: number, liveKey: number | null): number {
+function useNewBelow(items: ChatItem[], liveIndex: number, liveKey: string | null): number {
   const below = liveIndex >= 0 ? items.length - 1 - liveIndex : 0
-  const [base, setBase] = useState<{ key: number | null; below: number }>({ key: liveKey, below })
+  const [base, setBase] = useState<{ key: string | null; below: number }>({ key: liveKey, below })
   useEffect(() => {
     if (base.key !== liveKey) setBase({ key: liveKey, below })
   }, [liveKey, below, base.key])
@@ -266,6 +272,46 @@ export interface ThreadProps {
   disabled?: boolean
   /** Docked at the top of the footer, above the composer: the speech bar. */
   speechBar?: ReactNode
+  /** Messages exist above the first one (§6.2 paging). */
+  older?: boolean
+  /** Fetch the page before the first message; resolves true when some came. */
+  onLoadEarlier?: () => Promise<boolean>
+  earlierLoading?: boolean
+  earlierError?: string
+}
+
+/** How long the reader's place is held while an older page is added above. */
+const PREPEND_HOLD_MS = 1200
+
+/**
+ * Keep the view where the reader has it while content is added ABOVE them
+ * (an older page): pinned by its distance from the bottom, through every
+ * DOM change for PREPEND_HOLD_MS (assistant-ui renders the new messages a
+ * commit or two later). scrollTop writes, not scrollTo, so the follow-along
+ * guard lets it through.
+ */
+function holdPlace(el: HTMLElement): () => void {
+  const fromBottom = el.scrollHeight - el.scrollTop
+  const prev = el.style.overflowAnchor
+  el.style.overflowAnchor = 'none'
+  const pin = () => {
+    const top = Math.max(0, el.scrollHeight - fromBottom)
+    if (Math.abs(el.scrollTop - top) > 1) el.scrollTop = top
+  }
+  const mo = new MutationObserver(pin)
+  mo.observe(el, { childList: true, subtree: true, characterData: true })
+  let done = false
+  const stop = () => {
+    if (done) return
+    done = true
+    mo.disconnect()
+    el.style.overflowAnchor = prev
+  }
+  // A hand on the scroll ends the hold at once.
+  el.addEventListener('wheel', stop, { once: true, passive: true })
+  el.addEventListener('touchmove', stop, { once: true, passive: true })
+  window.setTimeout(stop, PREPEND_HOLD_MS)
+  return stop
 }
 
 export function Thread(props: ThreadProps) {
@@ -278,15 +324,36 @@ export function Thread(props: ThreadProps) {
   // of sticking to the bottom (hooks/useFollowAlong.ts).
   // Driven only by "this thread has a live line" and "it is not paused" —
   // never by how many messages there are or what follows the live one.
-  const liveIndex = props.items.findIndex((i) => i.kind === 'line' && !!i.live)
+  const liveIndex = props.items.findIndex((i) => i.kind === 'message' && !!i.live)
   const liveItem = liveIndex >= 0 ? props.items[liveIndex] : undefined
-  const liveClock = liveItem?.kind === 'line' ? liveItem.live : null
-  const liveKey = liveItem?.kind === 'line' && liveClock ? liveItem.line.at : null
+  const liveClock = liveItem?.kind === 'message' ? liveItem.live : null
+  const liveKey = liveItem?.kind === 'message' && liveClock ? liveItem.message.id : null
   const follow = useFollowAlong(viewportRef, liveKey, !!liveClock && !liveClock.paused)
   const newBelow = useNewBelow(props.items, liveIndex, liveKey)
   const away = useAwayFromEnds(viewportRef)
 
-  const { toFoot, guarded } = follow
+  const { toFoot, guarded, toTop } = follow
+
+  // Older pages (§6.2 `before`): the "Load earlier" button at the top keeps
+  // the reader's place; the ↑ pill loads one and goes to its top.
+  const { onLoadEarlier } = props
+  const loadEarlier = useCallback(async () => {
+    const el = viewportRef.current
+    if (!onLoadEarlier || !el) return false
+    const stop = holdPlace(el)
+    const got = await onLoadEarlier()
+    if (!got) stop()
+    return got
+  }, [onLoadEarlier])
+  const toTopOrEarlier = useCallback(async () => {
+    if (props.older && onLoadEarlier) {
+      await onLoadEarlier()
+      // Let the page render before going to its top.
+      window.setTimeout(toTop, 150)
+      return
+    }
+    toTop()
+  }, [props.older, onLoadEarlier, toTop])
   const draftRef = useRef<DraftHandle>(null)
   const onNew = useCallback(
     async (message: AppendMessage) => {
@@ -339,6 +406,14 @@ export function Thread(props: ThreadProps) {
         <ThreadPrimitive.Root className="thread">
           <ThreadPrimitive.Viewport className="viewport" ref={viewportRef} autoScroll={!follow.guarded} scrollToBottomOnRunStart={!follow.guarded}>
             {items.length === 0 && props.empty}
+            {items.length > 0 && props.older && (
+              <div className="earlier">
+                <button className="earlier-button" disabled={props.earlierLoading} onClick={() => void loadEarlier()}>
+                  {props.earlierLoading ? 'Loading…' : 'Load earlier'}
+                </button>
+                {props.earlierError && <p className="error">{props.earlierError}</p>}
+              </div>
+            )}
             <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
             <WorkingIndicator working={props.working} workingAt={props.workingAt} thinking={props.thinking} />
             <ThreadPrimitive.ViewportFooter className="footer">
@@ -359,7 +434,7 @@ export function Thread(props: ThreadProps) {
               {(away.top || (away.bottom && !(newBelow > 0 && follow.guarded))) && (
                 <div className="jump-pills">
                   {away.top && (
-                    <button className="jump-pill" aria-label="To the top" title="To the top" onClick={() => (away.poke(), follow.toTop())}>
+                    <button className="jump-pill" aria-label="To the top" title="To the top" onClick={() => (away.poke(), void toTopOrEarlier())}>
                       ↑
                     </button>
                   )}

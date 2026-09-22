@@ -18,9 +18,10 @@ const STORE = 'kv'
  * The cache's shape version. Bump it when what is stored changes shape: the
  * upgrade drops the whole store and starts it empty, so old entries never
  * have to be read by new code. (v2, 22 Sep 2026: threads keyed by session
- * alone — the v1 entries carried an ABS item.)
+ * alone — the v1 entries carried an ABS item. v3, 22 Sep 2026: a thread is
+ * its §6.2.2 messages, not its lines.)
  */
-const CACHE_VERSION = 2
+const CACHE_VERSION = 3
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 

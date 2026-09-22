@@ -23,7 +23,7 @@
  * hold a scrolled-up reader in place while content grows above them; that
  * is the part this adds. After SETTLE_MS everything is assistant-ui's again.
  *
- * Messages keep their ids (`${session}:${at}`), so lifting the window mounts
+ * Messages keep their ids (the transcript uuid, §6.2.2), so lifting the window mounts
  * only the older ones; the newest stay mounted.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'

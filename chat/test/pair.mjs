@@ -39,9 +39,10 @@ const target = sid('Mock: shelved conversation')
 await page.goto(BASE + '/t/' + target) // fresh load: memory cache empty
 await page.waitForSelector('.msg')
 await page.waitForTimeout(600)
-const convReqs = page.reqs.filter((r) => r.p.startsWith('/conversation'))
+const convReqs = page.reqs.filter((r) => r.p.startsWith('/conversation') || r.p.startsWith('/threads/'))
 console.log('  open requests:', JSON.stringify(convReqs.map((r) => r.m + ' ' + r.p)))
-ok(convReqs.length >= 1 && convReqs[0].p === `/conversation/log?session=${target}`, 'first request is /conversation/log?session=')
+ok(convReqs.length === 1 && convReqs[0].p === `/threads/${target}/events`, 'the thread is ONE request: its stream, /threads/{session}/events (§11)')
+ok(page.reqs.find((r) => r.p === `/threads/${target}/events`)?.auth === 'Bearer ' + dev.token, 'the stream carries the device token in the Authorization header (not the URL)')
 ok(!convReqs.some((r) => r.p.startsWith('/conversation?')), 'no /conversation?session= lookup')
 ok(!page.reqs.some((r) => r.p.includes('item=')), 'no item anywhere')
 // reply
@@ -126,7 +127,7 @@ ok(page.reqs.filter((r) => r.p.startsWith('/targets')).every((r) => r.auth === '
 page.reqs.length = 0
 await page.goto(BASE + '/t/' + target)
 await page.waitForSelector('.msg')
-ok(page.reqs.some((r) => r.p === `/conversation/log?session=${target}` && r.auth === 'Bearer legacy-abs'), 'legacy token opens a thread by session')
+ok(page.reqs.some((r) => r.p === `/threads/${target}/events` && r.auth === 'Bearer legacy-abs'), 'legacy token opens a thread (its stream) by session')
 await b.close()
 console.log(fails ? `${fails} FAILED` : 'ALL PASS')
 process.exit(fails ? 1 : 0)

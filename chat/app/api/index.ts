@@ -4,10 +4,12 @@
  * Shapes are in ./types.ts; credentials are ./auth.ts's business. Threads
  * are keyed by session throughout (server-contract.md §10, built 22 Sep
  * 2026): the log and /reply take the session, so no ABS item is ever looked
- * up. Still to come (§8): the stream replaces the poll, stop becomes real,
- * and errors gain a `code`.
+ * up. A thread is read from its stream (§11, openThreadStream) with the
+ * polled log as the fallback. Still to come (§8): stop becomes real, and
+ * errors gain a `code`.
  */
 import { authHeaders, serverBase } from './auth'
+import { readSse } from '../lib/sse'
 import type {
   AnswerRequest,
   AnswerResponse,
@@ -27,7 +29,8 @@ import type {
   SpeechNow,
   StopRequest,
   StopResponse,
-  TargetsResponse
+  TargetsResponse,
+  ThreadEvent
 } from './types'
 
 export * from './types'
@@ -123,44 +126,91 @@ export function getSessionsState(signal?: AbortSignal) {
 
 // ── One conversation ──────────────────────────────────────────────────────
 
+/** What to ask the polled log for (§6.2). */
+export interface LogQuery {
+  /** Include §6.2.2 `messages` (the polled log leaves them out without `messages=1`). */
+  messages?: boolean
+  /** A message id: only messages before it (the next page back). */
+  before?: string
+  /** How many messages (default 60, at most 500). */
+  limit?: number
+}
+
 /**
  * The thread's transcript, by session (§10). Answers from speech history
  * even before the conversation is on the shelf, so a thread started seconds
  * ago is readable at once. 404 "no conversation for that session yet" only
  * when there is no manifest, no line, no pane and no transcript.
+ *
+ * The thread page reads the stream (openThreadStream) and comes here only
+ * as its fallback, for older pages (`before`) and for prefetch.
  */
-export function getConversationLog(session: SessionId, opts?: AbortSignal | CallOptions) {
-  return request<ConversationLog>('GET', `/conversation/log?session=${q(session)}`, undefined, opts)
+export function getConversationLog(session: SessionId, opts?: AbortSignal | CallOptions, query: LogQuery = { messages: true }) {
+  let path = `/conversation/log?session=${q(session)}`
+  if (query.messages) path += '&messages=1'
+  if (query.before) path += `&before=${q(query.before)}`
+  if (query.limit) path += `&limit=${query.limit}`
+  return request<ConversationLog>('GET', path, undefined, opts)
+}
+
+/** The page of messages before `before` (§6.2 paging). */
+export function getEarlier(session: SessionId, before: string, limit = 60, signal?: AbortSignal) {
+  return getConversationLog(session, signal, { messages: true, before, limit })
 }
 
 /**
- * A log answer that may hold only the newest lines. `complete: false` means
- * older lines exist and a full getConversationLog should follow.
+ * Open `GET /threads/{session}/events` (§11) with the Authorization header
+ * (fetch, not EventSource) and read it until it ends or `signal` aborts.
+ * Rejects with an ApiError before the stream opens (401/403/404/503: the
+ * server's JSON refusal), or with a network error; resolves when the
+ * server closes the stream. `onOpen` gets the time to the response headers
+ * (about one round trip), for the follow-along's transit estimate.
  */
-export type LogTail = ConversationLog & { complete: boolean }
-
-/**
- * HOOK for the server's future `?tail=N` (newest N lines only) — the cold
- * open of a thread with nothing cached asks for this first, so the bottom of
- * the conversation arrives in a fraction of the bytes, and the full log
- * follows to fill in above it.
- *
- * TODAY the server has no `tail`, so this IS the full log and says
- * `complete: true` (no second request). When the server gains it, the switch
- * is this function's body:
- *
- *   const res = await request<ConversationLog & { truncated?: boolean }>(
- *     'GET', `/conversation/log?session=${q(session)}&tail=${n}`, undefined, opts)
- *   return { ...res, complete: !res.truncated }
- *
- * (An older server ignores the unknown parameter and returns everything with
- * no `truncated`, which reads as complete — so the switch is safe to ship
- * before the server.)
- */
-export async function fetchLogTail(session: SessionId, n: number, opts?: AbortSignal | CallOptions): Promise<LogTail> {
-  void n
-  const res = await getConversationLog(session, opts)
-  return { ...res, complete: true }
+export async function openThreadStream(
+  session: SessionId,
+  handlers: { onOpen?: (rttMs: number) => void; onEvent: (ev: ThreadEvent) => void; onBytes?: () => void },
+  signal: AbortSignal
+): Promise<void> {
+  const base = serverBase()
+  if (!base) throw new ApiError('No server address — set one in Settings', 0)
+  const t0 = Date.now()
+  let res: Response
+  try {
+    res = await fetch(`${base}/threads/${q(session)}/events`, {
+      signal,
+      cache: 'no-store',
+      headers: { ...authHeaders(), Accept: 'text/event-stream' }
+    })
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err
+    throw new ApiError(`Could not reach ${base}`, 0)
+  }
+  if (!res.ok || !res.body || !(res.headers.get('Content-Type') || '').includes('text/event-stream')) {
+    let payload: Record<string, unknown> = {}
+    try {
+      payload = await res.json()
+    } catch {
+      // not JSON
+    }
+    throw new ApiError(String(payload.error || res.statusText || `HTTP ${res.status}`), res.status || 0, payload)
+  }
+  handlers.onOpen?.(Date.now() - t0)
+  await readSse(
+    res.body,
+    {
+      onBytes: handlers.onBytes,
+      onFrame: (f) => {
+        let data: unknown
+        try {
+          data = JSON.parse(f.data)
+        } catch {
+          return
+        }
+        handlers.onEvent({ type: f.event, data } as ThreadEvent)
+      }
+    },
+    signal
+  )
 }
 
 // ── Sending ───────────────────────────────────────────────────────────────

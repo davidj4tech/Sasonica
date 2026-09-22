@@ -11,7 +11,7 @@
  * and the bold leads the clock by the per-device lead (lib/followLead.ts),
  * because a sentence is taken in as it starts.
  */
-import type { Line } from '../api/types'
+import type { Line, LiveFields } from '../api/types'
 import { getFollowLead } from './followLead'
 
 /**
@@ -41,16 +41,40 @@ export interface LiveClock {
 
 export function liveClockOf(line: Line, receivedAtMs: number, roundTripMs: number): LiveClock | null {
   if (!line.live || !line.sentences?.length) return null
-  const paused = !!line.paused
+  return liveClockFrom(line as LiveFields, receivedAtMs, roundTripMs)
+}
+
+/**
+ * The clock from §6.2.2 `spoken.live` or a §11 `live` event. For a stream
+ * event the "round trip" is the connection's (headers back after the
+ * request went): the server ages `elapsed` to the moment it reads it and
+ * sends the event at once, so the age at receipt is the one-way trip.
+ */
+export function liveClockFrom(f: Partial<LiveFields>, receivedAtMs: number, roundTripMs: number): LiveClock | null {
+  if (!f.sentences?.length) return null
+  const paused = !!f.paused
   return {
-    sentences: line.sentences,
-    offsets: line.offsets || [],
-    sentence: line.sentence ?? null,
-    elapsed: Number(line.elapsed) || 0,
-    delay: Number(line.delay) || 0,
+    sentences: f.sentences,
+    offsets: f.offsets || [],
+    sentence: f.sentence ?? null,
+    elapsed: Number(f.elapsed) || 0,
+    delay: Number(f.delay) || 0,
     paused,
     anchorMs: paused ? receivedAtMs : receivedAtMs - Math.min(roundTripMs / 2, TRANSIT_CAP_MS)
   }
+}
+
+/**
+ * The live message's words grew (streamed clips) without the clock moving:
+ * take the longer sentence list, keep the anchor. (§11 sends `live` when
+ * the offsets change; with no offsets, only the message's `spoken.live`
+ * shows the growth.)
+ */
+export function withGrowth(clock: LiveClock, f: Partial<LiveFields>): LiveClock {
+  const s = f.sentences || []
+  const o = f.offsets || []
+  if (s.length <= clock.sentences.length && o.length <= clock.offsets.length) return clock
+  return { ...clock, sentences: s.length > clock.sentences.length ? s : clock.sentences, offsets: o.length > clock.offsets.length ? o : clock.offsets }
 }
 
 /** The sentence to bold at local time `nowMs`, or -1. Never moves while paused. */

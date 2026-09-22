@@ -17,7 +17,7 @@
 import { useEffect } from 'react'
 import { getConversationLog } from '../api'
 import type { SessionRow } from '../api/types'
-import { lastChecked, saveThreadLog } from '../lib/snapshots'
+import { lastChecked, saveThreadMessages } from '../lib/snapshots'
 
 const PREFETCH_COUNT = 5
 const FRESH_ENOUGH_MS = 3 * 60 * 1000
@@ -30,9 +30,10 @@ let lastRunAt = 0
 async function prefetchOne(session: string, signal: AbortSignal) {
   if (Date.now() - (await lastChecked(session)) < FRESH_ENOUGH_MS) return
   if (signal.aborted) return
-  // One request per thread, shelved or not (§10: the log is keyed by session).
+  // One request per thread, shelved or not (§10: the log is keyed by
+  // session), its newest page of messages (§6.2.2) — what a snapshot holds.
   const log = await getConversationLog(session, { signal, priority: 'low' })
-  saveThreadLog(session, log)
+  if (log.messages) saveThreadMessages(session, log.messages, !!log.older)
 }
 
 /** `ready`: the list holds the server's fresh answer (not a snapshot). */

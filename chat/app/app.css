@@ -122,9 +122,45 @@ a { color: var(--accent); }
 .picture.figure.thumb { display: inline-block; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; cursor: zoom-in; }
 .picture.figure.thumb img { width: auto; max-width: min(12rem, 100%); max-height: 6.5rem; object-fit: contain; }
 .picture.ambient img { width: 5.867rem; height: 5.867rem; object-fit: cover; opacity: .85; }
-.work { font-size: 0.867rem; color: var(--muted); margin: 0 0 4px 4px; }
-.work summary { cursor: pointer; }
-.work ol { margin: 4px 0 0; padding-left: 20px; }
+/*
+ * A message from its transcript (§6.2.2): narration and the reply as text,
+ * tool steps folded into "Worked · N steps" blocks, reasoning as a
+ * "Thinking" disclosure or a small "thought" marker. Everything that is not
+ * the words is quiet: muted, smaller, and closed until tapped.
+ */
+.bubble > * + * { margin-top: .45rem; }
+.thought { display: inline-block; font-size: 0.733rem; color: var(--muted); opacity: .75; letter-spacing: .02em; }
+.thought::before { content: '∴ '; }
+.bubble > .thought + .thought { margin-left: 6px; }
+.thinking-head, .work-head, .step-head { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 2px 0; background: none; border: 0; color: var(--muted); font-size: 0.867rem; text-align: left; cursor: pointer; }
+.thinking-head::before { content: '▸'; font-size: .8em; }
+.thinking.open .thinking-head::before { content: '▾'; }
+.thinking-text { margin: 2px 0 0 14px; color: var(--muted); font-size: 0.867rem; font-style: italic; white-space: pre-wrap; }
+.work-group { border-left: 2px solid var(--line); padding-left: 8px; }
+.work-head .work-now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); opacity: .8; }
+.work-head .work-now::before { content: '· '; }
+.work-errors { color: var(--bad); }
+.work-caret { width: 1em; font-size: .8em; }
+.work-steps { display: flex; flex-direction: column; gap: 0; margin: 2px 0 4px; }
+.work-steps .thought { display: block; margin: 0 0 0 22px; }
+.work-steps .thinking { margin-left: 0; }
+.step-head { min-height: 30px; }
+.step-mark { width: 16px; flex: none; text-align: center; font-size: 0.8rem; }
+.step.done .step-mark { color: var(--accent); }
+.step.error .step-mark, .step.error .step-title { color: var(--bad); }
+.step.running .step-title { color: var(--text); }
+.step-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step.open .step-title { white-space: normal; }
+.step-body { margin: 0 0 6px 22px; font-size: 0.8rem; color: var(--muted); }
+.step-tool { margin: 0 0 2px; font-size: 0.733rem; text-transform: uppercase; letter-spacing: .04em; }
+.step-in, .step-out { margin: 2px 0; padding: 4px 6px; border-radius: 6px; background: var(--panel-2); font: 0.8rem/1.35 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflow: auto; }
+.step-out.error { color: var(--bad); }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; vertical-align: middle; }
+.spinner.small { width: 11px; height: 11px; border-width: 2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.earlier { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0 8px; }
+.earlier-button { min-height: 40px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; }
+.earlier .error { color: var(--bad); font-size: 0.867rem; margin: 0; }
 .command-chip { display: inline-block; font: 0.867rem ui-monospace, monospace; background: var(--panel-2); border-radius: 6px; padding: 1px 6px; margin-bottom: 4px; }
 .sending-mark { display: block; font-size: 0.8rem; color: var(--muted); text-align: right; }
 .sending-mark.failed { color: var(--bad); display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 8px; margin-top: 4px; }

@@ -176,14 +176,136 @@ export interface Approval {
   agent: string
 }
 
+// ── §6.2.2 Messages (built 22 Sep 2026) ──────────────────────────────────
+
+/** The §6.2 live-line fields, carried on `spoken.live` and the `live` event. */
+export interface LiveFields {
+  sentences: string[]
+  sentence: number | null
+  offsets: number[]
+  /** Seconds since the reply started, as of `server_time`. */
+  elapsed: number
+  server_time: number
+  delay: number
+  paused: boolean
+}
+
+export interface TextPart {
+  type: 'text'
+  /** Raw, as the transcript has it: markdown and `[[visual:]]` markers included (REALITY, red5 22 Sep 2026). */
+  text: string
+}
+export interface ReasoningPart {
+  type: 'reasoning'
+  /** `""` when redacted (~90 % on red5: signature-only thinking). */
+  text: string
+  redacted: boolean
+}
+export interface ToolPart {
+  type: 'tool'
+  name: string
+  /** The step in plain English (what `working.steps` says). */
+  title: string
+  /** ≤ 300 chars. */
+  input_summary: string
+  status: 'running' | 'done' | 'error'
+  /** ≤ 300 chars; Read says "N lines". */
+  result_summary: string
+  tool_use_id: string
+}
+export interface AskPart {
+  type: 'ask'
+  ask: AskQuestion[]
+  status: string
+  /** The chosen label(s); `""` for the reshaped harnesses. */
+  answer: string
+  tool_use_id: string
+}
+export type MessagePart = TextPart | ReasoningPart | ToolPart | AskPart
+
+/** This message's speech (§6.2.2 `spoken`). */
+export interface Spoken {
+  /** History row for `replay-id`; null while it plays for the first time. */
+  id: number | null
+  key: string
+  at: number
+  images?: string[]
+  figure?: boolean
+  /** Only while it plays. */
+  live?: LiveFields
+}
+
+/** One message read from the agent's transcript (§6.2.2). */
+export interface Message {
+  /** Transcript uuid of its first record — stable as it grows. Other harnesses: `line:<at>`. */
+  id: string
+  role: 'user' | 'assistant'
+  at: number
+  parts: MessagePart[]
+  spoken: Spoken | null
+  turn: { running: boolean }
+  /** User messages that are a slash command only. */
+  command?: { name?: string; args?: string; text?: string; [k: string]: unknown } | null
+}
+
+export interface Recap {
+  text: string
+  at: number
+  source: string
+}
+
 export interface ConversationLog extends Envelope {
   session: SessionId
+  /** Deprecated (§6.2, 22 Sep 2026); still read by the pending-send matcher only when `messages` is absent. */
   lines: Line[]
+  /** Only with `?messages=1` on the polled log; always in the stream's snapshot. */
+  messages?: Message[]
+  /** Messages exist before `messages[0]`: ask with `?before=<messages[0].id>`. */
+  older?: boolean
   pending: boolean
   working: Working | null
   approval: Approval | null
   suggestion: string
+  recap?: Recap | null
 }
+
+// ── §11 The per-thread stream ─────────────────────────────────────────────
+
+export type ThreadState = 'working' | 'waiting' | 'approval' | 'ended'
+
+/**
+ * The first frame on every connection: the log envelope (default page) plus
+ * the session's state. NB `live` here is "the session is live" (a bool),
+ * not the follow-along — that rides on the messages' `spoken.live`.
+ * REALITY (red5, 22 Sep 2026): no `ok` field; ~390 KB for a busy thread, not
+ * compressed.
+ */
+export interface ThreadSnapshot extends Omit<ConversationLog, 'ok'> {
+  state: ThreadState
+  live: boolean
+  pane: string | null
+  resumable: boolean
+}
+
+/** The `live` event: the message being spoken, by id, or null. */
+export type LiveEvent = (LiveFields & { id: string; at: number }) | null
+
+export interface StateEvent {
+  state: ThreadState
+  live: boolean
+  pane: string | null
+}
+
+export type ThreadEvent =
+  | { type: 'snapshot'; data: ThreadSnapshot }
+  | { type: 'message'; data: { op: 'append' | 'replace'; message: Message } }
+  | { type: 'live'; data: LiveEvent }
+  | { type: 'working'; data: Working | null }
+  | { type: 'approval'; data: Approval | null }
+  | { type: 'suggestion'; data: { text: string } }
+  | { type: 'state'; data: StateEvent }
+  | { type: 'recap'; data: Recap | null }
+  | { type: 'ping'; data: Record<string, never> }
 
 /**
  * `GET /draft?session=` · `POST /draft {session, text, at}`: half a reply,

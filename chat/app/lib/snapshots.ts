@@ -3,13 +3,14 @@
  * thread list) paints at once and the network only has to confirm it —
  * stale-while-revalidate.
  *
- * Why: from the phone to red5 one round trip is ~0.43 s and a 39-line log
- * takes 2–2.5 s. (v0 also needed a session → item lookup before the log;
- * since §10 the log is asked by session, so opening a thread is ONE request.)
+ * Why: from the phone to red5 one round trip is ~0.43 s, and a busy thread's
+ * snapshot is ~390 KB (§11, uncompressed on the stream).
  *
- * What is kept, per session: the log envelope's lines. Not kept: `working`, `approval`, `pending`, `suggestion` — those are
- * "what is happening right now", and a stale approval card or a stale step
- * timer would be a lie. They arrive with the first fresh poll.
+ * What is kept, per session: the snapshot's messages (§6.2.2), plain —
+ * no follow-along clock and no running turn (messages.ts plainMessage) —
+ * and whether older ones exist. Not kept: `working`, `approval`, `pending`,
+ * `suggestion`, the state — "what is happening right now", where a stale
+ * card or step timer would be a lie. They arrive with the first snapshot.
  *
  * Two layers: a memory map (synchronous, so moving between screens inside the
  * app paints on the very first render) over IndexedDB (lib/store.ts, so a
@@ -17,14 +18,15 @@
  * best-effort; no storage just means no cache.
  *
  * Bounded: at most MAX_THREADS threads (least recently opened or refreshed
- * goes first) and MAX_LINES lines each.
+ * goes first) and the newest MAX_MESSAGES messages each.
  */
-import type { ConversationLog, Line, SessionId, SessionsStateResponse, TargetsResponse } from '../api/types'
+import type { Message, SessionId, SessionsStateResponse, TargetsResponse } from '../api/types'
+import { plainMessage } from './messages'
 import { idbDel, idbGet, idbSet } from './store'
 
 const MAX_THREADS = 40
-/** The newest this many lines are kept; the fresh log fills in the rest. */
-const MAX_LINES = 300
+/** The newest this many messages are kept (one page); the stream fills in the rest. */
+const MAX_MESSAGES = 60
 
 const threadKey = (session: SessionId) => `thread:${session}`
 const INDEX_KEY = 'threads:index'
@@ -34,16 +36,19 @@ const STATES_KEY = 'list:states'
 /** What the thread page gets back. */
 export interface ThreadSnapshot {
   session: SessionId
-  /** Lines as last seen, with any live marking removed (see plainLine). */
-  lines: Line[]
-  /** Local ms the lines were last saved. */
+  /** Messages as last seen, plain (see plainMessage). */
+  messages: Message[]
+  /** More exist before the first one. */
+  older: boolean
+  /** Local ms they were last saved. */
   savedAt: number
 }
 
-/** On disk: the lines as a JSON string, which doubles as the change signature. */
+/** On disk: the messages as a JSON string, which doubles as the change signature. */
 interface Stored {
   session: SessionId
   json: string
+  older: boolean
   savedAt: number
 }
 
@@ -100,23 +105,12 @@ async function evict() {
 
 const memory = new Map<SessionId, Stored>()
 
-/**
- * A cached line is history, never "now": its follow-along clock is as old as
- * the cache, so bolding from it would point at the wrong sentence. Keep the
- * words, drop the live fields; the first fresh poll puts them back.
- */
-export function plainLine(line: Line): Line {
-  if (!line.live) return line
-  const { live: _l, sentences: _s, sentence: _n, offsets: _o, elapsed: _e, server_time: _t, delay: _d, paused: _p, ...rest } = line
-  return rest
-}
-
 function parse(stored: Stored | undefined): ThreadSnapshot | undefined {
   if (!stored || typeof stored.json !== 'string') return undefined
   try {
-    const lines = JSON.parse(stored.json) as Line[]
-    if (!Array.isArray(lines)) return undefined
-    return { session: stored.session, lines: lines.map(plainLine), savedAt: stored.savedAt }
+    const messages = JSON.parse(stored.json) as Message[]
+    if (!Array.isArray(messages)) return undefined
+    return { session: stored.session, messages: messages.map(plainMessage), older: !!stored.older, savedAt: stored.savedAt }
   } catch {
     return undefined
   }
@@ -140,26 +134,28 @@ export async function loadThread(session: SessionId): Promise<ThreadSnapshot | u
 }
 
 /**
- * A good /conversation/log answer. Written only when the lines changed —
- * a live reply is re-polled every second, but with its live fields stripped
- * the text is the same until the next line lands, so nothing is written.
+ * The thread as last seen fresh (a snapshot, or the messages since). Written
+ * only when the plain messages changed — a live reply's clock ticks, but
+ * with it stripped the words are the same until something is said.
+ * `older` is whether messages exist before the first KEPT one.
  */
-export function saveThreadLog(session: SessionId, log: ConversationLog) {
+export function saveThreadMessages(session: SessionId, messages: Message[], older: boolean) {
   touch(session, { used: true, checked: true })
+  const kept = messages.slice(-MAX_MESSAGES)
   let json: string
   try {
-    json = JSON.stringify((log.lines || []).slice(-MAX_LINES).map(plainLine))
+    json = JSON.stringify(kept.map(plainMessage))
   } catch {
     return
   }
   const prev = memory.get(session)
   if (prev && prev.json === json) return
-  const stored: Stored = { session, json, savedAt: Date.now() }
+  const stored: Stored = { session, json, older: older || kept.length < messages.length, savedAt: Date.now() }
   memory.set(session, stored)
   void idbSet(threadKey(session), stored).then(evict)
 }
 
-/** Local ms this thread's log was last fetched successfully, 0 if never. */
+/** Local ms this thread was last fetched successfully, 0 if never. */
 export async function lastChecked(session: SessionId): Promise<number> {
   await loadIndex()
   return index[session]?.checked || 0

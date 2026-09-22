@@ -22,6 +22,10 @@
 //           notice (urgent: stronger) and a list dot; ↑/↓ pills
 //   draft   the composer's text per thread: switch, reload, hidden, a newer
 //           copy from another device, send clears it, new chat
+//   stream  the thread is its §11 stream: a new message renders < 1 s after
+//           the transcript append with no polling; reasoning collapsed;
+//           steps grouped and lazy; follow-along; reconnect without
+//           duplicates; the polling fallback and back; Load earlier
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -41,7 +45,7 @@ const mock = await mockAt(8811, { MOCK_SPEECH_REST_S: '0' })
 const skewMock = await mockAt(8812, { MOCK_REAL_VOICE: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
     failed += (await run(file, env)) ? 1 : 0
   }

@@ -1,20 +1,22 @@
 /**
  * The custom part and message renderers the thread uses: the follow-along
- * text, pictures, the work summary, the slash-command chip, the ask and
- * approval tool UIs, and the running turn's indicator.
+ * text, reasoning, tool steps and the "Worked · N steps" block, pictures,
+ * the slash-command chip, the ask and approval tool UIs, and the running
+ * turn's indicator.
  */
 import {
   useAuiState,
   type DataMessagePartComponent,
   type ImageMessagePartComponent,
+  type ReasoningMessagePartComponent,
   type TextMessagePartComponent,
   type ToolCallMessagePartComponent
 } from '@assistant-ui/react'
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react'
 import type { Approval, Working } from '../api/types'
 import { useSpeechActions } from '../hooks/useSpeech'
 import { IconPause, IconPlay } from './SpeechBar'
-import type { ApprovalArgs, AskArgs, LineCustom } from '../lib/convert'
+import type { ApprovalArgs, AskArgs, LineCustom, StepArgs } from '../lib/convert'
 import { useShowAmbient } from '../lib/pictures'
 import { duration, liveParts, sentenceAt, type LiveClock } from '../lib/followAlong'
 
@@ -69,11 +71,108 @@ function LiveText({ text, clock }: { text: string; clock: LiveClock }) {
   )
 }
 
-/** Text part: plain, or the live line with its sentence in bold (§6.2). */
+/**
+ * Text part: plain, or — the spoken reply of the message being said — with
+ * its sentence in bold (§6.2). The whole text is shown from the start.
+ */
 export const LineText: TextMessagePartComponent = ({ text }) => {
   const custom = useCustom()
-  if (custom.live) return <LiveText text={text} clock={custom.live} />
+  if (custom.live && text === custom.liveText) return <LiveText text={text} clock={custom.live} />
   return <p className="line-text">{text}</p>
+}
+
+// ── Reasoning and tool steps ──────────────────────────────────────────────
+
+/**
+ * A reasoning part: the model's words behind a collapsed "Thinking"
+ * disclosure (rendered only when opened), or — REALITY on red5, ~90 % of
+ * them — thinking whose text Claude Code does not keep: a small "thought"
+ * marker, never an empty box.
+ */
+export const Reasoning: ReasoningMessagePartComponent = ({ text }) => {
+  const [open, setOpen] = useState(false)
+  if (!text) return <span className="thought" title="The model thought here; its words are not kept">thought</span>
+  return (
+    <div className={open ? 'thinking open' : 'thinking'}>
+      <button className="thinking-head" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        Thinking
+      </button>
+      {open && <p className="thinking-text">{text}</p>}
+    </div>
+  )
+}
+
+const STATUS_MARK: Record<string, string> = { running: '…', done: '✓', error: '✕' }
+
+/**
+ * One tool step: its title (the step in plain English) and status; a tap
+ * opens the input and result summaries, which are rendered only then (a
+ * busy page carries ~6 of them per message, 300 chars each).
+ */
+export const ToolStep: ToolCallMessagePartComponent<StepArgs> = ({ args, result, toolName }) => {
+  const [open, setOpen] = useState(false)
+  const status = args?.status || (result === undefined ? 'running' : 'done')
+  const summary = args?.summary || ''
+  const res = typeof result === 'string' ? result : result === undefined ? '' : JSON.stringify(result)
+  return (
+    <div className={`step ${status}${open ? ' open' : ''}`}>
+      <button className="step-head" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="step-mark" aria-label={status}>
+          {status === 'running' ? <span className="spinner small" /> : STATUS_MARK[status] || '·'}
+        </span>
+        <span className="step-title">{args?.title || toolName}</span>
+      </button>
+      {open && (
+        <div className="step-body">
+          <p className="step-tool">{toolName}</p>
+          {summary && <pre className="step-in">{summary}</pre>}
+          {res && <pre className={status === 'error' ? 'step-out error' : 'step-out'}>{res}</pre>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The parts' grouping (lib/convert.ts groupParts): a run of tool steps (and
+ * the reasoning between them) folds into one "Worked · N steps" block, like
+ * the terminal's. Its children — the steps — are mounted only while it is
+ * open. While a step runs, the block says so and names it.
+ */
+export function PartGroup({ groupKey, indices, children }: PropsWithChildren<{ groupKey: string | undefined; indices: number[] }>) {
+  const [open, setOpen] = useState(false)
+  const steps = useAuiState((s) => {
+    const content = s.message.content as readonly { type: string; args?: StepArgs; result?: unknown }[]
+    let n = 0
+    let running = ''
+    let errors = 0
+    for (const i of indices) {
+      const p = content[i]
+      if (p?.type !== 'tool-call') continue
+      n++
+      if (p.args?.status === 'running' || (p.result === undefined && !p.args?.status)) running = p.args?.title || ''
+      if (p.args?.status === 'error') errors++
+    }
+    return `${n}|${errors}|${running}`
+  })
+  if (!groupKey) return <>{children}</>
+  const [nStr, errStr, ...rest] = steps.split('|')
+  const running = rest.join('|')
+  const n = Number(nStr)
+  const errors = Number(errStr)
+  return (
+    <div className={open ? 'work-group open' : 'work-group'}>
+      <button className="work-head" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {running ? <span className="spinner small" /> : <span className="work-caret">{open ? '▾' : '▸'}</span>}
+        <span>
+          {running ? 'Working' : 'Worked'} · {n} step{n === 1 ? '' : 's'}
+          {errors > 0 && <span className="work-errors"> · {errors} failed</span>}
+        </span>
+        {running && !open && <span className="work-now">{running}</span>}
+      </button>
+      {open && <div className="work-steps">{children}</div>}
+    </div>
+  )
 }
 
 /**
@@ -116,30 +215,12 @@ export const PictureData: DataMessagePartComponent<{ src: string }> = ({ data })
 
 // ── Message furniture ─────────────────────────────────────────────────────
 
-/** "Worked 3m 38s · 11 steps", folding open to the steps (`line.work`). */
-export function WorkSummary() {
-  const { work } = useCustom()
-  if (!work || !work.count) return null
-  return (
-    <details className="work">
-      <summary>
-        Worked {duration(work.seconds)} · {work.count} step{work.count === 1 ? '' : 's'}
-      </summary>
-      <ol>
-        {work.steps.map((s, i) => (
-          <li key={i}>{s}</li>
-        ))}
-      </ol>
-    </details>
-  )
-}
-
 /**
  * Play/pause beside a spoken reply. The one being said now gets pause (or
  * resume — its state is the follow-along's, so the key and the bold agree);
- * any other with a speech-history row (`line.id`) gets ▶, which replays it
- * (`replay-id`, as ConversationLog.vue did on a tap). Lines never spoken
- * have no id and no key.
+ * any other with a speech-history row (`spoken.id`) gets ▶, which replays it
+ * (`replay-id`, as ConversationLog.vue did on a tap). Messages never spoken
+ * (or whose speech was not recognised, §6.2.2) have no id and no key.
  */
 export function MessageSpeechKey() {
   const { id, live } = useCustom()
@@ -159,7 +240,7 @@ export function MessageSpeechKey() {
   )
 }
 
-/** The chip for a slash command typed from the box (`line.command`). */
+/** The chip for a slash command typed from the box (`message.command`). */
 export function CommandChip() {
   const { command } = useCustom()
   if (!command) return null
@@ -284,8 +365,6 @@ export const AskToolUI: ToolCallMessagePartComponent<AskArgs> = ({ args }) => {
     </div>
   )
 }
-
-export const ToolFallback: ToolCallMessagePartComponent = ({ toolName }) => <div className="tool-card">{toolName}</div>
 
 // ── The running turn ──────────────────────────────────────────────────────
 

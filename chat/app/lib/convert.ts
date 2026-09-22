@@ -1,23 +1,29 @@
 /**
- * Log lines → assistant-ui messages, per server-contract.md §14.
+ * Messages → assistant-ui messages, per server-contract.md §14.
  *
- * | ThreadMessageLike | From the line                                         |
- * | id                | `${session}:${line.at}` — stable across live → done  |
- * | role              | who == "you" → user, else assistant                    |
- * | createdAt         | new Date(at * 1000)                                    |
- * | content           | text; one image part per `images`; `ask` → tool-call   |
- * | status            | complete; running for the live line while speaking     |
- * | metadata.custom   | {work, command, id, figure, live}                      |
+ * | ThreadMessageLike | From the message (§6.2.2)                                 |
+ * | id                | `message.id` — stable as the message grows                  |
+ * | role              | `message.role`                                              |
+ * | createdAt         | new Date(at * 1000)                                         |
+ * | content           | text → text (shownText: markers and markdown off); the      |
+ * |                   | trailing run of text parts — the reply that is spoken — is  |
+ * |                   | one text part; reasoning → reasoning (redacted → text ""); |
+ * |                   | tool → tool-call {args: {summary, title}, result} (no       |
+ * |                   | result while running, isError on error); ask → tool-call    |
+ * |                   | AskUserQuestion; pictures from `spoken.images`              |
+ * | status            | running while `turn.running`, else complete                 |
+ * | metadata.custom   | {command, spoken id, figure, live, liveText}                |
  *
- * `approval` (what is on screen now) is attached to the latest ask's tool
- * call when that ask is still the last thing said; otherwise it becomes a
- * message of its own at the foot of the thread, rendered by the same kind of
- * tool UI. Either way it is answered with POST /session/answer.
+ * `approval` (what is on screen now) is a message of its own at the foot of
+ * the thread, answered with POST /session/answer. (An AskUserQuestion is
+ * written to the transcript only once answered, so the one on screen is
+ * never among the messages — §6.2.2.)
  */
 import type { ThreadMessageLike } from '@assistant-ui/react'
 import { pictureUrl } from '../api'
-import type { Approval, AskQuestion, Line, SessionId, WorkSummary } from '../api/types'
+import type { Approval, AskQuestion, Message, SessionId } from '../api/types'
 import type { LiveClock } from './followAlong'
+import { replyStart, shownText, userText } from './messages'
 import type { PendingSend } from './pending'
 
 export const ASK_TOOL = 'AskUserQuestion'
@@ -25,17 +31,19 @@ export const APPROVAL_TOOL = 'SessionApproval'
 
 /** What the thread view holds; one of these per rendered message. */
 export type ChatItem =
-  | { kind: 'line'; session: SessionId; line: Line; live: LiveClock | null; approval: Approval | null; answeredWith: string[] }
+  | { kind: 'message'; session: SessionId; message: Message; live: LiveClock | null }
   | { kind: 'approval'; session: SessionId; approval: Approval }
-  /** Sent from here, not yet back in the log (lib/pending.ts). */
+  /** Sent from here, not yet back (lib/pending.ts). */
   | { kind: 'optimistic'; session: SessionId; send: PendingSend }
 
 export interface LineCustom {
-  work?: WorkSummary
-  command?: Line['command']
+  command?: Message['command']
+  /** Speech-history row for `replay-id`. */
   id?: number
   figure?: boolean
   live?: LiveClock | null
+  /** The text part the follow-along bolds: the spoken reply, as shown. */
+  liveText?: string
   optimistic?: boolean
   /** The pending send behind an optimistic message. */
   send?: PendingSend
@@ -45,9 +53,9 @@ export interface LineCustom {
 export interface AskArgs {
   session: SessionId
   questions: AskQuestion[]
-  /** Present while this ask is still the dialog on screen. */
+  /** Kept for the tool UI's shape; the ask on screen is the approval item. */
   approval: Approval | null
-  /** The listener's answer (the next "you" line), split on commas. */
+  /** The chosen label(s), lower-cased. */
   answeredWith: string[]
   [k: string]: unknown
 }
@@ -58,7 +66,22 @@ export interface ApprovalArgs {
   [k: string]: unknown
 }
 
+/** A tool step's args (§14: `{summary: input_summary, title}`), plus the name for the UI. */
+export interface StepArgs {
+  title: string
+  summary: string
+  status: 'running' | 'done' | 'error'
+  [k: string]: unknown
+}
+
 type Part = Exclude<ThreadMessageLike['content'], string>[number]
+
+function answeredWith(answer: string): string[] {
+  return (answer || '')
+    .split(/,\s*/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+}
 
 export function convertItem(item: ChatItem): ThreadMessageLike {
   if (item.kind === 'optimistic') {
@@ -88,92 +111,141 @@ export function convertItem(item: ChatItem): ThreadMessageLike {
     }
   }
 
-  const { line, session } = item
+  const { message: m, session } = item
+  const spoken = m.spoken
   const custom: LineCustom = {
-    work: line.work,
-    command: line.command ?? undefined,
-    id: line.id,
-    figure: line.figure,
+    command: m.command ?? undefined,
+    id: spoken?.id ?? undefined,
+    figure: spoken?.figure,
     live: item.live
   }
 
-  if (line.who === 'you') {
+  if (m.role === 'user') {
     return {
-      id: `${session}:${line.at}`,
+      id: m.id,
       role: 'user',
-      createdAt: new Date(line.at * 1000),
-      content: [{ type: 'text', text: line.text }],
+      createdAt: new Date(m.at * 1000),
+      content: [{ type: 'text', text: userText(m) }],
       metadata: { custom }
     }
   }
 
-  const content: Part[] = [{ type: 'text', text: line.text }]
-  for (const src of line.images || []) {
+  const content: Part[] = []
+  const reply = replyStart(m.parts)
+  m.parts.forEach((p, i) => {
+    if (reply >= 0 && i > reply) return // merged into the reply part below
+    if (reply >= 0 && i === reply) {
+      const text = m.parts
+        .slice(reply)
+        .map((x) => (x.type === 'text' ? shownText(x.text) : ''))
+        .filter(Boolean)
+        .join('\n\n')
+      if (text) {
+        content.push({ type: 'text', text })
+        custom.liveText = text
+      }
+      return
+    }
+    switch (p.type) {
+      case 'text': {
+        const text = shownText(p.text)
+        if (text) content.push({ type: 'text', text })
+        return
+      }
+      case 'reasoning':
+        // assistant-ui drops a reasoning part with no text AND no summary
+        // (thread-message-like.js), so a redacted one carries a summary:
+        // it stays a part — the "thought" marker — with its text empty.
+        if (p.redacted || !p.text) content.push({ type: 'reasoning', text: '', unstable_summary: 'thought' })
+        else content.push({ type: 'reasoning', text: p.text })
+        return
+      case 'tool': {
+        const args: StepArgs = { title: p.title || p.name, summary: p.input_summary || '', status: p.status, name: p.name }
+        content.push({
+          type: 'tool-call',
+          toolCallId: p.tool_use_id || `${m.id}:${i}`,
+          toolName: p.name || 'tool',
+          args: args as unknown as Record<string, never>,
+          ...(p.status === 'running' ? {} : { result: p.result_summary || '', isError: p.status === 'error' })
+        })
+        return
+      }
+      case 'ask': {
+        const args: AskArgs = { session, questions: p.ask || [], approval: null, answeredWith: answeredWith(p.answer) }
+        content.push({
+          type: 'tool-call',
+          toolCallId: p.tool_use_id || `${m.id}:${i}:ask`,
+          toolName: ASK_TOOL,
+          args: args as unknown as Record<string, never>,
+          result: { answered: args.answeredWith }
+        })
+        return
+      }
+    }
+  })
+  for (const src of spoken?.images || []) {
     const url = pictureUrl(src)
-    // §14 says image parts. assistant-ui's converter keeps an image part only
-    // for https:, blob: or data: URLs and silently drops the rest — and the
-    // canvas serves plain http on the tailnet. So an http picture travels as
-    // a `data-picture` part, rendered by the same component.
+    // §14: assistant-ui's converter keeps an image part only for https:,
+    // blob: or data: URLs and silently drops the rest — and the canvas
+    // serves plain http on the tailnet. So an http picture travels as a
+    // `data-picture` part, rendered by the same component.
     if (/^(https:|blob:|data:image\/)/i.test(url)) content.push({ type: 'image', image: url })
     else content.push({ type: 'data-picture', data: { src: url } })
   }
-  if (line.ask?.length) {
-    const args: AskArgs = { session, questions: line.ask, approval: item.approval, answeredWith: item.answeredWith }
-    content.push({
-      type: 'tool-call',
-      toolCallId: `${session}:${line.at}:ask`,
-      toolName: ASK_TOOL,
-      args: args as unknown as Record<string, never>,
-      // Answered and read-only once it is no longer the dialog on screen.
-      ...(item.approval ? {} : { result: { answered: item.answeredWith } })
-    })
-  }
 
   return {
-    id: `${session}:${line.at}`,
+    id: m.id,
     role: 'assistant',
-    createdAt: new Date(line.at * 1000),
+    createdAt: new Date(m.at * 1000),
     content,
-    status: line.live && !line.paused ? { type: 'running' } : { type: 'complete', reason: 'stop' },
+    status: m.turn?.running ? { type: 'running' } : { type: 'complete', reason: 'stop' },
     metadata: { custom }
   }
 }
 
 /**
- * Build the thread's items from a log poll. `approval` is attached to the
- * last line when it is an agent ask (that ask is still on screen, §14), else
- * appended as its own item.
+ * The thread's items: its messages (the live one carrying the clock), the
+ * sends not back yet, and the dialog on screen at the foot.
  */
 export function buildItems(args: {
   session: SessionId
-  lines: Line[]
+  messages: Message[]
   approval: Approval | null
   live: LiveClock | null
+  liveId: string | null
   optimistic: PendingSend[]
 }): ChatItem[] {
-  const { session, lines, approval, live } = args
-  const items: ChatItem[] = []
-  const last = lines[lines.length - 1]
-  const askOnScreen = !!approval && !!last && last.who === 'agent' && !!last.ask?.length
-  lines.forEach((line, i) => {
-    const next = lines[i + 1]
-    const answeredWith =
-      line.ask && next && next.who === 'you'
-        ? next.text
-            .split(',')
-            .map((s) => s.trim().toLowerCase())
-            .filter(Boolean)
-        : []
-    items.push({
-      kind: 'line',
-      session,
-      line,
-      live: line.live ? live : null,
-      approval: askOnScreen && line === last ? approval : null,
-      answeredWith
-    })
-  })
+  const { session, messages, approval, live, liveId } = args
+  const items: ChatItem[] = messages.map((message) => ({ kind: 'message', session, message, live: live && message.id === liveId ? live : null }))
   for (const send of args.optimistic) items.push({ kind: 'optimistic', session, send })
-  if (approval && !askOnScreen) items.push({ kind: 'approval', session, approval })
+  if (approval) items.push({ kind: 'approval', session, approval })
   return items
+}
+
+/**
+ * How the thread groups an assistant message's parts: each maximal run of
+ * tool calls and reasoning that holds at least one tool is one "Worked · N
+ * steps" block (the terminal folds them the same way); a run of reasoning
+ * alone stays as its own parts (a "Thinking" disclosure, or a small
+ * "thought" marker when redacted). Text, asks and pictures are never in a
+ * block.
+ */
+export function groupParts(parts: readonly { type: string; toolName?: string }[]): { groupKey: string | undefined; indices: number[] }[] {
+  const groups: { groupKey: string | undefined; indices: number[] }[] = []
+  const isStep = (p: { type: string; toolName?: string }) => p.type === 'reasoning' || (p.type === 'tool-call' && p.toolName !== ASK_TOOL && p.toolName !== APPROVAL_TOOL)
+  let i = 0
+  while (i < parts.length) {
+    if (!isStep(parts[i])) {
+      groups.push({ groupKey: undefined, indices: [i] })
+      i++
+      continue
+    }
+    let j = i
+    while (j < parts.length && isStep(parts[j])) j++
+    const run = Array.from({ length: j - i }, (_, k) => i + k)
+    if (run.some((k) => parts[k].type === 'tool-call')) groups.push({ groupKey: `work:${i}`, indices: run })
+    else for (const k of run) groups.push({ groupKey: undefined, indices: [k] })
+    i = j
+  }
+  return groups
 }

@@ -7,7 +7,8 @@ entry point; for now it builds to a static bundle.
 Stack: React 19 + TypeScript, React Router v7 in SPA mode (`ssr: false`),
 assistant-ui's `useExternalStoreRuntime`. It talks to agent-media's canvas
 through the routes in `agent-media/docs/server-contract.md`: §6 (v0), with
-§9 device pairing and §10 threads keyed by session (both built on red5 22 Sep
+§9 device pairing, §10 threads keyed by session, §6.2.2 messages read from
+the transcript and §11 the per-thread stream (all built on red5 22 Sep
 2026), bound to assistant-ui as in §14.
 
 ```
@@ -37,7 +38,19 @@ phone→red5 link (`GET /mock/delay?ms=N` changes it while running) — the way 
 see a cached open paint before the network answers.
 
 The mock (`mock/server.mjs`) answers every route the app uses (both keys:
-`?session=` and the v0 `?item=`) from invented fixtures: a reply being spoken
+`?session=` and the v0 `?item=`) from invented fixtures, including the §11
+stream `GET /threads/{session}/events` (a snapshot, then what changed every
+`MOCK_STREAM_TICK_MS`, default 100; a ping after `MOCK_PING_S`, default 15)
+and §6.2.2 `messages` on the log with `?messages=1` (`before`/`limit`
+paging). The fixtures are written as lines and their messages derived the
+way the server reads a transcript: a redacted thought, the turn's steps as
+tool parts with a line of narration, the reply last; a session at work gets
+a running message that its reply replaces (same id). `Mock: stream` is
+scripted from the tests: `GET /mock/stream/append?text=` lands a message now,
+`/mock/stream/turn` plays a whole turn (reasoning, a tool running → done, a
+second tool, the reply, then the reply spoken), `/mock/stream/drop` ends
+every open stream, `/mock/stream/refuse?on=1` refuses it (503) and
+`/mock/stream/stats` counts streams opened and log polls. The fixtures: a reply being spoken
 (follow-along), a permission prompt whose question changes every 45 s (a
 stale card gets 409 "the question has changed"), an AskUserQuestion on
 screen, a turn at work, a session not on the shelf yet (readable and
@@ -73,15 +86,27 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 ```
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
-and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals}.mjs` in headless
-Chromium at phone size: pairing and the one-request thread open,
+and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream}.mjs` in headless
+Chromium at phone size: pairing and the one-request thread open (its stream),
 follow-along on the real-shaped speech (default and Larger text), the top
 play/pause key (portrait, landscape, Larger), the skew correction against
 a stale `pos`, rename, the finished speech bar, the send race, and drafts
 (switch threads, reload, hidden, a newer copy from another device, send),
-and replies elsewhere (nothing moves; notice and dot) with the ↑/↓ pills. Playwright is not a
+and replies elsewhere (nothing moves; notice and dot) with the ↑/↓ pills,
+and the stream (`stream.mjs`: an appended message renders < 1 s after the
+mock's append with no polling — ~0.1 s on the mock; reasoning collapsed;
+steps grouped and mounted only when opened; follow-along on the stream's
+clock; a dropped stream reconnects to a snapshot with no duplicates; a
+refused one falls back to polling and comes back; Load earlier keeps the
+reader's place). Playwright is not a
 dependency; any playwright-core with its browsers in `~/.cache/ms-playwright`
 will do. Screenshots go to `$TMPDIR/sasonica-chat-shots`.
+
+`test/live.mjs` is the read-only check against a real canvas (not in
+`run.mjs`): it opens one thread's stream in the built app with a device
+token, aborts every non-GET request to the canvas, prints what rendered,
+and — on the canvas's own host — stats the session's transcript every 50 ms
+and times each write to the next change in the thread.
 
 ## Run against a real canvas
 
@@ -129,11 +154,13 @@ device code and passed through.
 | `app/routes/pairing.tsx` | Pair this device: a pasted link, or server + code; auto-pairs from `?pair=&server=` |
 | `app/api/types.ts` | shapes transcribed from §6/§9/§10, with notes where the live server differs |
 | `app/api/index.ts` | every call the app makes, keyed by session (§10) |
-| `app/lib/convert.ts` | log line → `ThreadMessageLike` (§14), approval attachment |
+| `app/lib/convert.ts` | §6.2.2 message → `ThreadMessageLike` (§14: text, `reasoning`, `tool-call`, the ask), the approval item, `groupParts` ("Worked · N steps" runs) |
+| `app/lib/messages.ts` | the words as shown (`[[visual:]]` markers and markdown off, as the speech strips them), the spoken reply, the live message, applying stream events, the cache's plain copy |
+| `app/lib/sse.ts` | a fetch-based SSE reader (the Authorization header; EventSource cannot set one) |
 | `app/lib/followAlong.ts` | live-line sentence clock, whitespace-faithful sentence split |
-| `app/hooks/useConversationLog.ts` | the adaptive poll (1 s live / 2 s working or approval / 15 s idle, setTimeout-based) |
+| `app/hooks/useThread.ts` | the thread's §11 stream: snapshot + events, heartbeat watchdog (45 s), reconnect with backoff, the polling fallback (§6.2 adaptive cadence) after 3 failures, stream retried every 30 s; older pages (`before`); sends |
 | `app/hooks/useThreads.ts` | `/targets`, `/sessions/state` (5 s) |
-| `app/lib/snapshots.ts`, `app/lib/store.ts` | the last good lines per thread (by session), and the list, in memory over IndexedDB (40 threads LRU); best-effort. `CACHE_VERSION` in store.ts drops old-shaped entries on upgrade |
+| `app/lib/snapshots.ts`, `app/lib/store.ts` | the last good messages per thread (by session, the newest 60, no live clock or running turn), and the list, in memory over IndexedDB (40 threads LRU); best-effort. `CACHE_VERSION` (3: messages) in store.ts drops old-shaped entries on upgrade |
 | `app/hooks/usePrefetch.ts` | warms the top 5 threads from the list, one at a time, low priority |
 | `app/hooks/useBottomFirst.ts` | newest 20 messages first, older ones added above, scroll pinned to the bottom |
 | `app/lib/drafts.ts`, `app/hooks/useDraft.ts` | the composer's text per thread: local copy, `/draft` push/reconcile, the send rules; the hook binds it to the composer |
@@ -145,7 +172,7 @@ device code and passed through.
 | `app/hooks/useFollowAlong.ts` | keeps the bold sentence on screen while the live line plays; holds off assistant-ui's own scrolling while a live line exists; "Follow along" pill, "New messages ↓" |
 | `app/lib/pictures.ts` | the per-device "Show ambient artwork" setting |
 | `app/components/Thread.tsx` | the assistant-ui runtime and thread layout |
-| `app/components/parts.tsx` | follow-along text, pictures, work summary, ask/approval tool UIs, working indicator |
+| `app/components/parts.tsx` | follow-along text, reasoning ("Thinking" / "thought"), tool steps and the "Worked · N steps" block, pictures, ask/approval tool UIs, working indicator |
 | `app/routes/*` | thread list, thread, new chat, settings |
 
 ## What works
@@ -158,13 +185,49 @@ device code and passed through.
   server that leaves it out shows the name the app asked for) — its server,
   id and Unpair; the ABS
   token lives on under Advanced / legacy.
-- Opening a thread is ONE request, `/conversation/log?session=` (§10) — no
-  session → item lookup, shelved or not — and it paints first from its saved
-  snapshot with "updating…" in the header. The list paints from its
-  snapshot too, and warms the top five threads in the background. A cached
-  live line is plain text until fresh data restarts the follow-along.
-  Blocked or private storage just means no cache. `fetchLogTail()` in
-  `api/index.ts` is where the server's coming `?tail=N` switches on.
+- A thread is its stream, `GET /threads/{session}/events` (§11) — ONE
+  request to open it, shelved or not, fetch-streamed with the device token
+  in the Authorization header. Why (David, 22 Sep 2026): turns reached the
+  terminal much sooner than the app, and the app had no reasoning. The
+  stream is read off the transcript the terminal draws from (the server
+  measured transcript append → event at 0.33 s median; the mock suite
+  measures event → rendered at ~0.1 s). Its first frame, `snapshot`,
+  REPLACES the thread (older pages loaded by hand are kept above it when
+  they join up), so a reconnect cannot duplicate anything; `message`
+  events are applied by id; `live` moves the follow-along clock; `working`,
+  `approval`, `suggestion`, `state`, `recap` replace their piece. Nothing
+  for 45 s (pings come every 15) is a dead connection: aborted and
+  reopened. Reconnects back off 1 s → 30 s; three failed connections in a
+  row (no snapshot, or open under 5 s) and the thread polls
+  `/conversation/log?session=&messages=1` at the §6.2 cadence instead
+  ("polling" in the header), trying the stream again every 30 s. Hidden,
+  the stream is closed; shown again, its snapshot is the catch-up.
+- It paints first from its saved messages with "updating…" in the header.
+  The list paints from its snapshot too, and warms the top five threads in
+  the background (the log's newest page, `messages=1`). A cached message
+  has no live clock and no running turn until the snapshot restores them.
+  Blocked or private storage just means no cache.
+- Messages (§6.2.2), not lines: every text part — the narration between
+  steps and the reply — shown plain (the `[[visual:]]` markers and
+  markdown are taken off the way the speech takes them off, so the
+  follow-along can walk the words); the reply (the trailing text parts, what
+  is spoken) is one part. Reasoning: a collapsed "Thinking" disclosure (the
+  text rendered only when opened), or — for redacted thinking, ~90 % on
+  red5 — a small "∴ thought" marker. Tool steps, with the reasoning between
+  them, fold into a "Worked · N steps" block (the terminal's grouping);
+  closed, it mounts nothing; opened, each step is its title and status
+  (✓ / ✕ / spinner), and a tap shows its input and result summaries. While
+  a step runs, the block says "Working · N steps" with a spinner and the
+  running step's title. Asks show read-only with the answer marked (a
+  transcript has an ask only once it is answered; the one on screen is the
+  approval card). Pictures come from `spoken.images`; ▶ replays
+  `spoken.id`; the follow-along is keyed by the live message's id.
+- "Load earlier" at the top when `older`: the page before the first
+  message (`before=<id>`), added above without moving the reader. The ↑
+  pill loads one too, and goes to its top.
+- isRunning: `state == "working"`, the last message's `turn.running`,
+  `working`, a send not yet answered, or (the stream has no `pending`) a
+  live session whose last message is the listener's.
 - Threads open at the foot, newest 20 messages first, older ones added
   above without a sweep or jump.
 - Composer: Enter is a new line, Ctrl/Cmd+Enter sends (hint shown only with
@@ -247,15 +310,17 @@ It passed the mock and failed on the phone because real live lines differ:
   name shows at once in the list, the header, the speech bar and the saved
   list (`lib/titles.ts`), and is rolled back if refused. `terminal: false`
   is not a failure: "Renamed." plus the server's `why`, quietly.
-- Thread view: `/conversation/log?session=` polled adaptively (a 404 "no
-  conversation for that session yet" keeps asking every 3 s); ids
-  `${session}:${at}`; ended live lines held until the server returns them
-  (no shrink-and-jump).
-- Follow-along: the live line's sentence in bold on a local clock between
-  polls; not advancing while paused.
-- Pictures (figure wide, ambient small), work summaries, the slash-command
-  chip, the ghost suggestion (fills the composer), the working indicator with
-  a running timer and step list.
+- A 404 ("no such session") on the stream falls to the poll, which keeps
+  asking every 3 s. Message ids are the transcript's (stable as a message
+  grows), so a reply replaces its running self in place.
+- Follow-along: the live message's sentence in bold on a local clock
+  between `live` events (sent only on a new sentence, pause, a skip, or
+  new offsets — never merely ticking); the sentences' growth without
+  offsets comes from the message's own `spoken.live`. Not advancing while
+  paused.
+- Pictures (figure wide, ambient small), the slash-command chip, the ghost
+  suggestion (fills the composer), the working indicator with a running
+  timer and step list.
 - Approvals as a human tool UI; numbered options → `POST /session/answer`;
   409 re-renders the new question with "The question changed — choose again".
   An AskUserQuestion still on screen gets live buttons; answered ones are

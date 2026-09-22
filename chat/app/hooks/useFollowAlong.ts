@@ -57,11 +57,11 @@ const SCROLL_SETTLE_MS = 700
 const PAGING_KEYS = new Set(['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'Home', 'End', ' '])
 
 /**
- * @param liveKey  the live line's identity (its `at`), or null when this
+ * @param liveKey  the live message's identity (its `id`), or null when this
  *                 thread has none
  * @param playing  the live line is not paused
  */
-export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveKey: number | null, playing: boolean) {
+export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveKey: string | null, playing: boolean) {
   const [detached, setDetached] = useState(false)
   const [ready, setReady] = useState(false)
   const movingUntilRef = useRef(0)

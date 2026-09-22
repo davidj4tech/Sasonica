@@ -1,13 +1,14 @@
 /**
  * One thread. The session comes from the URL, and it is all the page needs:
- * the log is asked by session (/conversation/log?session=, §10) — ONE
- * request to open a thread, shelved or not — and replies go to
- * /reply {session}. A thread that is not on the shelf yet is as readable
+ * the thread is its stream, `/threads/{session}/events` (§11) — ONE request
+ * to open a thread, shelved or not, whose first frame is the whole thread —
+ * with the polled log as the fallback (hooks/useThread.ts), and replies go
+ * to /reply {session}. A thread that is not on the shelf yet is as readable
  * and repliable as any other.
  *
- * A thread opened before paints from its saved snapshot at once
- * (lib/snapshots.ts), with "updating…" in the header until the first fresh
- * poll — never a spinner over content.
+ * A thread opened before paints from its saved messages at once
+ * (lib/snapshots.ts), with "updating…" in the header until the first
+ * snapshot — never a spinner over content.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
@@ -15,7 +16,7 @@ import { answer, ApiError, reply, stopSession } from '../api'
 import type { Approval } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
-import { useConversationLog } from '../hooks/useConversationLog'
+import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
 import { knownLive, knownTitle, useSessionStates } from '../hooks/useThreads'
 import { useRename } from '../hooks/useRename'
@@ -63,8 +64,8 @@ function ThreadPage({ session }: { session: string }) {
   const [menu, setMenu] = useState(false)
   const rename = useRename()
 
-  const log = useConversationLog(session)
-  useSeen(session, log.lines.length)
+  const log = useThread(session)
+  useSeen(session, log.messages.length)
   const states = useSessionStates()
   const [status, setStatus] = useState<Status>(null)
 
@@ -94,8 +95,8 @@ function ThreadPage({ session }: { session: string }) {
   }, [log.live, press, skew])
 
   const items = useMemo(
-    () => buildItems({ session, lines: log.lines, approval: log.approval, live, optimistic: log.optimistic }),
-    [session, log.lines, log.approval, live, log.optimistic]
+    () => buildItems({ session, messages: log.messages, approval: log.approval, live, liveId: log.liveId, optimistic: log.optimistic }),
+    [session, log.messages, log.approval, live, log.liveId, log.optimistic]
   )
 
   // The message shows at once ("sending…") and is replaced by the server's
@@ -175,16 +176,17 @@ function ThreadPage({ session }: { session: string }) {
     [session, log, discard, discardSend, onSend]
   )
 
-  // Live: /sessions/state lists it (polled), else the list said so, else
-  // a pane-less live line in the log itself. `closed` only when we know.
-  const state = states[session]
+  // Live: the stream says so (its snapshot and `state` events), else
+  // /sessions/state lists it (polled), else the list said so, else a live
+  // follow-along in the thread itself. `closed` only when we know.
+  const state = (log.state && log.state !== 'ended' ? log.state : null) || states[session]
   const listLive = knownLive(session)
-  const sessionLive = !!state || listLive === true || !!log.live
-  const closed = !sessionLive && listLive === false
+  const sessionLive = log.sessionLive ?? (!!state || listLive === true || !!log.live)
+  const closed = !sessionLive && (log.sessionLive === false || listLive === false)
 
   let empty: React.ReactNode = null
-  if (log.lines.length) {
-    // A snapshot or the log is on screen.
+  if (log.messages.length) {
+    // A snapshot or the thread is on screen.
   } else if (log.error) {
     empty = <p className="empty error">{log.error}</p>
   } else if (!log.loaded) {
@@ -207,6 +209,11 @@ function ThreadPage({ session }: { session: string }) {
           </button>
         </h1>
         {log.stale && <span className="updating">updating…</span>}
+        {!log.stale && log.transport === 'poll' && (
+          <span className="updating" title="The live stream is not reachable; checking every few seconds instead">
+            polling
+          </span>
+        )}
         {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
         <div className="menu-anchor">
           <button className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
@@ -250,10 +257,14 @@ function ThreadPage({ session }: { session: string }) {
         actions={actions}
         draftKey={session}
         empty={empty}
+        older={log.older && !log.stale}
+        onLoadEarlier={log.loadEarlier}
+        earlierLoading={log.earlier.loading}
+        earlierError={log.earlier.error}
         placeholder={closed ? 'Session closed. Sending resumes it' : undefined}
         speechBar={<SpeechBar here={session} />}
         status={
-          (status || (log.error && log.lines.length > 0)) && (
+          (status || (log.error && log.messages.length > 0)) && (
             <p className={status?.failed || !status ? 'status failed' : 'status'}>{status ? status.text : log.error}</p>
           )
         }
@@ -319,7 +330,7 @@ function useElapsedSkew(session: string, clock: LiveClock | null, now: SpeechNow
  * they land — no notice, no unread dot — while the page is visible; one
  * that lands while hidden is unread until the page shows again.
  */
-function useSeen(session: string, lines: number) {
+function useSeen(session: string, messages: number) {
   useEffect(() => {
     setOpenSession(session)
     const onVisible = () => {
@@ -333,6 +344,6 @@ function useSeen(session: string, lines: number) {
     }
   }, [session])
   useEffect(() => {
-    if (lines && document.visibilityState === 'visible') markSeen(session)
-  }, [session, lines])
+    if (messages && document.visibilityState === 'visible') markSeen(session)
+  }, [session, messages])
 }
