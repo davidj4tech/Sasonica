@@ -14,6 +14,9 @@
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.21",
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/local-notifications": "^7.0.7",
     "@react-router/node": "^7.18.4",
     "isbot": "^5.2.2",
     "react": "^19.3.0",
@@ -21,6 +24,7 @@
     "react-router": "^7.18.4"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
     "@react-router/dev": "^7.18.4",
     "@types/node": "^26.6.2",
     "@types/react": "^19.3.0",
