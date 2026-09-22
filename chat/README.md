@@ -556,6 +556,19 @@ What is native (all of it goes through `app/lib/native.ts`, a no-op on the web):
   settings. Speech plays in the OLD app; choosing earbuds or the speaker
   there still moves it (the active output device is global), but a Cast
   route chosen here would apply to Next only.
+- **The assistant button** (Default apps → Digital assistant → Sasonica
+  Next; the assist gesture, the power key's long press, an earbud's long
+  press): an `ACTION_ASSIST` filter on the activity, turned into a retained
+  `assist` event by `AssistPlugin.java`. `NativeHooks.tsx` opens `/new`
+  with a fresh stamp, and the new chat listens at once; the words wait 3 s
+  and send themselves unless the box is tapped or edited
+  (`hooks/useDictation.ts`). Set it by hand or with
+  `agent-phone-adb shell cmd role add-role-holder android.app.role.ASSISTANT com.sasonica.next 0`.
+  Only the intent arrives: no wake word, nothing over the lock screen.
+- **Dictation**: the composer's mic key (every thread), through the platform
+  recogniser's own screen (`SpeechInputPlugin.java`,
+  `ACTION_RECOGNIZE_SPEECH`), so the app has no RECORD_AUDIO permission;
+  the manifest's `<queries>` make the recogniser visible on Android 11+.
 
 Native code here is written fresh (SPDX Apache-2.0 headers); nothing is
 copied from the ABS-derived old app.
@@ -565,7 +578,7 @@ copied from the ABS-derived old app.
 - **Stop**: `onCancel` → `stopSession()` in `app/api/index.ts` throws "not
   available yet"; the double-press → `speech: "silence"` logic is in
   `useStop` (Thread.tsx). When §12 exists, only the function body changes.
-- Slash menu (`/commands`), resume/close, `/focus`, dictation,
+- Slash menu (`/commands`), resume/close, `/focus`,
   branch-from-here, `dry: true` routing for words that name a thread, the
   thread-list adapter (routing is React Router instead). Auto-scroll is
   assistant-ui's own, not the 8 s reader hold from ConversationLog.vue.

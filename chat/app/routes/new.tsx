@@ -6,7 +6,7 @@
  */
 import { BackLink } from '../components/Nav'
 import { useCallback, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { askNew } from '../api'
 import type { Agent } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
@@ -34,6 +34,9 @@ export default function NewThread() {
     return a && AGENTS.some((x) => x.id === a) ? a : 'claude'
   })
   const [status, setStatus] = useState<{ text: string; failed?: boolean } | null>(null)
+  // Opened by the phone's assistant button (components/NativeHooks.tsx): a
+  // stamp per press, and each new one listens straight away.
+  const assist = (useLocation().state as { assist?: number } | null)?.assist
 
   const onSend = useCallback(
     async (text: string) => {
@@ -77,6 +80,7 @@ export default function NewThread() {
         actions={noAnswer}
         placeholder="Start a new chat…"
         draftKey={NEW_CHAT}
+        listenNow={assist}
         speechBar={<SpeechBar />}
         empty={
           <div className="new-pickers">

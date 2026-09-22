@@ -283,6 +283,10 @@ a { color: var(--accent); }
 .composer .send, .composer .stop { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); font-size: 1.2rem; cursor: pointer; flex: none; }
 .composer .send:disabled { opacity: .35; cursor: default; }
 .composer .stop { background: var(--panel-2); color: var(--text); font-size: 0.933rem; }
+/* Dictation (hooks/useDictation.ts): only in the Android shell. */
+.composer .mic { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 0; background: var(--panel-2); color: var(--text); font-size: 1.1rem; cursor: pointer; flex: none; }
+.composer .mic.listening { animation: mic-pulse 1.2s ease-in-out infinite; }
+@keyframes mic-pulse { 50% { opacity: .45; } }
 
 /* New chat */
 .new-pickers { padding: 8px 4px; }

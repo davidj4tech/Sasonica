@@ -29,6 +29,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
+import { useDictation } from '../hooks/useDictation'
 import { useDraft, type DraftHandle } from '../hooks/useDraft'
 import { useFollowAlong } from '../hooks/useFollowAlong'
 import { ReadFromHere } from './ReadFromHere'
@@ -306,6 +307,8 @@ export interface ThreadProps {
    * the first place.
    */
   onResync?: () => void
+  /** A new value listens at once and sends the words after a countdown (the assistant button; hooks/useDictation.ts). */
+  listenNow?: number
 }
 
 /** How long a jump waits for its message to be drawn before giving up. */
@@ -497,6 +500,7 @@ export function Thread(props: ThreadProps) {
     suggestions,
     queue
   })
+  const dictation = useDictation(runtime, props.listenNow, props.placeholder || 'Say something back')
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -579,6 +583,7 @@ export function Thread(props: ThreadProps) {
                   submitMode="ctrlEnter"
                   enterKeyHint="enter"
                   placeholder={props.placeholder || 'Say something back…'}
+                  onPointerDown={dictation.hold}
                 >
                   {/* One line when empty, up to 8 as it fills (AutoGrow.tsx says why not assistant-ui's). */}
                   <AutoGrowTextarea rows={1} maxRows={8} />
@@ -589,8 +594,21 @@ export function Thread(props: ThreadProps) {
                     ■
                   </ComposerPrimitive.Cancel>
                 )}
+                {dictation.can && (
+                  <button
+                    type="button"
+                    className={dictation.listening ? 'mic listening' : 'mic'}
+                    aria-label="Dictate"
+                    title="Dictate"
+                    disabled={dictation.listening}
+                    onClick={dictation.listen}
+                  >
+                    🎙
+                  </button>
+                )}
                 <ComposerPrimitive.Send className="send">↑</ComposerPrimitive.Send>
               </ComposerPrimitive.Root>
+              {dictation.sendIn > 0 && <p className="status">Sending in {dictation.sendIn}… tap the text to edit it</p>}
               {/* Only where there is a real keyboard: app.css hides it on touch-only devices. */}
               <p className="send-hint">{SEND_KEYS} to send</p>
               </>

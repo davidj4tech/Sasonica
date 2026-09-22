@@ -6,6 +6,10 @@
  * - SecureStore: secrets sealed under an Android Keystore key
  *   (SecureStorePlugin.java). Used by api/auth.ts for the device token.
  * - OutputSwitcher: Android's media output picker (OutputSwitcherPlugin.java).
+ * - Assist: the phone's assistant button (AssistPlugin.java) — opens a new
+ *   chat that listens at once (components/NativeHooks.tsx).
+ * - SpeechInput: dictation through the platform recogniser
+ *   (SpeechInputPlugin.java), for the composer's mic key.
  * - Local notifications for replies elsewhere while the app is in the
  *   background (lib/arrivals.ts calls notifyArrival()). Delivered only while
  *   the WebView is still running JS: see README "Android shell" for what true
@@ -44,6 +48,58 @@ export async function openOutputSwitcher(): Promise<void> {
     await OutputSwitcher.open()
   } catch {
     // No picker on this device; nothing to show.
+  }
+}
+
+// ── The assistant button ──────────────────────────────────────────────────
+
+interface AssistPlugin {
+  addListener(event: 'assist', fn: (e: { at: number }) => void): Promise<{ remove: () => Promise<void> }>
+}
+const Assist = registerPlugin<AssistPlugin>('Assist')
+
+/** The phone's assistant button was pressed (retained across a cold start). Returns the unsubscribe. */
+export function onAssist(fn: () => void): () => void {
+  if (!isNative()) return () => {}
+  let remove: (() => void) | null = null
+  let gone = false
+  Assist.addListener('assist', () => fn())
+    .then((h) => {
+      if (gone) void h.remove()
+      else remove = () => void h.remove()
+    })
+    .catch(() => {})
+  return () => {
+    gone = true
+    remove?.()
+  }
+}
+
+// ── Dictation ─────────────────────────────────────────────────────────────
+
+interface SpeechInputPlugin {
+  available(): Promise<{ available: boolean }>
+  listen(o: { prompt: string }): Promise<{ text: string }>
+}
+const SpeechInput = registerPlugin<SpeechInputPlugin>('SpeechInput')
+
+let canDictateP: Promise<boolean> | null = null
+/** Whether the phone has a speech recogniser (asked once). Never on the web. */
+export function canDictate(): Promise<boolean> {
+  return (canDictateP ??= isNative()
+    ? SpeechInput.available()
+        .then((r) => !!r.available)
+        .catch(() => false)
+    : Promise.resolve(false))
+}
+
+/** Listen once; the words heard, or '' (cancelled, silence, no recogniser). */
+export async function dictate(prompt: string): Promise<string> {
+  if (!isNative()) return ''
+  try {
+    return (await SpeechInput.listen({ prompt })).text.trim()
+  } catch {
+    return ''
   }
 }
 

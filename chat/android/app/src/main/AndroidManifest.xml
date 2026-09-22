@@ -29,7 +29,8 @@
                  the power key's long press and an earbud's long press open it
                  (David, 22 Sep 2026: Next takes the slot from the old
                  Sasonica). Only the intent arrives: no microphone, no
-                 lock-screen session. -->
+                 lock-screen session. AssistPlugin turns it into a new chat
+                 that starts dictation itself. -->
             <intent-filter>
                 <action android:name="android.intent.action.ASSIST" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -53,4 +54,17 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- "New reply" / "Needs you" (Android 13+ asks for it at run time). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Dictation (SpeechInputPlugin): Android 11+ hides other apps' services
+         unless the app says which it looks for, and without these the
+         recogniser is invisible — resolveActivity returns null and
+         isRecognitionAvailable says no, on a phone that has both. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
 </manifest>

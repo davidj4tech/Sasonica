@@ -16,6 +16,8 @@ public class MainActivity extends BridgeActivity {
         // Local plugins must be registered before the bridge starts.
         registerPlugin(SecureStorePlugin.class);
         registerPlugin(OutputSwitcherPlugin.class);
+        registerPlugin(AssistPlugin.class);
+        registerPlugin(SpeechInputPlugin.class);
         super.onCreate(savedInstanceState);
         fitWebViewToBarsAndKeyboard();
         backClosesMenusFirst();
