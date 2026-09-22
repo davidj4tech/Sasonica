@@ -594,6 +594,12 @@ a { color: var(--accent); }
 .row-project, .thread-project { display: block; font-family: var(--font-body); font-size: .75em; font-weight: 400; line-height: 1.2; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .recap-head .title-col .dash-title { flex: none; }
 .bar h1 .title-button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* The thread's status rides the project line, leaving the title the bar's width */
+.thread-sub { display: flex; align-items: center; gap: 6px; min-width: 0; font-family: var(--font-body); font-weight: 400; line-height: 1.2; }
+.thread-sub:empty { display: none; }
+.thread-sub .thread-project { flex: 0 1 auto; }
+.thread-sub .badge { flex: none; padding: 0 6px; font-size: .7rem; }
+.thread-sub .updating { flex: none; font-size: .7rem; }
 
 /* ── The thread list's sort control and By project headings ────────────── */
 .list-tools { display: flex; justify-content: flex-end; padding: 2px 12px 0; }

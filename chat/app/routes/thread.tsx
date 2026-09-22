@@ -247,16 +247,19 @@ function ThreadPage({ session }: { session: string }) {
           <button className="title-button" onClick={() => setRenaming(true)} title="Rename">
             {title}
           </button>
-          {project && <span className="thread-project">{project}</span>}
-        </h1>
-        {log.stale && <span className="updating">updating…</span>}
-        {!log.stale && log.transport === 'poll' && (
-          <span className="updating" title="The live stream is not reachable; checking every few seconds instead">
-            polling
+          {/* status sits under the title, beside the project, so the title gets the bar's full width */}
+          <span className="thread-sub">
+            {project && <span className="thread-project">{project}</span>}
+            {log.stale && <span className="updating">updating…</span>}
+            {!log.stale && log.transport === 'poll' && (
+              <span className="updating" title="The live stream is not reachable; checking every few seconds instead">
+                polling
+              </span>
+            )}
+            {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
+            {archived && <span className="badge archived">Archived</span>}
           </span>
-        )}
-        {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
-        {archived && <span className="badge archived">Archived</span>}
+        </h1>
         <div className="menu-anchor">
           <button ref={menuButton} className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
             ⋮
