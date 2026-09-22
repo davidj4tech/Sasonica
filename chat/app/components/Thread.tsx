@@ -291,6 +291,14 @@ export interface ThreadProps {
   readOnly?: boolean
   /** A search hit (§6.14): scroll to this message and light these words, once it is on screen. */
   jumpTo?: { id: string; terms: string[] } | null
+  /**
+   * "Follow along" was pressed: re-read where the voice actually is, as
+   * well as putting the bold sentence back on screen (routes/thread.tsx
+   * useElapsedSkew resync). The pill is the one place a reader says "this
+   * is not where you are" — a drifted bold is what sends them scrolling in
+   * the first place.
+   */
+  onResync?: () => void
 }
 
 /** How long a jump waits for its message to be drawn before giving up. */
@@ -505,7 +513,13 @@ export function Thread(props: ThreadProps) {
               {(follow.detached || (newBelow > 0 && follow.guarded)) && (
                 <div className="float-pills">
                   {follow.detached && (
-                    <button className="follow-pill" onClick={follow.resume}>
+                    <button
+                      className="follow-pill"
+                      onClick={() => {
+                        props.onResync?.()
+                        follow.resume()
+                      }}
+                    >
                       Follow along
                     </button>
                   )}

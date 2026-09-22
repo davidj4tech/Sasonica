@@ -104,7 +104,14 @@ function ThreadPage({ session }: { session: string }) {
     else if (heldRef.current.seen !== log.live) heldRef.current = null
   }
   const press = barPress || heldRef.current?.press || null
-  const skew = useElapsedSkew(session, log.live, speech.now, speech.nowAskedAt)
+  // The "Follow along" pill re-reads the voice's position as well as
+  // re-centring the words (hooks/useFollowAlong.ts).
+  const { refresh: refreshSpeech } = speech
+  const askBoth = useCallback(() => {
+    refreshSpeech()
+    refresh()
+  }, [refreshSpeech, refresh])
+  const { skew, resync } = useElapsedSkew(session, log.live, speech.now, speech.nowAskedAt, askBoth)
   const live = useMemo(() => {
     const clock = log.live && press ? withPaused(log.live, press.paused, press.at) : log.live
     return clock ? withSkew(clock, skew) : clock
@@ -332,6 +339,7 @@ function ThreadPage({ session }: { session: string }) {
         placeholder={closed ? 'Session closed. Sending resumes it' : undefined}
         speechBar={<SpeechBar here={session} />}
         jumpTo={jumpTo}
+        onResync={resync}
         status={
           (status || (log.error && log.messages.length > 0)) && (
             <p className={status?.failed || !status ? 'status failed' : 'status'}>{status ? status.text : log.error}</p>
@@ -398,7 +406,13 @@ const SKEW_FLOOR_BIAS_S = 0.1
  * the last SKEW_SAMPLES) is the estimate, less its small expected
  * over-read. Not playing, another thread, no `pos`: 0.
  */
-function useElapsedSkew(session: string, clock: LiveClock | null, now: SpeechNow | null, askedAt: number): number {
+function useElapsedSkew(
+  session: string,
+  clock: LiveClock | null,
+  now: SpeechNow | null,
+  askedAt: number,
+  ask: () => void
+): { skew: number; resync: () => void } {
   const [skew, setSkew] = useState(0)
   const samplesRef = useRef<number[]>([])
   const clockRef = useRef(clock)
@@ -416,9 +430,32 @@ function useElapsedSkew(session: string, clock: LiveClock | null, now: SpeechNow
     const samples = [...samplesRef.current.slice(-(SKEW_SAMPLES - 1)), elapsedThen - now.pos]
     samplesRef.current = samples
     const floor = Math.min(...samples) - SKEW_FLOOR_BIAS_S
-    setSkew(floor > SKEW_MIN_S ? Math.round(floor * 10) / 10 : 0)
+    if (floor > SKEW_MIN_S) {
+      setSkew(Math.round(floor * 10) / 10)
+      return
+    }
+    // d BELOW zero is the other case: the player is past the log's clock,
+    // so the bold is behind the voice (a skip taken elsewhere, a clock that
+    // was frozen while the voice ran on). Staleness and the dropped
+    // fraction of a second can only push d up, never down, so a negative d
+    // is trustworthy on sight; the UPPER envelope is the conservative one
+    // there, as the lower is for a lead.
+    const ceil = Math.max(...samples)
+    setSkew(ceil < -SKEW_MIN_S ? Math.round(ceil * 10) / 10 : 0)
   }, [now, askedAt, session])
-  return skew
+  /**
+   * The reader says the bold is not where the voice is: start the estimate
+   * again from a fresh answer. The window is dropped (a lead measured
+   * before a skip means nothing now) and both sources are asked at once —
+   * /speech/now for the player's position, the log for a fresh `elapsed`
+   * and anchor. The skew already applied is kept until the new sample
+   * lands, so the bold does not jump and come back.
+   */
+  const resync = useCallback(() => {
+    samplesRef.current = []
+    ask()
+  }, [ask])
+  return { skew, resync }
 }
 
 /**

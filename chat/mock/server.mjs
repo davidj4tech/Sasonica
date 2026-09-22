@@ -617,6 +617,13 @@ function spokenTurns() {
 const REAL_VOICE = process.env.MOCK_REAL_VOICE === '1'
 export const realPlayerPos = (elapsed) => Math.max(0, 0.98 * elapsed - 1.4)
 const realSnap = { t: 0, pos: 0 }
+/**
+ * Seconds the player has been moved by something the app did not do — a
+ * skip at the desk, a media key (GET /mock/real/jump?by=). `elapsed` does
+ * not move with it, so the app's clock is left behind the voice, which is
+ * what the "Follow along" pill resyncs. Cleared by /mock/real/restart.
+ */
+let realJump = 0
 function realVoiceNow() {
   const s = Object.values(S).find((x) => x.variant === 'real')
   if (!s || s.real.hold) return null
@@ -625,7 +632,7 @@ function realVoiceNow() {
   if (e < 0 || e >= REAL_LEN_S) return null
   if (t - realSnap.t >= 1) {
     realSnap.t = t
-    realSnap.pos = realPlayerPos(e)
+    realSnap.pos = Math.max(0, realPlayerPos(e) + realJump)
   }
   return { ok: true, live: true, speaking: e >= 2, paused: e < 2, sentence: '', session: s.session, title: s.title, item: s.item, pos: Math.floor(realSnap.pos), dur: Math.ceil(REAL_LEN_S), speed: 1, muted: false }
 }
@@ -1371,8 +1378,17 @@ createServer(async (req, res) => {
     const lead = Number(url.searchParams.get('in') || 0)
     const hold = url.searchParams.get('ended') === '1'
     for (const x of Object.values(S)) if (x.real) x.real = { start: now() + lead, appended: 0, hold }
+    realJump = 0
+    realSnap.t = 0
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end('ok')
+  }
+  if (path === '/mock/real/jump') {
+    // Tests: the player is `by` seconds further on than `elapsed` says.
+    realJump += Number(url.searchParams.get('by') || 0)
+    realSnap.t = 0
+    res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
+    return res.end(String(realJump))
   }
   if (path === '/mock/reply') {
     const q = url.searchParams

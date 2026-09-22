@@ -99,11 +99,12 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
 (and 8813 for `dashboard.mjs`, which answers the same questions `ask.mjs`
-does) and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream,notes,notes-edit,sessions,brand,ask,dashboard}.mjs` in headless
+does) and runs `test/{pair,follow,keys,skew,resync,rename,finished,send,draft,arrivals,stream,notes,notes-edit,sessions,brand,ask,dashboard}.mjs` in headless
 Chromium at phone size: pairing and the one-request thread open (its stream),
 follow-along on the real-shaped speech (default and Larger text), the top
 play/pause key (portrait, landscape, Larger), the skew correction against
-a stale `pos`, rename, the finished speech bar, the send race, and drafts
+a stale `pos`, the "Follow along" pill catching a skip taken elsewhere
+(`resync.mjs`), rename, the finished speech bar, the send race, and drafts
 (switch threads, reload, hidden, a newer copy from another device, send),
 and replies elsewhere (nothing moves; notice and dot) with the ↑/↓ pills,
 and the stream (`stream.mjs`: an appended message renders < 1 s after the
@@ -348,6 +349,16 @@ device code and passed through.
   the view; "New messages ↓" offers them. Paused: nothing moves. Ended: back
   to the foot if you were following, else your place is kept. Sending takes
   you to the foot.
+- **The pill resyncs as well as re-centres.** A reader pressing "Follow
+  along" is saying "this is not where you are", which is as often the bold
+  being on the wrong sentence as it is the wrong scroll. So the press drops
+  the skew window (`routes/thread.tsx` `useElapsedSkew`) and asks
+  `/speech/now` and the log at once, instead of waiting out the eight
+  answers (~12 s) the sliding estimate needs to forget a lead that a skip
+  elsewhere has just made meaningless. The estimate also works both ways
+  now: `pos` running AHEAD of the log's `elapsed` (a skip at the desk, a
+  media key, a clock frozen while the voice ran on) moves the bold forward,
+  where before only a lead was ever taken off. `test/resync.mjs`.
 
 ### Follow-along on real data (red5, 22 Sep 2026)
 

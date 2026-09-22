@@ -84,6 +84,12 @@ export interface Speech {
   dismissFinished: () => void
   /** Called after every press settles (ok or not). Returns the unsubscribe. */
   onSettled: (fn: () => void) => () => void
+  /**
+   * Ask /speech/now at once instead of waiting for the next tick — for a
+   * reader who says the words on screen are not where the voice is
+   * (the thread's "Follow along" pill, routes/thread.tsx useElapsedSkew).
+   */
+  refresh: () => void
 }
 
 /** The keys alone: stable for the life of the app, so a message that only
@@ -291,9 +297,10 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
       replayFrom,
       resetTurns: () => setHistIdx(1),
       dismissFinished: () => setFinished(null),
-      onSettled
+      onSettled,
+      refresh: kick
     }),
-    [now, serverAskedAt, finishedShown, error, override, histIdx, publicCtl, toggle, prevTurn, nextTurn, replayLatest, replayId, gotoSentence, replayFrom, onSettled]
+    [now, serverAskedAt, finishedShown, error, override, histIdx, publicCtl, toggle, prevTurn, nextTurn, replayLatest, replayId, gotoSentence, replayFrom, onSettled, kick]
   )
 
   const actions = useMemo<SpeechActions>(
