@@ -95,3 +95,23 @@
 .setup-screen { margin: 0; padding: 8px 10px; max-height: 18rem; overflow: auto; font: .733rem/1.4 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); }
 .setup-type { display: flex; gap: 6px; padding: 8px 10px; }
 .setup-type input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+
+/* Marking done from the list: the ○ key before a row, and the Undo toast. */
+.note-item { display: flex; align-items: stretch; }
+.note-item .note-row { flex: 1; min-width: 0; padding-left: 2px; }
+.done-key { flex: none; width: 2.6rem; display: grid; place-items: center; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: 0; }
+button.done-key:hover, button.done-key:focus-visible { color: var(--accent); }
+.note-toast { position: relative; display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 6px 6px 6px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 2px 12px #0004; flex: none; }
+.note-toast .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-toast.error { border-color: var(--bad); color: var(--bad); }
+
+/* The reader's state keys and Move to… */
+.note-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex: none; }
+.state-key { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: .8rem; font-weight: 600; letter-spacing: .03em; color: var(--muted); cursor: pointer; }
+.state-key.on { color: var(--accent); border-color: var(--accent); }
+.state-key:disabled { cursor: default; }
+.state-key.move { margin-left: auto; color: var(--text); font-weight: 400; letter-spacing: 0; }
+.move-head { margin: 0; font-weight: 600; }
+.move-targets { display: flex; flex-direction: column; gap: 8px; }
+.move-targets button { text-align: left; }
+.move-sheet .move-date { display: flex; flex-direction: column; gap: 12px; }

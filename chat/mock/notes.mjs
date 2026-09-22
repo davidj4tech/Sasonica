@@ -3,7 +3,8 @@
  * invented Org tree in memory. Captures append to it; `say` and setup
  * actions are recorded, never run. `GET /mock/notes` shows what was
  * written; `?reset=1` puts the tree back; `?unset=1` empties it, so the
- * app sees a server with no notes (the setup path).
+ * app sees a server with no notes (the setup path); `?drop=<title>` takes a
+ * heading out, as an edit at the desk would.
  */
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -12,7 +13,8 @@ const addDays = (n) => new Date(Date.now() + n * 86400e3).toISOString().slice(0,
 function fixtures() {
   return {
     'inbox.org': `#+title: Inbox\n\n* THIS WEEK\n** TODO Water the fern\n   SCHEDULED: <${addDays(-2)} Mon>\n   The big one by the window.\n** NEXT [#A] Ring the plumber :phone:\n   DEADLINE: <${addDays(1)} Wed>\n** DONE Posted the parcel\n* LATER\n** WAITING Library hold on the atlas\n`,
-    'tickler.org': `#+title: Tickler\n\n* Tickler\n** TODO Renew the passport\n   SCHEDULED: <${today()} Tue>\n`,
+    'tickler.org': `#+title: Tickler\n\n* Tickler\n** TODO Renew the passport\n   SCHEDULED: <${today()} Tue>\n** TODO Stretch\n   SCHEDULED: <${addDays(-1)} Mon +1d>\n`,
+    'next-actions.org': `#+title: Next actions\n\n* Inbox\n** NEXT Sharpen the shears\n`,
     'roam/projects/garden.org': `:PROPERTIES:\n:ID: garden-id\n:END:\n#+title: Garden plan\n\nBeds by the fence. See [[id:seeds-id][seed list]].\n\n* Spring\n- [X] dig the beds\n- [ ] sow the /beans/\n`,
     'roam/projects/seeds.org': `:PROPERTIES:\n:ID: seeds-id\n:END:\n#+title: Seed list\n\n- beans\n- peas\n`,
     'roam/sessions/inbox/s1.org': `#+title: An agent session\n\nThe fern came up here too.\n`
@@ -21,7 +23,7 @@ function fixtures() {
 
 let FILES = fixtures()
 const SETUP = { unset: false, synced: true, paragtd: false }
-export const NOTES_LOG = { captures: [], said: [], setup: [] }
+export const NOTES_LOG = { captures: [], said: [], setup: [], edits: [] }
 
 const STATES = ['TODO', 'NEXT', 'WAITING', 'SOMEDAY', 'DONE', 'CANCELLED']
 const HEAD = new RegExp(`^(\\*+)\\s+(?:(${STATES.join('|')})\\s+)?(?:\\[#([A-C])\\]\\s+)?(.*?)(?:\\s+(:[\\w@:]+:))?\\s*$`)
@@ -43,6 +45,7 @@ const titleOf = (p) => /#\+title:\s*(.+)/i.exec(FILES[p] || '')?.[1] || p.split(
 
 const VIEWS = [
   { name: 'inbox', label: 'Inbox', file: 'inbox.org' },
+  { name: 'next', label: 'Next actions', file: 'next-actions.org' },
   { name: 'tickler', label: 'Tickler', file: 'tickler.org' }
 ]
 const FOLDERS = [
@@ -128,6 +131,68 @@ export async function notesRoute(method, path, q, body, ok, err) {
     NOTES_LOG.captures.push({ text, kind })
     return ok({ path: 'inbox.org', at, kind, remembered: body.memory !== false })
   }
+  if (method === 'POST' && (path === '/notes/state' || path === '/notes/refile')) {
+    // The same finding rule as the server: the line if it still holds the
+    // title, else the one heading with that title, else 409.
+    const p = String(body.path || '')
+    if (!(p in FILES) || p.startsWith('roam/')) return err(400, 'only the GTD files (inbox, next actions, …) can be changed here')
+    const lines = FILES[p].replace(/\n$/, '').split('\n')
+    const titleAt = (i) => HEAD.exec(lines[i] || '')?.[4]
+    let i = Number(body.at || 0) - 1
+    if (titleAt(i) !== body.title) {
+      const hits = lines.map((_, j) => j).filter((j) => titleAt(j) === body.title)
+      if (hits.length !== 1) return err(409, 'that heading is not there any more (the file changed?)')
+      i = hits[0]
+    }
+    const m = HEAD.exec(lines[i])
+    const level = m[1].length
+    const setState = (line, st) => { const h = HEAD.exec(line); return [h[1], st, h[3] ? `[#${h[3]}]` : '', h[4]].filter(Boolean).join(' ') + (h[5] ? ' ' + h[5] : '') }
+    NOTES_LOG.edits.push({ path, ...body })
+    if (path === '/notes/state') {
+      const st = String(body.state || '').toUpperCase()
+      const plan = /^\s*(SCHEDULED|DEADLINE|CLOSED):/.test(lines[i + 1] || '') ? i + 1 : -1
+      const rep = plan >= 0 && /<(\d{4}-\d{2}-\d{2})[^>]*\+(\d+)d>/.exec(lines[plan])
+      if (st === 'DONE' && rep && m[2] !== 'DONE') {
+        const next = new Date(new Date(rep[1] + 'T12:00:00Z').getTime() + Number(rep[2]) * 86400e3).toISOString().slice(0, 10)
+        lines[plan] = lines[plan].replace(rep[1], next)
+        FILES[p] = lines.join('\n') + '\n'
+        return ok({ path: p, at: i + 1, state: m[2] || '', repeated: true, next })
+      }
+      lines[i] = setState(lines[i], st)
+      if (st === 'DONE' && m[2] !== 'DONE') lines.splice(i + 1, 0, ' '.repeat(level + 1) + `CLOSED: [${today()}]`)
+      else if (st !== 'DONE' && m[2] === 'DONE' && /^\s*CLOSED:/.test(lines[i + 1] || '')) lines.splice(i + 1, 1)
+      FILES[p] = lines.join('\n') + '\n'
+      return ok({ path: p, at: i + 1, state: st, repeated: false })
+    }
+    const targets = { next: ['next-actions.org', 'Inbox', 'NEXT'], waiting: ['waiting-for.org', 'Waiting', 'WAITING'], tickler: ['tickler.org', 'Tickler', null], someday: ['someday.org', null, null], projects: ['projects.org', null, null], inbox: ['inbox.org', null, null] }
+    const t = targets[body.to]
+    if (!t) return err(400, `cannot move a heading to '${body.to}'`)
+    if (t[0] === p) return err(400, `it is already in ${p}`)
+    if (body.to === 'tickler' && !/^\d{4}-\d{2}-\d{2}$/.test(body.date || '')) return err(400, 'the tickler needs a date (YYYY-MM-DD)')
+    let end = lines.length
+    for (let j = i + 1; j < lines.length; j++) { const n = HEAD.exec(lines[j]); if (n && n[1].length <= level) { end = j; break } }
+    let tree = lines.splice(i, end - i)
+    FILES[p] = lines.join('\n') + '\n'
+    const newLevel = t[1] ? 2 : 1
+    tree = tree.map((ln) => { const h = /^(\*+)(\s.*)$/.exec(ln); return h ? '*'.repeat(h[1].length - level + newLevel) + h[2] : ln })
+    if (t[2]) tree[0] = setState(tree[0], t[2])
+    if (body.date) tree.splice(1, 0, ' '.repeat(newLevel + 1) + `SCHEDULED: <${body.date}>`)
+    const dst = (FILES[t[0]] || '').replace(/\n+$/, '').split('\n').filter((x, k, a) => a.length > 1 || x)
+    let at
+    if (t[1]) {
+      let h = dst.findIndex((ln) => ln === `* ${t[1]}`)
+      if (h < 0) { dst.push(`* ${t[1]}`); h = dst.length - 1 }
+      let ins = dst.length
+      for (let j = h + 1; j < dst.length; j++) if (/^\*\s/.test(dst[j])) { ins = j; break }
+      dst.splice(ins, 0, ...tree)
+      at = ins + 1
+    } else {
+      at = dst.length + 1
+      dst.push(...tree)
+    }
+    FILES[t[0]] = dst.join('\n') + '\n'
+    return ok({ path: t[0], at, to: body.to })
+  }
   if (method === 'POST' && path === '/notes/say') {
     const p = String(body.path || '')
     if (!(p in FILES)) return err(404, 'no such note')
@@ -187,11 +252,15 @@ export function mockNotesControl(q) {
     SETUP.unset = false
     SETUP.paragtd = false
     screenPolls = 0
-    NOTES_LOG.captures.length = NOTES_LOG.said.length = NOTES_LOG.setup.length = KEYS_LOG.length = 0
+    NOTES_LOG.captures.length = NOTES_LOG.said.length = NOTES_LOG.setup.length = NOTES_LOG.edits.length = KEYS_LOG.length = 0
   }
   if (q.get('unset')) {
     FILES = {}
     SETUP.unset = true
   }
-  return { ...NOTES_LOG, keys: KEYS_LOG, inbox: FILES['inbox.org'] || '' }
+  if (q.get('drop')) {
+    // A heading taken away behind the app's back (an edit at the desk).
+    for (const p of Object.keys(FILES)) FILES[p] = FILES[p].split('\n').filter((ln) => HEAD.exec(ln)?.[4] !== q.get('drop')).join('\n')
+  }
+  return { ...NOTES_LOG, keys: KEYS_LOG, inbox: FILES['inbox.org'] || '', files: FILES }
 }

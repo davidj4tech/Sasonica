@@ -99,7 +99,7 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
 (and 8813 for `dashboard.mjs`, which answers the same questions `ask.mjs`
-does) and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream,notes,sessions,brand,ask,dashboard}.mjs` in headless
+does) and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream,notes,notes-edit,sessions,brand,ask,dashboard}.mjs` in headless
 Chromium at phone size: pairing and the one-request thread open (its stream),
 follow-along on the real-shaped speech (default and Larger text), the top
 play/pause key (portrait, landscape, Larger), the skew correction against
@@ -205,7 +205,7 @@ device code and passed through.
 | `app/components/Machines.tsx` | the hosts: memory ring (green → amber at 70 % → red at 85 % or the reaper's "tight"), session count, service and online dots, a tap for the numbers |
 | `app/components/OutputSheet.tsx` | where speech plays: /audio/targets, POST /audio/target (§6.9) |
 | `app/components/AutoGrow.tsx` | the composer's box: one line empty, grows to 8 rows, re-measured when its width changes |
-| `app/api/notes.ts`, `app/routes/notes.tsx`, `note.tsx`, `notes-setup.tsx`, `app/lib/org.tsx`, `app/notes.css` | the Notes tab (§6.10): views, one note, the setup checklist and its window; Org rendered for reading; its own stylesheet. Pages live under `/notebook/…` so they never share a path with the `/notes` API on a one-port server |
+| `app/api/notes.ts`, `app/routes/notes.tsx`, `note.tsx`, `notes-setup.tsx`, `app/components/MoveSheet.tsx`, `app/lib/org.tsx`, `app/notes.css` | the Notes tab (§6.10): views, one note, the setup checklist and its window; Org rendered for reading; its own stylesheet. Pages live under `/notebook/…` so they never share a path with the `/notes` API on a one-port server |
 | `mock/notes.mjs` | the notes routes on the mock: an invented Org tree; `GET /mock/notes` shows captures/says/setup (`?reset=1`, `?unset=1`) |
 
 ## What works
@@ -470,6 +470,12 @@ It passed the mock and failed on the phone because real live lines differ:
   Ctrl+Enter saves. A server with no notes lands on the setup checklist:
   start fresh notes, turn on sync, install paragtd, and watch a long action's
   window (`/harnesses/screen`), typing into it if it asks.
+- Changing notes (§6.10 `/notes/state`, `/notes/refile`; GTD files only,
+  roam notes stay read-only): ○ before a row marks it done at once, with
+  Undo (a repeating item moves on to its next date instead); in a heading,
+  state keys (TODO / NEXT / WAITING / ✓ Done) and Move to… — next actions,
+  waiting for, someday, projects, inbox, or the tickler on a date. A heading
+  changed at the desk meanwhile is refused (409), never guessed at.
 - New chat: place picker (`/targets.places`) and agent picker, `/ask {text,
   target: "new", cwd, agent}`, then straight into the new thread.
 

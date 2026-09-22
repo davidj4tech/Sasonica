@@ -18,11 +18,14 @@ import {
   captureNote,
   getNoteView,
   getNoteViews,
+  isEditable,
   isHeading,
   searchNotes,
+  setNoteState,
   type CaptureKind,
   type NoteHeading,
   type NoteItem,
+  type NoteState,
   type NoteView,
   type SearchResult
 } from '../api/notes'
@@ -85,6 +88,9 @@ function NotesPage() {
   const [error, setError] = useState('')
   const [searching, setSearching] = useState(false)
   const [reload, setReload] = useState(0)
+  // Rows marked done, hidden until the list comes back without them.
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set())
+  const [toast, setToast] = useState<{ text: string; failed?: boolean; undo?: () => void } | null>(null)
 
   useEffect(() => {
     const ac = new AbortController()
@@ -106,6 +112,7 @@ function NotesPage() {
     getNoteView(current, ac.signal)
       .then((r) => {
         setItems(r.items)
+        setHidden(new Set())
         setError('')
       })
       .catch((err) => {
@@ -113,6 +120,36 @@ function NotesPage() {
       })
     return () => ac.abort()
   }, [views, current, reload])
+
+  // The ○ key on a row: done at once (hidden now, the file changed behind),
+  // with Undo. A repeating one is not closed; it moves on to its next date.
+  const markDone = async (h: NoteHeading) => {
+    const key = `${h.path}:${h.at}`
+    setHidden((s) => new Set(s).add(key))
+    setToast(null)
+    try {
+      const r = await setNoteState(h.path, h.at, h.title, 'DONE')
+      if (r.repeated) setToast({ text: `${h.title} — next on ${r.next}` })
+      else
+        setToast({
+          text: `Done: ${h.title}`,
+          undo: () => {
+            setToast(null)
+            void setNoteState(r.path, r.at, h.title, h.state as NoteState)
+              .then(() => setReload((n) => n + 1))
+              .catch((err) => setToast({ text: message(err), failed: true }))
+          }
+        })
+    } catch (err) {
+      setHidden((s) => {
+        const next = new Set(s)
+        next.delete(key)
+        return next
+      })
+      setToast({ text: message(err), failed: true })
+    }
+    setReload((n) => n + 1)
+  }
 
   const choose = (name: string) => {
     setView(name)
@@ -158,17 +195,30 @@ function NotesPage() {
           <div className="note-list">
             {!items && !error && <p className="notice">Loading…</p>}
             {items && items.length === 0 && <p className="notice">Nothing here.</p>}
-            {items && (current === 'agenda' ? <Agenda items={items as NoteHeading[]} /> : <Items items={items} />)}
+            {items && (current === 'agenda' ? <Agenda items={items as NoteHeading[]} hidden={hidden} onDone={markDone} /> : <Items items={items} hidden={hidden} onDone={markDone} />)}
           </div>
         </>
       )}
 
+      {toast && (
+        <div className={toast.failed ? 'note-toast error' : 'note-toast'} role="status">
+          <span className="grow">{toast.text}</span>
+          {toast.undo && (
+            <button className="notes-button" onClick={toast.undo}>
+              Undo
+            </button>
+          )}
+          <button className="icon" onClick={() => setToast(null)} title="Dismiss">
+            ✕
+          </button>
+        </div>
+      )}
       {!unset && views && <Capture onSaved={() => (current === 'inbox' ? setReload((n) => n + 1) : undefined)} />}
     </div>
   )
 }
 
-function HeadingRow({ h, inAgenda, section }: { h: NoteHeading; inAgenda?: boolean; section?: boolean }) {
+function HeadingRow({ h, inAgenda, section, onDone }: { h: NoteHeading; inAgenda?: boolean; section?: boolean; onDone?: (h: NoteHeading) => void }) {
   // A section: the inbox's urgency groups, stateless headings with others under them.
   if (section) {
     return (
@@ -178,8 +228,16 @@ function HeadingRow({ h, inAgenda, section }: { h: NoteHeading; inAgenda?: boole
     )
   }
   const when = h.deadline ? `due ${h.deadline.slice(5)}` : h.scheduled ? h.scheduled.slice(5) : ''
+  const doable = !!onDone && !!h.state && h.state !== 'DONE' && h.state !== 'CANCELLED' && isEditable(h.path)
   return (
-    <li>
+    <li className="note-item">
+      {doable ? (
+        <button className="done-key" onClick={() => onDone(h)} title="Mark done" aria-label={`Mark done: ${h.title}`}>
+          ○
+        </button>
+      ) : (
+        <span className="done-key" aria-hidden />
+      )}
       <Link className={`note-row lvl${Math.min(h.level, 3)}${h.overdue ? ' overdue' : ''}`} to={noteHref(h.path, h.at)}>
         <StateBadge state={h.state} />
         <span className="title">{h.title}</span>
@@ -195,12 +253,12 @@ function isSection(h: NoteHeading, next: NoteItem | undefined): boolean {
   return !!next && isHeading(next) && next.level > h.level
 }
 
-function Items({ items }: { items: NoteItem[] }) {
+function Items({ items, hidden, onDone }: { items: NoteItem[]; hidden: Set<string>; onDone: (h: NoteHeading) => void }) {
   return (
     <ul className="notes">
       {items.map((it, i) =>
         isHeading(it) ? (
-          <HeadingRow key={`${it.path}:${it.at}`} h={it} section={!it.state && isSection(it, items[i + 1])} />
+          hidden.has(`${it.path}:${it.at}`) ? null : <HeadingRow key={`${it.path}:${it.at}`} h={it} section={!it.state && isSection(it, items[i + 1])} onDone={onDone} />
         ) : (
           <li key={it.path}>
             <Link className="note-row" to={noteHref(it.path)}>
@@ -214,7 +272,8 @@ function Items({ items }: { items: NoteItem[] }) {
   )
 }
 
-function Agenda({ items }: { items: NoteHeading[] }) {
+function Agenda({ items: all, hidden, onDone }: { items: NoteHeading[]; hidden: Set<string>; onDone: (h: NoteHeading) => void }) {
+  const items = useMemo(() => all.filter((h) => !hidden.has(`${h.path}:${h.at}`)), [all, hidden])
   const groups = useMemo(() => {
     const out: { label: string; items: NoteHeading[] }[] = []
     const overdue = items.filter((h) => h.overdue)
@@ -234,7 +293,7 @@ function Agenda({ items }: { items: NoteHeading[] }) {
           <h2 className={g.label === 'Overdue' ? 'overdue' : undefined}>{g.label}</h2>
           <ul className="notes">
             {g.items.map((h) => (
-              <HeadingRow key={`${h.path}:${h.at}`} h={h} inAgenda />
+              <HeadingRow key={`${h.path}:${h.at}`} h={h} inAgenda onDone={onDone} />
             ))}
           </ul>
         </section>
