@@ -152,9 +152,9 @@ for (const [name, viewport, size] of [['portrait', { width: 390, height: 780 }],
 
 // 8. In the speaking thread, detached: the pills stay clear of "Follow along".
 {
-  // At 'large': the mock thread is only tall enough to leave pills showing
+  // At 'largest': the mock thread is only tall enough to leave pills showing
   // after the scroll below when its text is; the check is the overlap.
-  const p = await newPage({ width: 390, height: 780 }, 'large')
+  const p = await newPage({ width: 390, height: 780 }, 'largest')
   await fetch(BASE + '/mock/voice?loop=1')
   await p.goto(BASE + '/t/' + sid('Mock: speaking now'))
   await p.waitForSelector('.live-text', { timeout: 20000 })

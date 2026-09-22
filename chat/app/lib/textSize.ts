@@ -8,19 +8,19 @@
  * applies before first paint — see TEXT_SIZE_BOOT in root.tsx). Blocked
  * storage means the default, every time.
  *
- * Default is 15 px. The small end goes down to 9 px for
+ * Default is 13 px. The small end goes down to 7 px for
  * smart glasses, where a line has to fit a narrow display — three steps
  * below Default, three above.
  */
 
 export const TEXT_SIZES = [
-  { id: 'smallest', label: 'Smallest', px: 9 },
-  { id: 'smaller', label: 'Smaller', px: 11 },
-  { id: 'small', label: 'Small', px: 13 },
-  { id: 'default', label: 'Default', px: 15 },
-  { id: 'large', label: 'Large', px: 17 },
-  { id: 'larger', label: 'Larger', px: 19 },
-  { id: 'largest', label: 'Largest', px: 22 }
+  { id: 'smallest', label: 'Smallest', px: 7 },
+  { id: 'smaller', label: 'Smaller', px: 9 },
+  { id: 'small', label: 'Small', px: 11 },
+  { id: 'default', label: 'Default', px: 13 },
+  { id: 'large', label: 'Large', px: 15 },
+  { id: 'larger', label: 'Larger', px: 17 },
+  { id: 'largest', label: 'Largest', px: 19 }
 ] as const
 
 export type TextSizeId = (typeof TEXT_SIZES)[number]['id']
@@ -29,7 +29,7 @@ export type TextSizeId = (typeof TEXT_SIZES)[number]['id']
  * carried over to the same size. */
 export const TEXT_SIZE_KEY = 'sasonica.chat.textSize2'
 const OLD_KEY = 'sasonica.chat.textSize'
-const OLD_TO_NEW: Record<string, TextSizeId> = { small: 'default', large: 'larger', larger: 'largest' }
+const OLD_TO_NEW: Record<string, TextSizeId> = { small: 'large', large: 'largest', larger: 'largest' }
 const DEFAULT: TextSizeId = 'default'
 
 export function getTextSize(): TextSizeId {
