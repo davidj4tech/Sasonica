@@ -3,6 +3,7 @@ package com.sasonica.next;
 import android.os.Bundle;
 import android.view.ViewGroup;
 import android.webkit.WebView;
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -17,6 +18,38 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(OutputSwitcherPlugin.class);
         super.onCreate(savedInstanceState);
         fitWebViewToBarsAndKeyboard();
+        backClosesMenusFirst();
+    }
+
+    /**
+     * Back (the gesture or the button) asks the page first: an open menu or
+     * sheet closes and nothing else happens (David, 22 Sep 2026). The page
+     * answers through window.__sasonicaBack() (chat/app/lib/layers.ts), true
+     * when it closed one. Otherwise back is the WebView's history — the
+     * screen you came from — and, with none left, leaving the app as before.
+     * Without this, Capacitor (no App plugin) finished the activity on every
+     * back press, whatever was on screen.
+     */
+    private void backClosesMenusFirst() {
+        OnBackPressedCallback cb = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                WebView web = getBridge().getWebView();
+                web.evaluateJavascript(
+                    "(function(){try{return !!(window.__sasonicaBack&&window.__sasonicaBack())}catch(e){return false}})()",
+                    closed -> {
+                        if ("true".equals(closed)) return;
+                        if (web.canGoBack()) {
+                            web.goBack();
+                            return;
+                        }
+                        setEnabled(false);
+                        getOnBackPressedDispatcher().onBackPressed();
+                        setEnabled(true);
+                    });
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, cb);
     }
 
     /**
