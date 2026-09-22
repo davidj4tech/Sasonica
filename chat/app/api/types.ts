@@ -106,6 +106,8 @@ export interface AskOption {
 /** One AskUserQuestion question, as asked. */
 export interface AskQuestion {
   question: string
+  /** The short chip Claude gives each question (approvals carry it). */
+  header?: string
   options: AskOption[]
   multiSelect: boolean
 }
@@ -168,6 +170,35 @@ export interface ApprovalOption {
   n: number
   label: string
   detail: string
+  /** A multi-select's checkbox as it is on screen now. */
+  checked?: boolean
+}
+
+/** One option of a question approval (numbered from 1 within its question). */
+export interface QuestionOption {
+  n: number
+  label: string
+  description: string
+  detail?: string
+  checked?: boolean
+}
+
+/** One question of an AskUserQuestion approval. */
+export interface ApprovalQuestion {
+  question: string
+  header: string
+  multiSelect: boolean
+  /** An "Other" row: the person's own words are an answer too. */
+  free_text?: boolean
+  options: QuestionOption[]
+}
+
+/** A structured answer to one question (§6.4). */
+export interface QuestionAnswer {
+  question_index: number
+  /** Option `n` values; at most one for a single-select question. */
+  selected: number[]
+  other_text?: string
 }
 
 /** The dialog a session is stopped on, read off the screen (§6.2 `approval`). */
@@ -180,6 +211,16 @@ export interface Approval {
   /** 12 hex chars: sha1 of the dialog text. */
   key: string
   agent: string
+  /** `"question"` for an AskUserQuestion; `"tool"` for a headless permission request; absent for a pane's other dialogs. */
+  kind?: 'question' | 'tool'
+  /** Any question takes several answers. */
+  multiSelect?: boolean
+  free_text?: boolean
+  /** The questions, as asked, when `kind` is `"question"`. */
+  questions?: ApprovalQuestion[]
+  tool_use_id?: string
+  /** Headless only: the CLI's request id, echoed as `request_id`. */
+  id?: string
 }
 
 // ── §6.2.2 Messages (built 22 Sep 2026) ──────────────────────────────────
@@ -390,15 +431,22 @@ export interface AskAmbiguous extends Envelope {
 
 export interface AnswerRequest {
   session: SessionId
-  choice: number
+  /** The numbered form: press this option. */
+  choice?: number
   key: string
+  /** The structured form (a question): every question answered. */
+  answers?: QuestionAnswer[]
+  /** Headless: the approval's `id`. */
+  request_id?: string
 }
 
 export interface AnswerResponse extends Envelope {
   session: SessionId
   pane: string
-  answered: number
-  label: string
+  answered?: number
+  label?: string
+  /** The structured form: what the agent was told, by question. */
+  answers?: Record<string, string>
   /** Another dialog followed. */
   waiting: boolean
   approval: Approval | null

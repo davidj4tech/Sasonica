@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { answer, ApiError, reply, stopSession } from '../api'
-import type { Approval } from '../api/types'
+import type { Approval, QuestionAnswer } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import { useThread } from '../hooks/useThread'
@@ -173,8 +173,14 @@ function ThreadPage({ session }: { session: string }) {
         void onSend(send.text)
       },
       discard,
-      answer: async (approval: Approval, choice: number) => {
-        const res = await answer({ session, choice, key: approval.key })
+      answer: async (approval: Approval, choice: number | QuestionAnswer[]) => {
+        // A question goes structured (§6.4): every answer, by option number
+        // and your own words; anything else is the number pressed.
+        const res = await answer(
+          Array.isArray(choice)
+            ? { session, key: approval.key, answers: choice, ...(approval.id ? { request_id: approval.id } : {}) }
+            : { session, choice, key: approval.key }
+        )
         if (res.ok) {
           log.setApproval(res.res.approval)
           return { error: '', key: '' }

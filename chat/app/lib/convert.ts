@@ -15,9 +15,11 @@
  * | metadata.custom   | {command, spoken id, figure, live, liveText}                |
  *
  * `approval` (what is on screen now) is a message of its own at the foot of
- * the thread, answered with POST /session/answer. (An AskUserQuestion is
- * written to the transcript only once answered, so the one on screen is
- * never among the messages — §6.2.2.)
+ * the thread, answered with POST /session/answer — except a question
+ * (`kind: "question"`) whose ask part is still pending among the messages
+ * (a headless session streams it): the card goes on that part instead. A
+ * pane session's AskUserQuestion is written to the transcript only once
+ * answered (§6.2.2), so its card stands alone at the foot.
  */
 import type { ThreadMessageLike } from '@assistant-ui/react'
 import { pictureUrl } from '../api'
@@ -31,7 +33,15 @@ export const APPROVAL_TOOL = 'SessionApproval'
 
 /** What the thread view holds; one of these per rendered message. */
 export type ChatItem =
-  | { kind: 'message'; session: SessionId; message: Message; live: LiveClock | null }
+  | {
+      kind: 'message'
+      session: SessionId
+      message: Message
+      live: LiveClock | null
+      /** The question on screen, shown on this message's pending ask part `askPart`. */
+      approval?: Approval
+      askPart?: number
+    }
   | { kind: 'approval'; session: SessionId; approval: Approval }
   /** Sent from here, not yet back (lib/pending.ts). */
   | { kind: 'optimistic'; session: SessionId; send: PendingSend }
@@ -57,6 +67,8 @@ export interface AskArgs {
   approval: Approval | null
   /** The chosen label(s), lower-cased. */
   answeredWith: string[]
+  /** The answer as the agent got it, e.g. "Apple, Plum, kiwi". */
+  answerText: string
   [k: string]: unknown
 }
 
@@ -171,13 +183,14 @@ export function convertItem(item: ChatItem): ThreadMessageLike {
         return
       }
       case 'ask': {
-        const args: AskArgs = { session, questions: p.ask || [], approval: null, answeredWith: answeredWith(p.answer) }
+        const onScreen = item.askPart === i && item.approval ? item.approval : null
+        const args: AskArgs = { session, questions: p.ask || [], approval: onScreen, answeredWith: answeredWith(p.answer), answerText: p.answer || '' }
         content.push({
           type: 'tool-call',
           toolCallId: p.tool_use_id || `${m.id}:${i}:ask`,
           toolName: ASK_TOOL,
           args: args as unknown as Record<string, never>,
-          result: { answered: args.answeredWith }
+          ...(onScreen ? {} : { result: { answered: args.answeredWith } })
         })
         return
       }
@@ -217,9 +230,40 @@ export function buildItems(args: {
 }): ChatItem[] {
   const { session, messages, approval, live, liveId } = args
   const items: ChatItem[] = messages.map((message) => ({ kind: 'message', session, message, live: live && message.id === liveId ? live : null }))
+  const target = approval ? pendingAsk(messages, approval) : null
+  if (target && approval) {
+    const it = items[target.message]
+    if (it.kind === 'message') {
+      it.approval = approval
+      it.askPart = target.part
+    }
+  }
   for (const send of args.optimistic) items.push({ kind: 'optimistic', session, send })
-  if (approval) items.push({ kind: 'approval', session, approval })
+  if (approval && !target) items.push({ kind: 'approval', session, approval })
   return items
+}
+
+/**
+ * The still-pending ask part a question approval belongs to: the one with
+ * its `tool_use_id` when both carry one, else the latest running ask. None
+ * for a pane session, whose ask is written only once answered.
+ */
+export function pendingAsk(messages: Message[], approval: Approval): { message: number; part: number } | null {
+  if (approval.kind !== 'question') return null
+  let latest: { message: number; part: number } | null = null
+  for (let mi = 0; mi < messages.length; mi++) {
+    const parts = messages[mi].parts || []
+    for (let pi = 0; pi < parts.length; pi++) {
+      const p = parts[pi]
+      if (p.type !== 'ask' || p.status !== 'running') continue
+      if (approval.tool_use_id && p.tool_use_id) {
+        if (p.tool_use_id === approval.tool_use_id) return { message: mi, part: pi }
+        continue
+      }
+      latest = { message: mi, part: pi }
+    }
+  }
+  return latest
 }
 
 /**

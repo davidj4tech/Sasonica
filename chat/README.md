@@ -330,8 +330,21 @@ It passed the mock and failed on the phone because real live lines differ:
   timer and step list.
 - Approvals as a human tool UI; numbered options → `POST /session/answer`;
   409 re-renders the new question with "The question changed — choose again".
-  An AskUserQuestion still on screen gets live buttons; answered ones are
-  read-only with the choice marked.
+- An AskUserQuestion on screen (`approval.kind: "question"`) is a question
+  card (`QuestionCard`, parts.tsx): one section per question with its header
+  chip, tap an option of a single-select, tick the boxes of a multi-select
+  (started from what is `checked` on screen), or write your own words under
+  "Other" (a single-select's words replace its option) — one Send for all,
+  enabled once every question has an answer. One single-select question
+  sends on the tap. It posts the structured form `{session, key, answers:
+  [{question_index, selected: [n…], other_text?}], request_id?}` (the id
+  only for a headless session), pane and headless alike; a 409 swaps in the
+  returned question and the picks start over. The card sits on the pending
+  `ask` part when the messages carry one (a headless session streams it:
+  `status: "running"`, matched by `tool_use_id`), else at the foot of the
+  thread (a pane session's ask is written only once answered). Answered asks
+  are read-only with the chosen options marked and any words of your own as
+  "Other: …". Suite: `test/ask.mjs`.
 - Composer: `/reply {session, text}` (§10), shelved or not. The message
   shows at once ("sending…") and is REPLACED by the server's own line when
   that comes back (`lib/pending.ts`): matched on the first new "you" line
@@ -394,8 +407,7 @@ It passed the mock and failed on the phone because real live lines differ:
 - **Stop**: `onCancel` → `stopSession()` in `app/api/index.ts` throws "not
   available yet"; the double-press → `speech: "silence"` logic is in
   `useStop` (Thread.tsx). When §12 exists, only the function body changes.
-- Slash menu (`/commands`), resume/close, `/focus`
-  ("answer at the desk" is text only), dictation,
+- Slash menu (`/commands`), resume/close, `/focus`, dictation,
   branch-from-here, `dry: true` routing for words that name a thread, the
   thread-list adapter (routing is React Router instead). Auto-scroll is
   assistant-ui's own, not the 8 s reader hold from ConversationLog.vue.

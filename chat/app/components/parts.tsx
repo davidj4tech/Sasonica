@@ -12,8 +12,8 @@ import {
   type TextMessagePartComponent,
   type ToolCallMessagePartComponent
 } from '@assistant-ui/react'
-import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react'
-import type { Approval, Working } from '../api/types'
+import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
+import type { Approval, ApprovalQuestion, QuestionAnswer, Working } from '../api/types'
 import { useSpeechActions } from '../hooks/useSpeech'
 import { IconPause, IconPlay } from './SpeechBar'
 import type { ApprovalArgs, AskArgs, LineCustom, StepArgs } from '../lib/convert'
@@ -23,11 +23,13 @@ import { duration, liveParts, sentenceAt, type LiveClock } from '../lib/followAl
 /** What the tool UIs need from the thread page. */
 export interface ThreadActions {
   /**
-   * POST /session/answer. Resolves to '' on success, else the sentence to
-   * show and the key of the question it belongs to (after a 409 that is the
-   * NEW question's key, so the message survives the re-render).
+   * POST /session/answer: a number (`{choice, key}`), or for a question the
+   * structured answers (`{answers, key, request_id?}`). Resolves to '' on
+   * success, else the sentence to show and the key of the question it
+   * belongs to (after a 409 that is the NEW question's key, so the message
+   * survives the re-render).
    */
-  answer: (approval: Approval, choice: number) => Promise<{ error: string; key: string }>
+  answer: (approval: Approval, choice: number | QuestionAnswer[]) => Promise<{ error: string; key: string }>
   /** Send a failed message again (it becomes a new send). */
   retry?: (sendId: string) => void
   /** Drop a failed message. */
@@ -314,9 +316,145 @@ function ApprovalOptions({ approval }: { approval: Approval }) {
   )
 }
 
+/** What the person has picked so far, per question. */
+interface Pick {
+  selected: number[]
+  other: string
+}
+
+function initialPicks(questions: ApprovalQuestion[]): Pick[] {
+  return questions.map((q) => ({
+    selected: q.multiSelect ? q.options.filter((o) => o.checked).map((o) => o.n) : [],
+    other: ''
+  }))
+}
+
+const hasAnswer = (p: Pick | undefined) => !!p && (p.selected.length > 0 || p.other.trim() !== '')
+
+/**
+ * An AskUserQuestion on screen, answered from here (§6.4, the structured
+ * form): one section per question — tap an option of a single-select, tick
+ * the boxes of a multi-select, or write your own words under "Other" — and
+ * one Send for them all. One single-select question sends on the tap, as the
+ * numbered dialog always did. After a 409 the page swaps in the new question
+ * and the picks start over.
+ */
+export function QuestionCard({ approval }: { approval: Approval }) {
+  const { answer } = useContext(ThreadActionsContext)
+  const questions = useMemo(() => approval.questions || [], [approval.questions])
+  const [picks, setPicks] = useState<Pick[]>(() => initialPicks(questions))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState({ error: '', key: '' })
+  // A different question (after a 409, or the next one) starts afresh.
+  useEffect(() => setPicks(initialPicks(questions)), [approval.key, questions])
+
+  const quick = questions.length === 1 && !questions[0].multiSelect
+  const typing = !!picks[0]?.other.trim()
+  const ready = questions.length > 0 && questions.every((_, i) => hasAnswer(picks[i]))
+
+  const send = async (ps: Pick[]) => {
+    if (busy) return
+    setBusy(true)
+    setError({ error: '', key: '' })
+    const answers: QuestionAnswer[] = questions.map((_, i) => {
+      const p = ps[i] || { selected: [], other: '' }
+      const other = p.other.trim()
+      return { question_index: i, selected: p.selected, ...(other ? { other_text: other } : {}) }
+    })
+    setError(await answer(approval, answers))
+    setBusy(false)
+  }
+
+  const update = (i: number, f: (p: Pick) => Pick) =>
+    setPicks((ps) => questions.map((_, j) => (j === i ? f(ps[j] || { selected: [], other: '' }) : ps[j] || { selected: [], other: '' })))
+
+  const tap = (i: number, q: ApprovalQuestion, n: number) => {
+    if (busy) return
+    if (q.multiSelect) {
+      update(i, (p) => ({ ...p, selected: p.selected.includes(n) ? p.selected.filter((x) => x !== n) : [...p.selected, n].sort((a, b) => a - b) }))
+      return
+    }
+    // A single choice: an option or your own words, never both.
+    const next = questions.map((_, j) => (j === i ? { selected: [n], other: '' } : picks[j] || { selected: [], other: '' }))
+    setPicks(next)
+    if (quick) void send(next)
+  }
+
+  return (
+    <div className={`question-card${busy ? ' busy' : ''}`}>
+      {!questions.length && <p className="hint">Part of this question is off the screen — answer it at the desk.</p>}
+      {questions.map((q, i) => {
+        const p = picks[i] || { selected: [], other: '' }
+        return (
+          <fieldset key={`${approval.key}:${i}`} className="question" disabled={busy}>
+            <legend>
+              {q.header && <span className="q-header">{q.header}</span>}
+              <span className="q-text">{q.question}</span>
+              {q.multiSelect && <span className="q-hint">choose any</span>}
+            </legend>
+            <div className="approval-options" role={q.multiSelect ? 'group' : 'radiogroup'}>
+              {q.options.map((o) => {
+                const on = p.selected.includes(o.n)
+                return (
+                  <button
+                    key={o.n}
+                    type="button"
+                    className={`option${on ? ' on' : ''}`}
+                    role={q.multiSelect ? 'checkbox' : 'radio'}
+                    aria-checked={on}
+                    onClick={() => tap(i, q, o.n)}
+                  >
+                    <span className={q.multiSelect ? 'mark box' : 'mark round'} aria-hidden="true">
+                      {on ? '✓' : ''}
+                    </span>
+                    <span className="label">
+                      {o.label}
+                      {(o.description || o.detail) && <small>{o.description || o.detail}</small>}
+                    </span>
+                  </button>
+                )
+              })}
+              {q.free_text !== false && (
+                <label className="other">
+                  <span className="other-label">Other</span>
+                  <input
+                    type="text"
+                    value={p.other}
+                    placeholder="Your own words…"
+                    aria-label={`Other answer to: ${q.question}`}
+                    onChange={(e) => {
+                      const other = e.target.value
+                      // Single-select: your own words replace the option.
+                      update(i, (x) => ({ selected: q.multiSelect || !other.trim() ? x.selected : [], other }))
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+          </fieldset>
+        )
+      })}
+      {questions.length > 0 && (!quick || typing) && (
+        <button type="button" className="send-answer" disabled={!ready || busy} onClick={() => send(picks)}>
+          {busy ? 'Sending…' : 'Send'}
+        </button>
+      )}
+      {error.error && error.key === approval.key && <p className="error">{error.error}</p>}
+    </div>
+  )
+}
+
 /** A permission prompt / Codex approval / any dialog, as its own message. */
 export const ApprovalToolUI: ToolCallMessagePartComponent<ApprovalArgs> = ({ args }) => {
   const approval = args.approval
+  if (approval.kind === 'question') {
+    return (
+      <div className="tool-card approval ask">
+        {!(approval.questions || []).length && <p className="tool-title">{approval.question || 'The session is asking you something'}</p>}
+        <QuestionCard approval={approval} />
+      </div>
+    )
+  }
   return (
     <div className="tool-card approval">
       <p className="tool-title">{approval.question || 'The session is waiting on a question'}</p>
@@ -325,28 +463,33 @@ export const ApprovalToolUI: ToolCallMessagePartComponent<ApprovalArgs> = ({ arg
   )
 }
 
+/** The words of an answer that are none of the options: what was written under "Other". */
+export function otherWords(answer: string, labels: string[]): string {
+  const known = new Set(labels.map((l) => l.trim().toLowerCase()).filter(Boolean))
+  return (answer || '')
+    .split(/,\s*/)
+    .map((x) => x.trim())
+    .filter((x) => x && !known.has(x.toLowerCase()))
+    .join(', ')
+}
+
 /**
  * An AskUserQuestion, as asked (§14). While it is still the dialog on screen
- * (`args.approval`), its options are live buttons; otherwise it is answered
- * and read-only, with the chosen labels marked.
+ * (`args.approval`), it is the question card; otherwise it is answered and
+ * read-only, with the chosen labels marked and any words of your own shown
+ * as "Other".
  */
 export const AskToolUI: ToolCallMessagePartComponent<AskArgs> = ({ args }) => {
-  const { questions, approval, answeredWith } = args
-  const multi = questions.some((q) => q.multiSelect)
+  const { questions, approval, answeredWith, answerText } = args
   const chosen = (label: string) => answeredWith.includes(label.trim().toLowerCase())
   if (approval) {
     return (
-      <div className="tool-card ask">
-        {multi ? (
-          // v0 gap (§16): a multi-select or free-text answer cannot be pressed
-          // by number. The contract's fallback is /focus ("answer at the desk").
-          <p className="hint">This question takes several answers — answer it at the desk.</p>
-        ) : (
-          <ApprovalOptions approval={approval} />
-        )}
+      <div className="tool-card ask approval">
+        {approval.kind === 'question' ? <QuestionCard approval={approval} /> : <ApprovalOptions approval={approval} />}
       </div>
     )
   }
+  const other = otherWords(answerText || '', questions.flatMap((q) => q.options.map((o) => o.label)))
   return (
     <div className="tool-card ask answered">
       {questions.map((q, i) => (
@@ -362,6 +505,7 @@ export const AskToolUI: ToolCallMessagePartComponent<AskArgs> = ({ args }) => {
           </ul>
         </div>
       ))}
+      {other && <p className="other-answer">Other: {other}</p>}
     </div>
   )
 }
