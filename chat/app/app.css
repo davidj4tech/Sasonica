@@ -605,10 +605,15 @@ a { color: var(--accent); }
 .thread-sub .updating { flex: none; font-size: .7rem; }
 
 /* ── The thread list's sort control and By project headings ────────────── */
-.list-tools { display: flex; justify-content: flex-end; padding: 2px 12px 0; }
-.sort-button { background: none; border: 0; color: var(--muted); font: inherit; font-size: .867rem; min-height: 40px; padding: 0 6px; cursor: pointer; }
+.list-tools { display: flex; justify-content: space-between; padding: 2px 12px 0; }
+.sort-button, .filter-button { background: none; border: 0; color: var(--muted); font: inherit; font-size: .867rem; min-height: 40px; padding: 0 6px; cursor: pointer; }
 .sort-menu button { display: flex; align-items: center; gap: 8px; }
 .sort-menu .mark { width: 1rem; color: var(--accent); }
+/* The thread filter (lib/threadFilter.ts): lit when it hides something. */
+.filter-button.on { color: var(--accent); }
+.filter-menu .menu-sep { height: 1px; margin: 4px 0; background: var(--line); }
+.thread-row .archived-mark { color: var(--muted); }
+.filter-empty .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .project-head { padding: 14px 16px 4px; font-size: .8rem; font-weight: 600; letter-spacing: .02em; color: var(--muted); border-bottom: 1px solid var(--line); text-transform: none; }
 
 /* ── Background agents (§6.12) ─────────────────────────────────────────── */

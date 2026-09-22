@@ -23,6 +23,7 @@ import { useSessionActions } from '../hooks/useSessionActions'
 import { archivedOf, endedHere, useSessionFlags } from '../lib/sessionFlags'
 import { Popover } from '../components/Popover'
 import { loadThreadSort, saveThreadSort, SORT_LABEL, SORTS, sortThreads, type ListEntry, type ThreadSort } from '../lib/threadSort'
+import { DEFAULT_FILTER, filterLabel, filterThreads, loadThreadFilter, projectsOf, saveThreadFilter, SHOW_LABEL, SHOWS, type ThreadFilter } from '../lib/threadFilter'
 
 const STATE_LABEL: Record<SessionState, string> = {
   working: 'working',
@@ -60,15 +61,25 @@ function ThreadList() {
     setSortState(next)
     saveThreadSort(next)
   }
+  const [filter, setFilterState] = useState<ThreadFilter>(() => loadThreadFilter())
+  const [filterOpen, setFilterOpen] = useState(false)
+  const filterButton = useRef<HTMLButtonElement>(null)
+  const setFilter = (next: ThreadFilter) => {
+    setFilterOpen(false)
+    setFilterState(next)
+    saveThreadFilter(next)
+  }
   const rename = useRename()
   const autoRename = useAutoRename()
   const acts = useSessionActions()
   useSessionFlags()
-  // Archived threads leave the main list for a folded section at its foot;
-  // this app's own archive or exit shows before the server confirms it.
-  const main: SessionRow[] = []
-  const archived: SessionRow[] = []
-  for (const row of sessions) (archivedOf(row.session, row.archived) ? archived : main).push(row)
+  // What the filter shows (lib/threadFilter.ts). Under Active, archived
+  // threads leave the main list for a folded section at its foot; this app's
+  // own archive or exit shows before the server confirms it.
+  const isArchived = (row: SessionRow) => archivedOf(row.session, row.archived)
+  const { main, folded: archived } = filterThreads(sessions, filter, isArchived, (row) => row.live && !endedHere(row.session))
+  const projects = projectsOf(sessions)
+  if (filter.project && !projects.includes(filter.project)) projects.push(filter.project)
   // The chosen order (lib/threadSort.ts), the Archived section's too.
   const mainList = sortThreads(main, sort, states)
   const archivedList = sortThreads(archived, sort, states)
@@ -97,6 +108,7 @@ function ThreadList() {
       key={row.session}
       row={row}
       state={states[row.session]}
+      markArchived={filter.show === 'all' && isArchived(row)}
       onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived) })}
     />
   )
@@ -118,6 +130,16 @@ function ThreadList() {
       </header>
       <HomeTabs current="threads" />
       <div className="list-tools">
+        <button
+          ref={filterButton}
+          type="button"
+          className={filter.show !== 'active' || filter.project ? 'filter-button on' : 'filter-button'}
+          aria-haspopup="menu"
+          aria-expanded={filterOpen}
+          onClick={() => setFilterOpen((o) => !o)}
+        >
+          Show: {filterLabel(filter)} <span aria-hidden="true">▾</span>
+        </button>
         <button ref={sortButton} type="button" className="sort-button" aria-haspopup="menu" aria-expanded={sortOpen} onClick={() => setSortOpen((o) => !o)}>
           Sort: {SORT_LABEL[sort]} <span aria-hidden="true">▾</span>
         </button>
@@ -135,9 +157,39 @@ function ThreadList() {
         </Popover>
       )}
 
+      {filterOpen && (
+        <Popover anchor={filterButton} label="Filter threads" align="left" className="sort-menu filter-menu" onClose={() => setFilterOpen(false)}>
+          {SHOWS.map((k) => (
+            <button key={k} role="menuitemradio" aria-checked={filter.show === k} className={filter.show === k ? 'on' : ''} onClick={() => setFilter({ ...filter, show: k })}>
+              <span className="mark" aria-hidden="true">
+                {filter.show === k ? '✓' : ''}
+              </span>
+              {SHOW_LABEL[k]}
+            </button>
+          ))}
+          <div className="menu-sep" role="separator" />
+          {[null, ...projects].map((p) => (
+            <button key={p ?? ''} role="menuitemradio" aria-checked={filter.project === p} className={filter.project === p ? 'on' : ''} onClick={() => setFilter({ ...filter, project: p })}>
+              <span className="mark" aria-hidden="true">
+                {filter.project === p ? '✓' : ''}
+              </span>
+              {p ?? 'All projects'}
+            </button>
+          ))}
+        </Popover>
+      )}
+
       {error && <p className="notice error">{error}</p>}
       {note && <p className={note.failed ? 'notice error' : 'notice'}>{note.text}</p>}
       {loading && !sessions.length && <p className="notice">Loading…</p>}
+      {!loading && sessions.length > 0 && !main.length && !archived.length && (
+        <p className="notice filter-empty">
+          No {filter.show === 'all' || filter.show === 'active' ? '' : SHOW_LABEL[filter.show].toLowerCase() + ' '}threads{filter.project ? ` in ${filter.project}` : ''}.{' '}
+          <button type="button" className="link" onClick={() => setFilter(DEFAULT_FILTER)}>
+            Show all
+          </button>
+        </p>
+      )}
 
       <ul className="threads">
         {mainList.map((e) => entryOf(e, 'main'))}
@@ -190,7 +242,17 @@ const LONG_PRESS_MS = 550
  * Android's long press fires on a link) opens the thread's menu (Rename,
  * Exit, Archive) instead of the thread.
  */
-function ThreadRow({ row, state: polled, onMenu }: { row: SessionRow; state: SessionState | undefined; onMenu: (title: string, live: boolean) => void }) {
+function ThreadRow({
+  row,
+  state: polled,
+  markArchived,
+  onMenu
+}: {
+  row: SessionRow
+  state: SessionState | undefined
+  markArchived?: boolean
+  onMenu: (title: string, live: boolean) => void
+}) {
   const title = useTitle(row.session, row.title) || row.session.slice(0, 8)
   // Exited from here: not live, whatever the last poll said.
   const live = row.live && !endedHere(row.session)
@@ -244,6 +306,7 @@ function ThreadRow({ row, state: polled, onMenu }: { row: SessionRow; state: Ses
           <span className="title">{title}</span>
           {row.project && <span className="row-project">{row.project}</span>}
         </span>
+        {markArchived && <span className="draft-mark archived-mark">Archived</span>}
         {hasDraft(row.session) && <span className="draft-mark">Draft</span>}
         {unread && <span className="unread-dot" aria-label="New reply" />}
         {live ? (
