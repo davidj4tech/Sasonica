@@ -3,7 +3,8 @@
  * third tab beside Home and Threads, whose Agenda section links here too.
  *
  * A strip of views across the top (Agenda, the GTD files, the roam folders),
- * the chosen one's headings or notes below, and a capture box at the foot
+ * a Show and a Sort menu under it (lib/noteSort.ts), the chosen view's
+ * headings or notes below, and a capture box at the foot
  * that appends to the inbox. The search key swaps the list for a search of
  * the notes and of the memory store, side by side. The last view is
  * remembered per device; everything else is asked of the server each time.
@@ -11,6 +12,7 @@
  * No notes on this server yet (no inbox view) → the setup checklist.
  */
 import { Mark } from '../components/Mark'
+import { Popover } from '../components/Popover'
 import { HomeTabs } from '../components/Nav'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router'
@@ -31,6 +33,23 @@ import {
 } from '../api/notes'
 import { noteHref, StateBadge } from '../lib/org'
 import { useMarkDone } from '../hooks/useMarkDone'
+import {
+  isDefaultShow,
+  keepsSections,
+  loadNoteShow,
+  loadNoteSort,
+  NOTE_SHOW_LABEL,
+  NOTE_SHOWS,
+  NOTE_SORT_LABEL,
+  NOTE_SORTS,
+  saveNoteShow,
+  saveNoteSort,
+  shownCount,
+  showNotes,
+  sortNotes,
+  type NoteShow,
+  type NoteSort
+} from '../lib/noteSort'
 import '../notes.css'
 
 const VIEW_KEY = 'sasonica.notes.view'
@@ -88,6 +107,11 @@ function NotesPage() {
   const [items, setItems] = useState<NoteItem[] | null>(null)
   const [error, setError] = useState('')
   const [searching, setSearching] = useState(false)
+  const [sort, setSortState] = useState<NoteSort>(loadNoteSort)
+  const [show, setShowState] = useState<NoteShow>(loadNoteShow)
+  const [menu, setMenu] = useState<'' | 'show' | 'sort'>('')
+  const showButton = useRef<HTMLButtonElement>(null)
+  const sortButton = useRef<HTMLButtonElement>(null)
   const [reload, setReload] = useState(0)
   const refetch = useCallback(() => setReload((n) => n + 1), [])
   const { markDone, isHidden, resetHidden, toast, dismiss } = useMarkDone(refetch)
@@ -109,7 +133,7 @@ function NotesPage() {
     if (!views) return
     const ac = new AbortController()
     setItems(null)
-    getNoteView(current, ac.signal)
+    getNoteView(current, { done: show.done, signal: ac.signal })
       .then((r) => {
         setItems(r.items)
         resetHidden()
@@ -119,12 +143,30 @@ function NotesPage() {
         if ((err as Error)?.name !== 'AbortError') setError(message(err))
       })
     return () => ac.abort()
-  }, [views, current, reload])
+  }, [views, current, reload, show.done])
+
+  const setSort = (next: NoteSort) => {
+    setMenu('')
+    setSortState(next)
+    saveNoteSort(next)
+  }
+  // Done and cancelled items are the server's to send or withhold, so that
+  // one line of the Show menu asks the view again (/notes/view?done=1).
+  const toggle = (key: keyof NoteShow) => {
+    const next = { ...show, [key]: !show[key] }
+    setShowState(next)
+    saveNoteShow(next)
+  }
 
   const choose = (name: string) => {
     setView(name)
     saveView(name)
   }
+
+  // What Show leaves in; Sort is applied per list (the agenda sorts inside
+  // each day, so its groups stay in date order).
+  const shown = useMemo(() => (items ? showNotes(items, show) : null), [items, show])
+  const quiet = isDefaultShow(show)
 
   const unset = views !== null && !views.some((v) => v.name === 'inbox')
 
@@ -168,10 +210,48 @@ function NotesPage() {
               Setup
             </Link>
           </nav>
+          <div className="list-tools">
+            <button ref={showButton} type="button" className="sort-button" aria-haspopup="menu" aria-expanded={menu === 'show'} onClick={() => setMenu((m) => (m === 'show' ? '' : 'show'))}>
+              Show{quiet ? '' : ` (${shownCount(show)}/${NOTE_SHOWS.length})`} <span aria-hidden="true">▾</span>
+            </button>
+            <button ref={sortButton} type="button" className="sort-button" aria-haspopup="menu" aria-expanded={menu === 'sort'} onClick={() => setMenu((m) => (m === 'sort' ? '' : 'sort'))}>
+              Sort: {NOTE_SORT_LABEL[sort]} <span aria-hidden="true">▾</span>
+            </button>
+          </div>
+          {menu === 'show' && (
+            <Popover anchor={showButton} label="Show in the organiser" align="right" className="sort-menu" onClose={() => setMenu('')}>
+              {NOTE_SHOWS.map((k) => (
+                <button key={k} role="menuitemcheckbox" aria-checked={show[k]} className={show[k] ? 'on' : ''} onClick={() => toggle(k)}>
+                  <span className="mark" aria-hidden="true">
+                    {show[k] ? '✓' : ''}
+                  </span>
+                  {NOTE_SHOW_LABEL[k]}
+                </button>
+              ))}
+            </Popover>
+          )}
+          {menu === 'sort' && (
+            <Popover anchor={sortButton} label="Sort the organiser" align="right" className="sort-menu" onClose={() => setMenu('')}>
+              {NOTE_SORTS.map((k) => (
+                <button key={k} role="menuitemradio" aria-checked={sort === k} className={sort === k ? 'on' : ''} onClick={() => setSort(k)}>
+                  <span className="mark" aria-hidden="true">
+                    {sort === k ? '✓' : ''}
+                  </span>
+                  {NOTE_SORT_LABEL[k]}
+                </button>
+              ))}
+            </Popover>
+          )}
           <div className="note-list">
             {!items && !error && <p className="notice">Loading…</p>}
             {items && items.length === 0 && <p className="notice">Nothing here.</p>}
-            {items && (current === 'agenda' ? <Agenda items={items as NoteHeading[]} isHidden={isHidden} onDone={markDone} /> : <Items items={items} isHidden={isHidden} onDone={markDone} />)}
+            {items && shown && shown.length === 0 && items.length > 0 && <p className="notice">Everything here is hidden by Show.</p>}
+            {shown &&
+              (current === 'agenda' ? (
+                <Agenda items={shown as NoteHeading[]} sort={sort} isHidden={isHidden} onDone={markDone} />
+              ) : (
+                <Items items={sortNotes(shown, sort)} flat={!keepsSections(sort)} isHidden={isHidden} onDone={markDone} />
+              ))}
           </div>
         </>
       )}
@@ -229,12 +309,12 @@ function isSection(h: NoteHeading, next: NoteItem | undefined): boolean {
   return !!next && isHeading(next) && next.level > h.level
 }
 
-function Items({ items, isHidden, onDone }: { items: NoteItem[]; isHidden: (h: NoteHeading) => boolean; onDone: (h: NoteHeading) => void }) {
+function Items({ items, flat, isHidden, onDone }: { items: NoteItem[]; flat?: boolean; isHidden: (h: NoteHeading) => boolean; onDone: (h: NoteHeading) => void }) {
   return (
     <ul className="notes">
       {items.map((it, i) =>
         isHeading(it) ? (
-          isHidden(it) ? null : <HeadingRow key={`${it.path}:${it.at}`} h={it} section={!it.state && isSection(it, items[i + 1])} onDone={onDone} />
+          isHidden(it) ? null : <HeadingRow key={`${it.path}:${it.at}`} h={it} section={!flat && !it.state && isSection(it, items[i + 1])} onDone={onDone} />
         ) : (
           <li key={it.path}>
             <Link className="note-row" to={noteHref(it.path)}>
@@ -248,7 +328,7 @@ function Items({ items, isHidden, onDone }: { items: NoteItem[]; isHidden: (h: N
   )
 }
 
-function Agenda({ items: all, isHidden, onDone }: { items: NoteHeading[]; isHidden: (h: NoteHeading) => boolean; onDone: (h: NoteHeading) => void }) {
+function Agenda({ items: all, sort, isHidden, onDone }: { items: NoteHeading[]; sort: NoteSort; isHidden: (h: NoteHeading) => boolean; onDone: (h: NoteHeading) => void }) {
   const items = all.filter((h) => !isHidden(h))
   const groups = useMemo(() => {
     const out: { label: string; items: NoteHeading[] }[] = []
@@ -260,8 +340,8 @@ function Agenda({ items: all, isHidden, onDone }: { items: NoteHeading[]; isHidd
       if (g && g.label === label) g.items.push(h)
       else out.push({ label, items: [h] })
     }
-    return out
-  }, [items])
+    return out.map((g) => ({ ...g, items: sortNotes(g.items, sort) as NoteHeading[] }))
+  }, [items, sort])
   return (
     <>
       {groups.map((g) => (

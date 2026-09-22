@@ -137,8 +137,9 @@ export function getNoteViews(signal?: AbortSignal) {
   return request<{ root: string; views: NoteView[] }>('GET', '/notes', undefined, signal)
 }
 
-export function getNoteView(name: string, signal?: AbortSignal) {
-  return request<{ view: string; items: NoteItem[] }>('GET', `/notes/view?name=${q(name)}`, undefined, signal)
+/** `done` keeps the DONE and cancelled headings the server otherwise drops. */
+export function getNoteView(name: string, opts: { done?: boolean; signal?: AbortSignal } = {}) {
+  return request<{ view: string; items: NoteItem[] }>('GET', `/notes/view?name=${q(name)}${opts.done ? '&done=1' : ''}`, undefined, opts.signal)
 }
 
 export function readNote(path: string, at = 0, signal?: AbortSignal) {

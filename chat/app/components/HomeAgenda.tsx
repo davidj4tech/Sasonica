@@ -31,7 +31,7 @@ export function HomeAgenda() {
 
   useEffect(() => {
     const ac = new AbortController()
-    getNoteView('agenda', ac.signal)
+    getNoteView('agenda', { signal: ac.signal })
       .then((r) => {
         setItems(r.items as NoteHeading[])
         setAbsent(false)

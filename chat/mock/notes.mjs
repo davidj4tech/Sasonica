@@ -7,8 +7,11 @@
  * heading out, as an edit at the desk would.
  */
 
-const today = () => new Date().toISOString().slice(0, 10)
-const addDays = (n) => new Date(Date.now() + n * 86400e3).toISOString().slice(0, 10)
+// Local dates, not UTC: the app's "Today" is the browser's day, so a UTC
+// fixture read as yesterday every morning east of Greenwich.
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const today = () => iso(new Date())
+const addDays = (n) => iso(new Date(Date.now() + n * 86400e3))
 
 function fixtures() {
   return {
@@ -180,7 +183,7 @@ export async function notesRoute(method, path, q, body, ok, err) {
       const plan = /^\s*(SCHEDULED|DEADLINE|CLOSED):/.test(lines[i + 1] || '') ? i + 1 : -1
       const rep = plan >= 0 && /<(\d{4}-\d{2}-\d{2})[^>]*\+(\d+)d>/.exec(lines[plan])
       if (st === 'DONE' && rep && m[2] !== 'DONE') {
-        const next = new Date(new Date(rep[1] + 'T12:00:00Z').getTime() + Number(rep[2]) * 86400e3).toISOString().slice(0, 10)
+        const next = iso(new Date(new Date(rep[1] + 'T12:00:00').getTime() + Number(rep[2]) * 86400e3))
         lines[plan] = lines[plan].replace(rep[1], next)
         FILES[p] = lines.join('\n') + '\n'
         return ok({ path: p, at: i + 1, state: m[2] || '', repeated: true, next })
