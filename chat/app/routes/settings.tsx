@@ -238,7 +238,7 @@ export default function Settings() {
             <small>
               {speech.enabled
                 ? speech.listening
-                  ? `Listening on ${speech.listening}. Point the server at it with media say --target next.${
+                  ? `Listening on ${speech.listening}. Send speech here with media speech-target next on the server, and media speech-target --clear to send it back.${
                       speech.watchingMic ? '' : ' The microphone watch is not running, so nothing will pause a reply while you talk.'
                     }`
                   : 'Starting\u2026'

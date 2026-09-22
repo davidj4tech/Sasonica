@@ -577,7 +577,8 @@ What is native (all of it goes through `app/lib/native.ts`, a no-op on the web):
   to the cache one ahead because HTTP `prepare()` measured 8.5–9.8 s against
   red5 and 44–78 ms off disk. Settings → Speech has the toggle, **off until
   turned on**; point red5 at it with `MEDIA_SPEECH_SOCKET_NEXT=tcp://p8a:6614`
-  and `media say --target next`. It cannot start itself after a reboot
+  and `media speech-target next` (`--clear` sends it back). It cannot
+  start itself after a reboot
   (Android 15 refuses a `mediaPlayback` service from `BOOT_COMPLETED`);
   opening the app does. `MpvServerTest` replays what `sinks/speech.py`
   really sends, on the JVM, in CI.
