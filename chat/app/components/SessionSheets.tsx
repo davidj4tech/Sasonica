@@ -49,7 +49,7 @@ export function SessionMenuSheet(props: { title: string; live: boolean; archived
       <p className="action-title">{props.title}</p>
       <div role="menu" className="action-list">
         {sessionMenuItems(props.live, props.archived).map((a) => (
-          <button key={a} role="menuitem" className={a === 'exit' || a === 'exit-archive' ? 'danger' : ''} onClick={() => props.onPick(a)}>
+          <button key={a} role="menuitem" onClick={() => props.onPick(a)}>
             {ACTION_LABEL[a]}
           </button>
         ))}

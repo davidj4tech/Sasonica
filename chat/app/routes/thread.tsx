@@ -276,7 +276,7 @@ function ThreadPage({ session }: { session: string }) {
             {menu && (
               <Popover anchor={menuButton} label="Thread menu" onClose={() => setMenu(false)}>
                 {sessionMenuItems(sessionLive, archived).map((a) => (
-                  <button key={a} role="menuitem" className={a === 'exit' || a === 'exit-archive' ? 'danger' : ''} onClick={() => onAction(a)}>
+                  <button key={a} role="menuitem" onClick={() => onAction(a)}>
                     {ACTION_LABEL[a]}
                   </button>
                 ))}
