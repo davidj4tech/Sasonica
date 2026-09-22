@@ -190,6 +190,17 @@ final class Media3Speech implements MpvServer.Player {
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state != Player.STATE_ENDED) return;
+                if (restarting) {
+                    // Our own doing: an empty timeline ends playback, so
+                    // clearMediaItems() on the way into the next clip arrives
+                    // here looking exactly like the end of a reply. Believing
+                    // it took the follow-along and the player card off the
+                    // screen at the start of the last clip, while the audio
+                    // played happily on (David, 23 Sep 2026: "follow along
+                    // disappeared and so did the player before it finished
+                    // speaking... the audio finished okay though").
+                    return;
+                }
                 // ExoPlayer ran off the end of what it had. Either the reply
                 // is over, or a clip we have not fetched yet is next — in
                 // which case restarting at it is how it gets fetched.
@@ -243,6 +254,9 @@ final class Media3Speech implements MpvServer.Player {
         base = index;
         queued = index;
         final int mine = ++generation;
+        // Between here and the new clip being set, ExoPlayer's own state is
+        // not evidence about the reply: see onPlaybackStateChanged.
+        restarting = true;
         p.clearMediaItems();
         volunteer("playlist-pos");
         fetcher.execute(() -> {
@@ -253,6 +267,7 @@ final class Media3Speech implements MpvServer.Player {
                 log.line("speech: " + uri + " failed: " + e);
                 run(() -> {
                     if (mine != generation) return;
+                    restarting = false;
                     if (index + 1 < playlistCount()) {
                         startAt(index + 1);
                     } else {
@@ -266,6 +281,7 @@ final class Media3Speech implements MpvServer.Player {
             run(() -> {
                 ExoPlayer on = exo();
                 if (on == null || mine != generation) return;
+                restarting = false;
                 on.setMediaItem(MediaItem.fromUri(Uri.fromFile(ready)));
                 on.prepare();
                 on.setPlayWhenReady(!paused);
@@ -276,6 +292,15 @@ final class Media3Speech implements MpvServer.Player {
 
     /** Bumped by every start; an overtaken fetch drops itself. Player thread. */
     private int generation;
+
+    /**
+     * Clearing the playlist, on the way into another clip. Player thread.
+     *
+     * ExoPlayer ends playback when its timeline empties, and it says so the
+     * same way it says a reply is over. Everything between the clear and the
+     * next clip being set is therefore ours, not news.
+     */
+    private volatile boolean restarting;
 
     /**
      * Keep one clip queued behind the one playing, fetching it first.
@@ -388,6 +413,7 @@ final class Media3Speech implements MpvServer.Player {
             base = -1;
             queued = -1;
             generation++;    // a clip still being fetched is no longer wanted
+            restarting = false;  // this clear IS the end, and may be reported
             ended = false;   // idle by the empty-playlist half of the test
             ExoPlayer p = exo();
             if (p != null) {
