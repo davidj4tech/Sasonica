@@ -215,6 +215,10 @@ export default function Settings() {
         </details>
         {saved && <p className="status">{saved}</p>}
         {check && <p className="status">{check}</p>}
+        <Link className="about-row" to="/about">
+          <span>About Sasonica</span>
+          <span aria-hidden="true">›</span>
+        </Link>
       </form>
     </div>
   )
