@@ -11,6 +11,7 @@
 import { authHeaders, serverBase } from './auth'
 import { readSse } from '../lib/sse'
 import type {
+  Agent,
   AgentLogResponse,
   AgentsResponse,
   AnswerRequest,
@@ -26,6 +27,8 @@ import type {
   Envelope,
   ConversationLog,
   DraftResponse,
+  HarnessesResponse,
+  HarnessRun,
   RenameResponse,
   ReplyRequest,
   ReplyResponse,
@@ -362,6 +365,22 @@ export function getAudioTargets(signal?: AbortSignal) {
  */
 export function setAudioTarget(channel: 'speech' | 'music', target: string | null) {
   return request<Envelope & AudioChannel & { channel: string }>('POST', '/audio/target', { channel, target })
+}
+
+// ── Harnesses (§6.6) ──────────────────────────────────────────────────────
+
+/** Which of Claude, Codex, pi and Hermes the server has, and signed in or not. */
+export function getHarnesses(signal?: AbortSignal) {
+  return request<HarnessesResponse>('GET', '/harnesses', undefined, signal)
+}
+
+/**
+ * Install (or update) a harness, or sign into it, in a window on the server;
+ * watch it with components/SetupWindow. REAL on the canvas: it runs npm or
+ * the sign-in there. Test on the mock.
+ */
+export function runHarness(agent: Agent, action: 'install' | 'login') {
+  return request<HarnessRun>('POST', '/harnesses/run', { agent, action })
 }
 
 export type { SessionRow }

@@ -199,7 +199,7 @@ device code and passed through.
 | `app/lib/pictures.ts` | the per-device "Show ambient artwork" setting |
 | `app/components/Thread.tsx` | the assistant-ui runtime and thread layout |
 | `app/components/parts.tsx` | follow-along text, reasoning ("Thinking" / "thought"), tool steps and the "Worked · N steps" block, pictures, ask/approval tool UIs, working indicator |
-| `app/routes/*` | thread list, thread, new chat, settings |
+| `app/routes/*` | thread list, thread, new chat, settings, coding agents (install / sign in) |
 | `app/routes/home.tsx`, `app/hooks/useDashboard.ts` | Home, the landing screen: GET /dashboard (§6.11) every 5 s while visible, painted from the saved answer; a card answered here hides at once (and a 409 swaps in the new question) until a later poll agrees |
 | `app/components/Nav.tsx` | Home \| Threads (Threads pushes, Home pops it) and ←, a real back when there is one |
 | `app/components/Machines.tsx` | the hosts: memory ring (green → amber at 70 % → red at 85 % or the reaper's "tight"), session count, service and online dots, a tap for the numbers |

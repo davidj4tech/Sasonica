@@ -451,6 +451,34 @@ export interface ReplyResponse extends Envelope {
 
 export type Agent = 'claude' | 'codex' | 'pi' | 'hermes'
 
+/** One harness on the server, as GET /harnesses (§6.6) reports it. */
+export interface HarnessRow {
+  name: Agent
+  /** On this host's PATH: a chat can be started with it. */
+  present: boolean
+  path: string | null
+  version: string
+  /** Only Claude and Codex will say; pi and Hermes are honestly "unknown". */
+  auth: 'in' | 'out' | 'unknown'
+  account: string
+  /** The buttons worth showing: what the host has a recipe for. */
+  actions: ('install' | 'login')[]
+  /** An install of something already here is an update. */
+  installed_action: 'install' | 'update'
+}
+
+export interface HarnessesResponse extends Envelope {
+  agents: HarnessRow[]
+}
+
+/** POST /harnesses/run: the window it opened, to watch with /harnesses/screen. */
+export interface HarnessRun extends Envelope {
+  pane: string
+  agent: Agent
+  action: 'install' | 'login'
+  cmd: string
+}
+
 export interface AskRequest {
   text: string
   /** A session id, or "new" to force a fresh session. */

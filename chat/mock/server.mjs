@@ -65,6 +65,7 @@ import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
 import { randomUUID, createHash } from 'node:crypto'
+import { harnessRoute, mockHarnessControl } from './harnesses.mjs'
 import { mockNotesControl, noteAsk, noteChatStarted, notesRoute, setupWindowRoute } from './notes.mjs'
 
 const args = process.argv.slice(2)
@@ -1187,7 +1188,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/ask', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
+const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1219,6 +1220,7 @@ createServer(async (req, res) => {
   }
   if (path === '/healthz') return res.writeHead(200).end('ok')
   if (path === '/mock/notes') return send(res, 200, mockNotesControl(url.searchParams))
+  if (path === '/mock/harnesses') return send(res, 200, mockHarnessControl(url.searchParams))
   if (path === '/mock/real/restart') {
     // Tests: start the real-shaped replies now (they go live in `?in=` s).
     // `?ended=1` holds them finished (spoken, with a history id) until the next restart.
@@ -1456,6 +1458,9 @@ function dashHosts() {
 async function route(method, path, q, body, res) {
   const ok = (b) => (send(res, 200, { ok: true, ...b }), 200)
   const err = (status, error, extra) => (fail(res, status, error, extra), status)
+  // The harnesses and their windows (mock/harnesses.mjs).
+  const harness = harnessRoute(method, path, q, body, ok, err)
+  if (harness) return harness
   // The notes routes and their setup window (mock/notes.mjs).
   const notes = (await notesRoute(method, path, q, body, ok, err)) || setupWindowRoute(method, path, q, body, ok, err)
   if (notes) return notes
