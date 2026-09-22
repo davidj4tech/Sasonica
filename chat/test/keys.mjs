@@ -18,7 +18,7 @@ async function open(viewport, size) {
   await page.evaluate(([base, res, size]) => {
     localStorage.setItem('sasonica.chat.baseUrl', base)
     localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() }))
-    localStorage.setItem('sasonica.chat.textSize', size)
+    localStorage.setItem('sasonica.chat.textSize2', size)
   }, [BASE, pr, size])
   return page
 }
@@ -32,7 +32,7 @@ const overlap = (page) => page.evaluate(() => {
   return false
 })
 
-for (const [name, vp, size] of [['portrait', { width: 390, height: 780 }, 'default'], ['landscape', { width: 844, height: 390 }, 'default'], ['portrait-larger', { width: 390, height: 780 }, 'larger']]) {
+for (const [name, vp, size] of [['portrait', { width: 390, height: 780 }, 'default'], ['landscape', { width: 844, height: 390 }, 'default'], ['portrait-larger', { width: 390, height: 780 }, 'largest']]) {
   const page = await open(vp, size)
   // Spoken, ended replies: the long conversation (short bubbles) and the real-shaped one after it ends.
   await page.goto(BASE + '/t/' + sid('Mock: shelved conversation'))
@@ -57,7 +57,7 @@ for (const [name, vp, size] of [['portrait', { width: 390, height: 780 }, 'defau
     await page.locator('.msg.agent:has(.live-text) .msg-keys .msg-key').last().click()
     await page.waitForTimeout(250)
     ok((await keysPer(page)).find((k) => k.live).labels.every((l) => l === 'Pause'), `${name}: bottom key resumes; both agree`)
-  } else ok(size !== 'larger' ? true : false, `${name}: live bubble ${live?.h}px shows ${live?.keys} key(s)`)
+  } else ok(size !== 'largest' ? true : false, `${name}: live bubble ${live?.h}px shows ${live?.keys} key(s)`)
   await page.screenshot({ path: `${SHOTS}/keys-${name}.png` })
   // tall ended reply → ▶ at top sends replay-id
   await fetch(BASE + '/mock/real/restart?ended=1') // ended, id present

@@ -7,24 +7,40 @@
  * Stored in localStorage (a per-device preference, read synchronously so it
  * applies before first paint — see TEXT_SIZE_BOOT in root.tsx). Blocked
  * storage means the default, every time.
+ *
+ * Default is what was Large (19 px). The small end goes down to 13 px for
+ * smart glasses, where a line has to fit a narrow display.
  */
 
 export const TEXT_SIZES = [
-  { id: 'small', label: 'Small', px: 15 },
-  { id: 'default', label: 'Default', px: 17 },
-  { id: 'large', label: 'Large', px: 19 },
-  { id: 'larger', label: 'Larger', px: 22 }
+  { id: 'smallest', label: 'Smallest', px: 13 },
+  { id: 'smaller', label: 'Smaller', px: 15 },
+  { id: 'small', label: 'Small', px: 17 },
+  { id: 'default', label: 'Default', px: 19 },
+  { id: 'large', label: 'Large', px: 22 },
+  { id: 'largest', label: 'Largest', px: 25 }
 ] as const
 
 export type TextSizeId = (typeof TEXT_SIZES)[number]['id']
 
-export const TEXT_SIZE_KEY = 'sasonica.chat.textSize'
+/** A new key: the old one's ids meant other sizes (its Large is today's
+ * Default), so a saved choice is carried over by size, not by name. */
+export const TEXT_SIZE_KEY = 'sasonica.chat.textSize2'
+const OLD_KEY = 'sasonica.chat.textSize'
+const OLD_TO_NEW: Record<string, TextSizeId> = { small: 'smaller', large: 'default', larger: 'large' }
 const DEFAULT: TextSizeId = 'default'
 
 export function getTextSize(): TextSizeId {
   try {
     const v = window.localStorage.getItem(TEXT_SIZE_KEY)
     if (TEXT_SIZES.some((s) => s.id === v)) return v as TextSizeId
+    const old = window.localStorage.getItem(OLD_KEY)
+    if (old !== null) {
+      window.localStorage.removeItem(OLD_KEY)
+      const id = OLD_TO_NEW[old] || 'small'
+      if (id !== DEFAULT) window.localStorage.setItem(TEXT_SIZE_KEY, id)
+      return id
+    }
   } catch {
     // Private mode or blocked storage: the default.
   }
@@ -33,7 +49,7 @@ export function getTextSize(): TextSizeId {
 
 /** Takes effect at once: the variable changes, every rem follows. */
 export function applyTextSize(id: TextSizeId) {
-  const size = TEXT_SIZES.find((s) => s.id === id) || TEXT_SIZES[1]
+  const size = TEXT_SIZES.find((s) => s.id === id) || TEXT_SIZES[3]
   document.documentElement.style.setProperty('--text-size', `${size.px}px`)
 }
 
@@ -52,4 +68,4 @@ export function setTextSize(id: TextSizeId) {
  * saved size is on the root before the first paint (no flash of the default
  * size while the bundle loads).
  */
-export const TEXT_SIZE_BOOT = `try{var m=${JSON.stringify(Object.fromEntries(TEXT_SIZES.map((s) => [s.id, s.px])))},v=localStorage.getItem(${JSON.stringify(TEXT_SIZE_KEY)});if(m[v])document.documentElement.style.setProperty('--text-size',m[v]+'px')}catch(e){}`
+export const TEXT_SIZE_BOOT = `try{var m=${JSON.stringify(Object.fromEntries(TEXT_SIZES.map((s) => [s.id, s.px])))},o=${JSON.stringify(OLD_TO_NEW)},v=localStorage.getItem(${JSON.stringify(TEXT_SIZE_KEY)}),w=localStorage.getItem(${JSON.stringify(OLD_KEY)});if(!m[v]&&w!==null)v=o[w]||'small';if(m[v])document.documentElement.style.setProperty('--text-size',m[v]+'px')}catch(e){}`

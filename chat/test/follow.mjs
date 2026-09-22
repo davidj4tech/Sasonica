@@ -19,7 +19,7 @@ await page.evaluate(([base, res, legacy, size]) => {
   localStorage.setItem('sasonica.chat.baseUrl', base)
   if (legacy) localStorage.setItem('sasonica.chat.token', 'abs-legacy')
   else localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 'test', server: res.server, pairedAt: Date.now() }))
-  if (size !== 'default') localStorage.setItem('sasonica.chat.textSize', size)
+  if (size !== 'default') localStorage.setItem('sasonica.chat.textSize2', size)
 }, [BASE, pairRes, LEGACY, SIZE])
 
 const sample = () => page.evaluate(() => {

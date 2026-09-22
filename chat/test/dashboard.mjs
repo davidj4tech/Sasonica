@@ -210,7 +210,7 @@ const fabCheck = async (label, opts = {}, { inset = 0, quiet = false, size = '' 
   const { ctx, page: p } = await newPage(opts)
   if (quiet) await p.route('**/speech/now', (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: true, live: false, speaking: false, paused: false, sentence: '', session: null, title: '', item: null, pos: null, dur: null, speed: null, muted: false, queued: [] }) }))
   await login(p)
-  if (size) await p.evaluate((s) => localStorage.setItem('sasonica.chat.textSize', s), size)
+  if (size) await p.evaluate((s) => localStorage.setItem('sasonica.chat.textSize2', s), size)
   if (inset) {
     // Chromium's own safe-area emulation where it has it; else the same
     // number through the CSS the inset feeds (the dock's padding).
@@ -251,8 +251,8 @@ await fabCheck('portrait-bar')
 await fabCheck('portrait-quiet-inset48', {}, { quiet: true, inset: 48 })
 await fabCheck('landscape', { viewport: { width: 844, height: 390 } })
 await fabCheck('landscape-quiet-inset48', { viewport: { width: 844, height: 390 } }, { quiet: true, inset: 48 })
-await fabCheck('larger-quiet', {}, { quiet: true, size: 'larger' })
-await fabCheck('larger-bar', {}, { size: 'larger' })
+await fabCheck('larger-quiet', {}, { quiet: true, size: 'largest' })
+await fabCheck('larger-bar', {}, { size: 'largest' })
 
 // ── the composer ─────────────────────────────────────────────────────────
 {

@@ -27,7 +27,7 @@ const newPage = async (viewport, size) => {
   await page.evaluate(([base, res, size]) => {
     localStorage.setItem('sasonica.chat.baseUrl', base)
     localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() }))
-    if (size) localStorage.setItem('sasonica.chat.textSize', size)
+    if (size) localStorage.setItem('sasonica.chat.textSize2', size)
   }, [BASE, pr, size])
   return page
 }
@@ -102,7 +102,7 @@ ok(true, 'tapping the notice opened its thread')
 await mock('clear=1')
 
 // 7. ↑ / ↓ pills.
-for (const [name, viewport, size] of [['portrait', { width: 390, height: 780 }], ['landscape', { width: 844, height: 390 }], ['portrait-larger', { width: 390, height: 780 }, 'larger']]) {
+for (const [name, viewport, size] of [['portrait', { width: 390, height: 780 }], ['landscape', { width: 844, height: 390 }], ['portrait-larger', { width: 390, height: 780 }, 'largest']]) {
   const p = await newPage(viewport, size)
   await p.goto(BASE + '/t/' + A)
   await p.waitForSelector('.msg')

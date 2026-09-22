@@ -44,7 +44,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
  * first paint by the inline script in root.tsx). Sizes were designed on a
  * 15px base, so 1rem here is "body text" and the rest keep their ratios.
  */
-html { font-size: var(--text-size, 17px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html { font-size: var(--text-size, 19px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { font: 1rem/1.45 var(--font-body); }
 button, input, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }
@@ -342,7 +342,7 @@ a { color: var(--accent); }
 
 /*
  * Finished: a slim strip, half the bar — 1.8rem (30 px at Default), capped at
- * 36 px so Larger text does not grow it back. One line: ▶ Replay · title.
+ * 36 px so Largest text does not grow it back. One line: ▶ Replay · title.
  * The keys' hit areas reach 8 px past the strip (≥ 44 px) into the margin
  * around it, so nothing needs the height back.
  */
