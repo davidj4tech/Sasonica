@@ -34,7 +34,20 @@ import {
   type ListEntry,
   type ThreadSort
 } from '../lib/threadSort'
-import { DEFAULT_FILTER, filterLabel, filterThreads, loadThreadFilter, projectsOf, saveThreadFilter, SHOW_LABEL, SHOWS, type ThreadFilter } from '../lib/threadFilter'
+import {
+  DEFAULT_FILTER,
+  filterLabel,
+  filterThreads,
+  isDefaultFilter,
+  loadThreadFilter,
+  projectsOf,
+  saveThreadFilter,
+  SHOW_LABEL,
+  SHOWS,
+  STATE_FILTER_LABEL,
+  STATE_FILTERS,
+  type ThreadFilter
+} from '../lib/threadFilter'
 
 const STATE_LABEL: Record<SessionState, string> = {
   working: 'working',
@@ -91,6 +104,15 @@ function ThreadList() {
     setFilterState(next)
     saveThreadFilter(next)
   }
+  // The states are a multiple choice: the menu stays open while they are
+  // ticked and unticked, and none ticked asks nothing of the list.
+  const toggleState = (k: SessionState) => {
+    setFilterState((prev) => {
+      const next = { ...prev, states: prev.states.includes(k) ? prev.states.filter((x) => x !== k) : [...prev.states, k] }
+      saveThreadFilter(next)
+      return next
+    })
+  }
   const rename = useRename()
   const autoRename = useAutoRename()
   const acts = useSessionActions()
@@ -99,7 +121,13 @@ function ThreadList() {
   // threads leave the main list for a folded section at its foot; this app's
   // own archive or exit shows before the server confirms it.
   const isArchived = (row: SessionRow) => archivedOf(row.session, row.archived)
-  const { main, folded: archived } = filterThreads(sessions, filter, isArchived, (row) => row.live && !endedHere(row.session))
+  const { main, folded: archived } = filterThreads(
+    sessions,
+    filter,
+    isArchived,
+    (row) => row.live && !endedHere(row.session),
+    (row) => states[row.session]
+  )
   const projects = projectsOf(sessions)
   if (filter.project && !projects.includes(filter.project)) projects.push(filter.project)
   // The chosen order (lib/threadSort.ts), the Archived section's too.
@@ -162,7 +190,7 @@ function ThreadList() {
         <button
           ref={filterButton}
           type="button"
-          className={filter.show !== 'active' || filter.project ? 'filter-button on' : 'filter-button'}
+          className={isDefaultFilter(filter) ? 'filter-button' : 'filter-button on'}
           aria-haspopup="menu"
           aria-expanded={filterOpen}
           onClick={() => setFilterOpen((o) => !o)}
@@ -205,6 +233,15 @@ function ThreadList() {
               {p ?? 'All projects'}
             </button>
           ))}
+          <div className="menu-sep" role="separator" />
+          {STATE_FILTERS.map((k) => (
+            <button key={k} role="menuitemcheckbox" aria-checked={filter.states.includes(k)} className={filter.states.includes(k) ? 'on' : ''} onClick={() => toggleState(k)}>
+              <span className="mark" aria-hidden="true">
+                {filter.states.includes(k) ? '✓' : ''}
+              </span>
+              {STATE_FILTER_LABEL[k]}
+            </button>
+          ))}
         </Popover>
       )}
 
@@ -213,7 +250,9 @@ function ThreadList() {
       {loading && !sessions.length && <p className="notice">Loading…</p>}
       {!loading && sessions.length > 0 && !main.length && !archived.length && (
         <p className="notice filter-empty">
-          No {filter.show === 'all' || filter.show === 'active' ? '' : SHOW_LABEL[filter.show].toLowerCase() + ' '}threads{filter.project ? ` in ${filter.project}` : ''}.{' '}
+          No {filter.show === 'all' || filter.show === 'active' ? '' : SHOW_LABEL[filter.show].toLowerCase() + ' '}threads
+          {filter.project ? ` in ${filter.project}` : ''}
+          {filter.states.length ? ` (${STATE_FILTERS.filter((k) => filter.states.includes(k)).map((k) => STATE_FILTER_LABEL[k].toLowerCase()).join(' or ')})` : ''}.{' '}
           <button type="button" className="link" onClick={() => setFilter(DEFAULT_FILTER)}>
             Show all
           </button>

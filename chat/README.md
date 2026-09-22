@@ -252,6 +252,13 @@ device code and passed through.
   to press, still). Everywhere else rows, Home's recap and working
   cards, and the thread header carry the project really small under the
   title, when there is one.
+- Thread list filter (23 Sep 2026): "Show:" is Active / Live / Closed /
+  Archived / Everything, one project (or all), and any number of states —
+  Needs you, Working, Your turn (`/sessions/state`), ticked and unticked
+  with the menu staying open. A state is something a running thread is
+  doing, so picking one leaves the shelved rows out; none picked asks
+  nothing. The button names what is on, and "Show all" on the empty line
+  clears the lot. Kept per device (localStorage).
 - Menus and sheets (the ⋮ menu, the long-press menu, rename and exit
   sheets, the sort menu, speech controls and output) all close on a tap
   outside — a scrim takes that tap, so it never presses what is under it —

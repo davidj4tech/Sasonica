@@ -6,6 +6,8 @@
 //   live      only live rows; closed: only shelved rows, no archived one
 //   all       every row, archived ones marked
 //   project   one project's rows, combined with the show choice
+//   states    Needs you / Working / Your turn, any number of them at once:
+//             the menu stays open, shelved rows go, the button names them
 //   empty     nothing matches → a line with "Show all", which resets
 //   device    the choice survives a reload (localStorage)
 import { chromium, SHOTS } from './lib.mjs'
@@ -76,18 +78,55 @@ t = await titles()
 ok(t.length > 0 && t.every((x) => byTitle[x]?.project === 'sasonica' && byTitle[x]?.archived), 'Archived in sasonica')
 await page.screenshot({ path: SHOTS + '/filter-02-project.png' })
 
+// States: a multiple choice, the menu staying open
+const state = async (name) => {
+  if ((await page.locator('.filter-menu').count()) === 0) await page.locator('.filter-button').click()
+  await page.getByRole('menuitemcheckbox', { name, exact: true }).click()
+  await page.waitForTimeout(100)
+}
+await pick('Everything')
+await pick('All projects')
+await page.waitForTimeout(600) // /sessions/state
+const badges = async () => page.locator('.threads .thread-row').evaluateAll((els) => els.map((el) => el.querySelector('.badge')?.textContent || ''))
+await state('Needs you')
+ok((await page.locator('.filter-menu').count()) === 1, 'the menu stays open on a state')
+let bs = await badges()
+ok(bs.length > 0 && bs.every((x) => x === 'needs you'), `Needs you: only those (${bs.length} rows)`)
+await state('Working')
+bs = await badges()
+ok(bs.length > 0 && bs.every((x) => x === 'needs you' || x === 'working') && bs.includes('working'), `and Working: both (${bs.join(',')})`)
+ok((await label()).includes('Needs you, Working'), `the button names them (${await label()})`)
+await page.screenshot({ path: SHOTS + '/filter-03-states.png' })
+await page.keyboard.press('Escape')
+await page.waitForTimeout(100)
+ok((await titles()).every((x) => byTitle[x]?.live), 'no shelved row while a state is picked')
+await state('Needs you')
+bs = await badges()
+ok(bs.length > 0 && bs.every((x) => x === 'working'), 'a second tap unticks it: Working alone')
+await state('Working')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(100)
+ok((await titles()).length === targets.length && !(await label()).includes('·'), 'none ticked asks nothing')
+await pick('sasonica')
+await pick('Archived')
+
 // Per device
 await page.reload()
 await page.waitForSelector('.thread-row')
 ok((await label()).includes('Archived · sasonica'), 'the choice survives a reload')
 
-// Empty → Show all
+// Empty → Show all (a state clears with it)
 await pick('runlet')
 await page.waitForSelector('.filter-empty')
 ok((await titles()).length === 0 && (await page.locator('.filter-empty').innerText()).includes('No archived threads in runlet'), 'nothing matches: says so')
+await state('Needs you')
+await state('Your turn')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(100)
+ok((await page.locator('.filter-empty').innerText()).includes('(needs you or your turn)'), `the empty line names the states (${(await page.locator('.filter-empty').innerText()).split('\n')[0]})`)
 await page.locator('.filter-empty .link').click()
 await page.waitForTimeout(100)
-ok((await label()).startsWith('Show: Active') && !(await label()).includes('·') && (await titles()).length > 0, 'Show all goes back to Active, every project')
+ok((await label()).startsWith('Show: Active') && !(await label()).includes('·') && (await titles()).length > 0, 'Show all goes back to Active, every project, no state')
 
 ok(!errors.length, `no page errors ${errors.join('; ')}`)
 await b.close()
