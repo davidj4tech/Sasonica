@@ -86,7 +86,7 @@ const state = async (name) => {
 }
 await pick('Everything')
 await pick('All projects')
-await page.waitForTimeout(600) // /sessions/state
+await page.locator('.thread-row .badge', { hasText: 'needs you' }).first().waitFor() // /sessions/state has landed
 const badges = async () => page.locator('.threads .thread-row').evaluateAll((els) => els.map((el) => el.querySelector('.badge')?.textContent || ''))
 await state('Needs you')
 ok((await page.locator('.filter-menu').count()) === 1, 'the menu stays open on a state')
@@ -117,6 +117,8 @@ await page.waitForSelector('.filter-menu')
 const box = await page.locator('.filter-menu').boundingBox()
 const vh = await page.evaluate(() => window.innerHeight)
 ok(box.y + box.height <= vh + 1, `the menu stops at the foot of the screen (${(box.y + box.height).toFixed(0)} ≤ ${vh})`)
+const anchor = await page.locator('.filter-button').boundingBox()
+ok(box.width < (await page.evaluate(() => window.innerWidth)) - anchor.x - 8, 'it is as wide as its words, not stretched to the window edge')
 ok(await page.evaluate(() => { const m = document.querySelector('.filter-menu'); return m.scrollHeight > m.clientHeight && getComputedStyle(m).overflowY === 'auto' }), 'and scrolls, since it is taller than that')
 await page.getByRole('menuitemcheckbox', { name: 'Your turn', exact: true }).click()
 await page.waitForTimeout(100)

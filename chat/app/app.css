@@ -73,7 +73,11 @@ a { color: var(--accent); }
 .menu-anchor { position: relative; }
 /* A dropped menu's clear scrim (components/Popover.tsx): catches the tap outside. */
 .popover-scrim { position: fixed; inset: 0; z-index: 30; background: transparent; }
-.menu.popover { position: fixed; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* Dropped by measurement (components/Popover.tsx): the inline top/left (or
+ * right) places it, so it must not also keep .menu's right: 0 — that stretched
+ * it to the window's edge on a wide screen. It takes the room there is at the
+ * foot of the screen and scrolls. */
+.menu.popover { position: fixed; right: auto; max-width: calc(100vw - 16px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .menu-anchor .icon { min-width: 44px; min-height: 44px; }
 /* The ← on every sub-page: a 44 px target at any text size. */
 .bar > a.icon { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
