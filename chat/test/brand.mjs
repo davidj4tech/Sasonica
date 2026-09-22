@@ -19,7 +19,7 @@ for (const f of ['favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'icon-
 
 const b = await chromium.launch()
 const wide = (page) => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
-for (const [name, vp, size, px] of [['portrait', { width: 390, height: 780 }, 'default', 13], ['landscape', { width: 844, height: 390 }, 'default', 13], ['portrait-larger', { width: 390, height: 780 }, 'largest', 19]]) {
+for (const [name, vp, size, px] of [['portrait', { width: 390, height: 780 }, 'default', 15], ['landscape', { width: 844, height: 390 }, 'default', 15], ['portrait-larger', { width: 390, height: 780 }, 'largest', 21]]) {
   const ctx = await b.newContext({ viewport: vp, isMobile: true, hasTouch: true, colorScheme: 'dark' })
   const page = await ctx.newPage()
   await page.route('**/input', (r) => r.abort())

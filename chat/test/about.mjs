@@ -36,7 +36,7 @@ for (const [name, vp, size, shell] of [
     localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() }))
   }, [BASE, pr, size])
   await page.goto(BASE + '/settings')
-  const row = page.locator('a.about-row')
+  const row = page.locator('a.about-row[href="/about"]')
   await row.scrollIntoViewIfNeeded()
   ok((await row.innerText()).includes('About Sasonica'), `${name}: Settings ends with "About Sasonica"`)
   ok((await row.boundingBox()).height >= 44, `${name}: the About row is 44 px tall`)

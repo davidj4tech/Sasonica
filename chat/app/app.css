@@ -44,7 +44,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
  * first paint by the inline script in root.tsx). Sizes were designed on a
  * 15px base, so 1rem here is "body text" and the rest keep their ratios.
  */
-html { font-size: var(--text-size, 13px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html { font-size: var(--text-size, 15px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { font: 1rem/1.45 var(--font-body); }
 button, input, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }

@@ -8,19 +8,19 @@
  * applies before first paint — see TEXT_SIZE_BOOT in root.tsx). Blocked
  * storage means the default, every time.
  *
- * Default is 13 px. The small end goes down to 7 px for
+ * Default is 15 px. The small end goes down to 9 px for
  * smart glasses, where a line has to fit a narrow display — three steps
  * below Default, three above.
  */
 
 export const TEXT_SIZES = [
-  { id: 'smallest', label: 'Smallest', px: 7 },
-  { id: 'smaller', label: 'Smaller', px: 9 },
-  { id: 'small', label: 'Small', px: 11 },
-  { id: 'default', label: 'Default', px: 13 },
-  { id: 'large', label: 'Large', px: 15 },
-  { id: 'larger', label: 'Larger', px: 17 },
-  { id: 'largest', label: 'Largest', px: 19 }
+  { id: 'smallest', label: 'Smallest', px: 9 },
+  { id: 'smaller', label: 'Smaller', px: 11 },
+  { id: 'small', label: 'Small', px: 13 },
+  { id: 'default', label: 'Default', px: 15 },
+  { id: 'large', label: 'Large', px: 17 },
+  { id: 'larger', label: 'Larger', px: 19 },
+  { id: 'largest', label: 'Largest', px: 21 }
 ] as const
 
 export type TextSizeId = (typeof TEXT_SIZES)[number]['id']
