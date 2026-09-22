@@ -43,13 +43,16 @@ const run = (file, env = {}) =>
     p.on('exit', (code) => r(code || 0))
   })
 
-const mock = await mockAt(8811, { MOCK_SPEECH_REST_S: '0' })
-const skewMock = await mockAt(8812, { MOCK_REAL_VOICE: '1' })
+// E2E_PORT moves both mocks (P and P+1), so two worktrees can run the
+// suites at once without sharing a mock's state.
+const P = Number(process.env.E2E_PORT || 8811)
+const mock = await mockAt(P, { MOCK_SPEECH_REST_S: '0' })
+const skewMock = await mockAt(P + 1, { MOCK_REAL_VOICE: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['brand.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
-    failed += (await run(file, env)) ? 1 : 0
+    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' ? P + 1 : P}`, ...env })) ? 1 : 0
   }
 } finally {
   mock.kill()

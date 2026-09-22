@@ -4,6 +4,7 @@ import './app.css'
 import { SpeechProvider } from './hooks/useSpeech'
 import { Notices } from './components/Notices'
 import { TEXT_SIZE_BOOT } from './lib/textSize'
+import { Mark } from './components/Mark'
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -12,7 +13,21 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
         <meta name="color-scheme" content="dark light" />
+        <meta name="theme-color" content="#0D1412" />
         <title>Sasonica</title>
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        {/* The brand faces (brand/README.md): Fraunces for the wordmark and
+            headings, IBM Plex Sans for everything else. swap: the system face
+            shows until they land, at the same rem sizes. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+        />
         {/* The saved text size, on the root before first paint (lib/textSize.ts). */}
         <script dangerouslySetInnerHTML={{ __html: TEXT_SIZE_BOOT }} />
         <Meta />
@@ -29,7 +44,14 @@ export function Layout({ children }: { children: ReactNode }) {
 
 /** Rendered into index.html at build time, shown until the SPA hydrates. */
 export function HydrateFallback() {
-  return <div className="boot">Sasonica</div>
+  return (
+    <div className="boot">
+      <span className="wordmark">
+        <Mark size={28} />
+        Sasonica
+      </span>
+    </div>
+  )
 }
 
 /**

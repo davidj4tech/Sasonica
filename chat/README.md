@@ -86,7 +86,7 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 ```
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
-and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream,notes}.mjs` in headless
+and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream,notes,brand}.mjs` in headless
 Chromium at phone size: pairing and the one-request thread open (its stream),
 follow-along on the real-shaped speech (default and Larger text), the top
 play/pause key (portrait, landscape, Larger), the skew correction against
@@ -98,7 +98,10 @@ mock's append with no polling — ~0.1 s on the mock; reasoning collapsed;
 steps grouped and mounted only when opened; follow-along on the stream's
 clock; a dropped stream reconnects to a snapshot with no duplicates; a
 refused one falls back to polling and comes back; Load earlier keeps the
-reader's place). Playwright is not a
+reader's place), and the brand (`brand.mjs`: icons, manifest, the wordmark
+and Pair's tagline, the faces leaving the text-size scale alone, no sideways
+scroll). `E2E_PORT=<n>` moves the mocks to n and n+1, for a second worktree
+running the suites at the same time. Playwright is not a
 dependency; any playwright-core with its browsers in `~/.cache/ms-playwright`
 will do. Screenshots go to `$TMPDIR/sasonica-chat-shots`.
 

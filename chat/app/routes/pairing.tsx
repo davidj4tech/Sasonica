@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { hasCredential, normaliseServer, pair, pairedDevice, parsePairLink, PairError, serverBase, storedBaseUrl, type PairRequest } from '../api/auth'
+import { Mark } from '../components/Mark'
 
 /** A code redeemed (or being redeemed) in this page load: a code dies on its
  * first success, so a remount (StrictMode, a back-and-forth) must not spend
@@ -112,6 +113,11 @@ export default function Pairing() {
           submit()
         }}
       >
+        <div className="brand-hero">
+          <Mark size={72} />
+          <p className="wordmark">Sasonica</p>
+          <p className="tagline">Talk to your agents.</p>
+        </div>
         {first && <p className="lead">Sasonica needs to be paired with your server once.</p>}
         <p className="hint">
           At the desk, run <code>media-visual-canvas pair --device "Phone"</code> and paste the <code>sasonica://pair?…</code> link it prints.

@@ -953,7 +953,7 @@ function svg(name) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="hsl(${hue},45%,55%)"/><circle cx="128" cy="128" r="70" fill="hsl(${(hue + 150) % 360},55%,70%)"/></svg>`
 }
 
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.ico': 'image/x-icon', '.png': 'image/png' }
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.ico': 'image/x-icon', '.png': 'image/png', '.webmanifest': 'application/manifest+json' }
 
 function serveStatic(req, res, path) {
   if (!existsSync(STATIC)) return false

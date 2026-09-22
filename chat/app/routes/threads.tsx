@@ -16,6 +16,7 @@ import { hasCredential } from '../api/auth'
 import type { SessionRow, SessionState } from '../api/types'
 import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
+import { Mark } from '../components/Mark'
 
 const STATE_LABEL: Record<SessionState, string> = {
   working: 'working',
@@ -48,7 +49,10 @@ function ThreadList() {
   return (
     <div className="page">
       <header className="bar">
-        <h1>Sasonica</h1>
+        <h1 className="wordmark">
+          <Mark size={28} />
+          Sasonica
+        </h1>
         {stale && loading && <span className="updating">updating…</span>}
         <button className="icon" onClick={() => reload()} title="Refresh">
           ↻
