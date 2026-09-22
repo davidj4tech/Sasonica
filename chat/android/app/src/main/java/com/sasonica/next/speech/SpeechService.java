@@ -82,6 +82,40 @@ public class SpeechService extends Service {
 
     private Media3Speech player;
     private MpvServer server;
+
+    /**
+     * The player, as {@link Holds} needs to see it.
+     *
+     * Two of these questions are the protocol's, not the player's: red5 sets a
+     * speaking flag for the whole of a reply and a priority with it, and both
+     * arrive as stored properties on the socket. Asking the player alone would
+     * miss the gap between a reply being queued and its first clip opening,
+     * which is exactly when a hold has to be decided.
+     */
+    private final Holds.Speech holds = new Holds.Speech() {
+        @Override public boolean audible() {
+            Media3Speech p = player;
+            return p != null && !p.idle() && !p.paused();
+        }
+
+        @Override public boolean replying() {
+            Media3Speech p = player;
+            MpvServer s = server;
+            if (p == null) return false;
+            return (s != null && s.storedFlag("user-data/agent-media/speaking"))
+                    || !p.idle();
+        }
+
+        @Override public String priority() {
+            MpvServer s = server;
+            return s == null ? "" : s.storedText("user-data/agent-media/priority");
+        }
+
+        @Override public void pause(boolean paused) {
+            Media3Speech p = player;
+            if (p != null) p.pause(paused);
+        }
+    };
     private String boundTo = "";
     private ScheduledExecutorService rebinder;
 
@@ -116,6 +150,16 @@ public class SpeechService extends Service {
             MpvServer m = s.server;
             return (m == null || m.boundPort() <= 0) ? "" : s.boundTo + ":" + m.boundPort();
         }
+    }
+
+    /** What the holds are doing, for Settings ("" when not running). */
+    public static String holding() {
+        return instance == null ? "" : Holds.why();
+    }
+
+    /** Is the microphone watch alive (as against "is something recording")? */
+    public static boolean watchingMic() {
+        return instance != null && Holds.watching();
     }
 
     /** Is a reply playing (or parked, recently)? */
@@ -206,6 +250,10 @@ public class SpeechService extends Service {
             });
             rebinder.scheduleWithFixedDelay(this::followTailnet,
                     REBIND_CHECK_S, REBIND_CHECK_S, TimeUnit.SECONDS);
+            // Speech waits while he is talking to something else. Started
+            // after the socket: the holds read the player, and a player that
+            // failed to build is a service that has already given up.
+            Holds.start(this, holds);
         } catch (Throwable t) {
             // The port may be taken, or the player may not build. Say so on the
             // notification rather than dying silently: the symptom otherwise is
@@ -216,6 +264,7 @@ public class SpeechService extends Service {
     }
 
     private synchronized void stop() {
+        Holds.stop();
         if (rebinder != null) rebinder.shutdownNow();
         rebinder = null;
         if (server != null) server.stop();

@@ -238,7 +238,9 @@ export default function Settings() {
             <small>
               {speech.enabled
                 ? speech.listening
-                  ? `Listening on ${speech.listening}. Point the server at it with media say --target next.`
+                  ? `Listening on ${speech.listening}. Point the server at it with media say --target next.${
+                      speech.watchingMic ? '' : ' The microphone watch is not running, so nothing will pause a reply while you talk.'
+                    }`
                   : 'Starting\u2026'
                 : `Off: replies are spoken by the old Sasonica app. While both are installed this one answers on port ${speech.port}, so you can try it without losing the other.`}
             </small>

@@ -70,6 +70,12 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- The two buttons on the waiting card, while a reply waits out a
+             call or a conversation. -->
+        <receiver
+            android:name=".speech.SpeechReceiver"
+            android:exported="false" />
+
         <!-- Restarts it after a reboot or an update, when it is on. -->
         <receiver
             android:name=".NotifyBootReceiver"

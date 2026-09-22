@@ -330,6 +330,10 @@ export interface SpeechStatus {
   listening: string
   /** A reply is playing here now. */
   speaking: boolean
+  /** One line on what the holds are doing (dictation, a voice session, a call). */
+  holding: string
+  /** The microphone watch is alive. False means nothing will ever hold. */
+  watchingMic: boolean
   /** The port it takes; 6613 is the old Sasonica app's. */
   port: number
 }
