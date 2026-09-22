@@ -72,7 +72,8 @@ export interface CallOptions {
   keepalive?: boolean
 }
 
-async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, opts: AbortSignal | CallOptions = {}): Promise<T> {
+/** Exported for the notes calls (./notes.ts). */
+export async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, opts: AbortSignal | CallOptions = {}): Promise<T> {
   const { signal, priority, keepalive } = opts instanceof AbortSignal ? { signal: opts, priority: undefined, keepalive: undefined } : opts
   const base = serverBase()
   if (!base) throw new ApiError('No server address — set one in Settings', 0)

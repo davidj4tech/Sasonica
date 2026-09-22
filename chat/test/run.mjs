@@ -20,6 +20,8 @@
 //           and flattened text; a refused one keeps its words with Retry
 //   arrivals  a reply in another session while reading A: nothing moves, a
 //           notice (urgent: stronger) and a list dot; ↑/↓ pills
+//   notes   the Notes tab: views, agenda, a heading and a roam note, read
+//           aloud, search (notes + memory), capture, setup + its window
 //   draft   the composer's text per thread: switch, reload, hidden, a newer
 //           copy from another device, send clears it, new chat
 //   stream  the thread is its §11 stream: a new message renders < 1 s after
@@ -45,7 +47,7 @@ const mock = await mockAt(8811, { MOCK_SPEECH_REST_S: '0' })
 const skewMock = await mockAt(8812, { MOCK_REAL_VOICE: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'larger' }], ['keys.mjs'], ['skew.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
     failed += (await run(file, env)) ? 1 : 0
   }

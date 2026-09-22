@@ -5,5 +5,8 @@ export default [
   route('t/:session', 'routes/thread.tsx'),
   route('new', 'routes/new.tsx'),
   route('settings', 'routes/settings.tsx'),
-  route('pairing', 'routes/pairing.tsx')
+  route('pairing', 'routes/pairing.tsx'),
+  route('notebook', 'routes/notes.tsx'),
+  route('notebook/note', 'routes/note.tsx'),
+  route('notebook/setup', 'routes/notes-setup.tsx')
 ] satisfies RouteConfig

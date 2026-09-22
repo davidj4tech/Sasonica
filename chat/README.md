@@ -86,7 +86,7 @@ PLAYWRIGHT_CORE=~/agent-config/node_modules/playwright-core pnpm test:e2e
 ```
 
 `test/run.mjs` starts two mocks (8811, and 8812 with `MOCK_REAL_VOICE=1`)
-and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream}.mjs` in headless
+and runs `test/{pair,follow,keys,skew,rename,finished,send,draft,arrivals,stream,notes}.mjs` in headless
 Chromium at phone size: pairing and the one-request thread open (its stream),
 follow-along on the real-shaped speech (default and Larger text), the top
 play/pause key (portrait, landscape, Larger), the skew correction against
@@ -174,6 +174,8 @@ device code and passed through.
 | `app/components/Thread.tsx` | the assistant-ui runtime and thread layout |
 | `app/components/parts.tsx` | follow-along text, reasoning ("Thinking" / "thought"), tool steps and the "Worked · N steps" block, pictures, ask/approval tool UIs, working indicator |
 | `app/routes/*` | thread list, thread, new chat, settings |
+| `app/api/notes.ts`, `app/routes/notes.tsx`, `note.tsx`, `notes-setup.tsx`, `app/lib/org.tsx`, `app/notes.css` | the Notes tab (§6.10): views, one note, the setup checklist and its window; Org rendered for reading; its own stylesheet. Pages live under `/notebook/…` so they never share a path with the `/notes` API on a one-port server |
+| `mock/notes.mjs` | the notes routes on the mock: an invented Org tree; `GET /mock/notes` shows captures/says/setup (`?reset=1`, `?unset=1`) |
 
 ## What works
 
@@ -370,6 +372,15 @@ It passed the mock and failed on the phone because real live lines differ:
   at the right edge they sit where a reply's play key can be, so they do
   not stay. They scroll the follow hook's own way, so they work while a
   live line holds assistant-ui's scrolling off.
+- Notes (✎ in the list header, server-contract.md §6.10): a strip of views
+  (Agenda grouped Overdue / Today / Tomorrow / by day, the GTD files, the
+  roam folders; the last one remembered), a heading or a note opened as
+  rendered Org with its id links followable, 🔊 to have the voice read it
+  (`/notes/say`), search over the notes and the memory store (agent notes
+  on a tick), and a capture box at the foot — To-do or Note into the inbox,
+  Ctrl+Enter saves. A server with no notes lands on the setup checklist:
+  start fresh notes, turn on sync, install paragtd, and watch a long action's
+  window (`/harnesses/screen`), typing into it if it asks.
 - New chat: place picker (`/targets.places`) and agent picker, `/ask {text,
   target: "new", cwd, agent}`, then straight into the new thread.
 

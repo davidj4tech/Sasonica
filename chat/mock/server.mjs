@@ -59,6 +59,7 @@ import { createServer } from 'node:http'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
 import { randomUUID, createHash } from 'node:crypto'
+import { mockNotesControl, notesRoute, setupWindowRoute } from './notes.mjs'
 
 const args = process.argv.slice(2)
 const opt = (name, dflt) => {
@@ -965,7 +966,7 @@ function serveStatic(req, res, path) {
   return true
 }
 
-const API = new Set(['/pair', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl'])
+const API = new Set(['/pair', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/harnesses/screen', '/harnesses/keys', '/harnesses/close'])
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://mock')
@@ -983,6 +984,7 @@ createServer(async (req, res) => {
     return res.end(svg(path.slice(5)))
   }
   if (path === '/healthz') return res.writeHead(200).end('ok')
+  if (path === '/mock/notes') return send(res, 200, mockNotesControl(url.searchParams))
   if (path === '/mock/real/restart') {
     // Tests: start the real-shaped replies now (they go live in `?in=` s).
     // `?ended=1` holds them finished (spoken, with a history id) until the next restart.
@@ -1145,6 +1147,9 @@ createServer(async (req, res) => {
 async function route(method, path, q, body, res) {
   const ok = (b) => (send(res, 200, { ok: true, ...b }), 200)
   const err = (status, error, extra) => (fail(res, status, error, extra), status)
+  // The notes routes and their setup window (mock/notes.mjs).
+  const notes = (await notesRoute(method, path, q, body, ok, err)) || setupWindowRoute(method, path, q, body, ok, err)
+  if (notes) return notes
 
   if (method === 'GET' && (path === '/targets' || path === '/conversations')) {
     const all = Object.values(S)
