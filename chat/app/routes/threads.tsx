@@ -18,7 +18,7 @@ import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
 import { Mark } from '../components/Mark'
 import { HomeTabs } from '../components/Nav'
-import { ConfirmExitSheet, SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
+import { SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { archivedOf, endedHere, useSessionFlags } from '../lib/sessionFlags'
 import { Popover } from '../components/Popover'
@@ -50,7 +50,6 @@ function ThreadList() {
   usePrefetch(sessions, !stale && !loading && !error)
   const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
   const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean } | null>(null)
-  const [confirm, setConfirm] = useState<{ session: string; archive: boolean } | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null)
   const [sort, setSortState] = useState<ThreadSort>(() => loadThreadSort())
@@ -82,7 +81,7 @@ function ThreadList() {
     else if (a === 'auto-rename') {
       setNote({ text: 'Thinking of a name…' })
       void autoRename(m.session).then((r) => setNote(r.ok ? null : { text: r.message, failed: true }))
-    } else if (a === 'exit' || a === 'exit-archive') setConfirm({ session: m.session, archive: a === 'exit-archive' })
+    } else if (a === 'exit' || a === 'exit-archive') void (a === 'exit-archive' ? acts.exitAndArchive(m.session) : acts.exit(m.session)).then(say)
     else void acts.archive(m.session, a === 'archive').then(say)
   }
   const entryOf = (e: ListEntry, where: string) =>
@@ -156,18 +155,6 @@ function ThreadList() {
       </ul>
 
       {menu && <SessionMenuSheet title={menu.title} live={menu.live} archived={menu.archived} onPick={pick} onClose={() => setMenu(null)} />}
-      {confirm && (
-        <ConfirmExitSheet
-          archive={confirm.archive}
-          onClose={() => setConfirm(null)}
-          onConfirm={() => {
-            const c = confirm
-            setConfirm(null)
-            void (c.archive ? acts.exitAndArchive(c.session) : acts.exit(c.session)).then(say)
-          }}
-        />
-      )}
-
       {renaming && (
         <RenameSheet
           title={renaming.title}

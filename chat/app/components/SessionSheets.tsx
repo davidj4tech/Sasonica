@@ -1,7 +1,7 @@
 /**
  * The thread's actions as sheets: the list's long-press menu (Rename, Auto rename, Exit
- * session, Archive / Unarchive, Exit & archive) and the confirmation an exit
- * asks for. The thread header's ⋮ menu offers the same items
+ * session, Archive / Unarchive, Exit & archive); an exit asks no confirmation
+ * (a send resumes it). The thread header's ⋮ menu offers the same items
  * (sessionMenuItems), so both places say the same thing.
  */
 import type { ReactNode } from 'react'
@@ -57,23 +57,6 @@ export function SessionMenuSheet(props: { title: string; live: boolean; archived
       <div className="row">
         <button type="button" className="quiet" onClick={props.onClose}>
           Cancel
-        </button>
-      </div>
-    </Sheet>
-  )
-}
-
-/** "End this session?" before an exit (and before Exit & archive). */
-export function ConfirmExitSheet(props: { archive: boolean; onConfirm: () => void; onClose: () => void }) {
-  return (
-    <Sheet label="End this session" onClose={props.onClose} className="confirm-sheet">
-      <p className="confirm-text">End this session? It can be resumed by sending a message.</p>
-      <div className="row">
-        <button type="button" className="quiet" onClick={props.onClose}>
-          Cancel
-        </button>
-        <button type="button" className="primary danger" autoFocus onClick={props.onConfirm}>
-          {props.archive ? 'End & archive' : 'End session'}
         </button>
       </div>
     </Sheet>

@@ -1,5 +1,5 @@
 // Exit and Archive (§6.4): the list's long-press menu and the thread's ⋮;
-// the confirm sheet; optimistic, rolled back on refusal; the folded
+// no confirm; the thread goes back once its close is accepted; optimistic, rolled back on refusal; the folded
 // "Archived (N)" section; Exit & archive as close-then-archive; the saved
 // list agrees on a cold start; sending un-archives and resumes. Mock only: a
 // real /session/close ends a running agent.
@@ -50,7 +50,7 @@ ok((await rowOf(old).count()) === 1 && (await inArchived(old)), 'a tap opens it:
 await page.screenshot({ path: SHOTS + '/sessions-01-archived-section.png' })
 await archivedHead.click()
 
-// 2. Long press a live thread → the menu → Exit session → confirm → ended at once
+// 2. Long press a live thread → the menu → Exit session → ended at once, no confirm
 const fresh = sid('Mock: not on the shelf yet')
 await rowOf(fresh).dispatchEvent('contextmenu')
 await page.waitForSelector('.action-sheet')
@@ -58,13 +58,10 @@ ok(page.url() === BASE + '/threads', 'long press opened the menu, not the thread
 const items = await menuItems()
 ok(JSON.stringify(items) === JSON.stringify(['Rename…', 'Auto rename', 'Exit session', 'Archive', 'Exit & archive']), `live thread menu: ${items.join(' | ')}`)
 await page.screenshot({ path: SHOTS + '/sessions-02-menu.png' })
-await page.getByRole('menuitem', { name: 'Exit session' }).click()
-await page.waitForSelector('.confirm-sheet')
-ok((await page.locator('.confirm-text').innerText()) === 'End this session? It can be resumed by sending a message.', 'confirm sheet asks first')
-await page.screenshot({ path: SHOTS + '/sessions-03-confirm.png' })
 await ctl('delay=1500')
-await page.getByRole('button', { name: 'End session' }).click()
+await page.getByRole('menuitem', { name: 'Exit session' }).click()
 await page.waitForTimeout(300)
+ok((await page.locator('.sheet-wrap').count()) === 0, 'no confirm sheet')
 ok((await rowOf(fresh).locator('.badge').count()) === 0 && (await rowOf(fresh).locator('.dot.shelved').count()) === 1, 'row ended at once (no live badge) before the server answered')
 await page.waitForTimeout(1600)
 const cp = posts.find((p) => p.p === '/session/close')
@@ -82,12 +79,12 @@ await page.getByRole('button', { name: 'Thread menu' }).click()
 const tItems = await page.locator('.menu [role=menuitem]').allInnerTexts()
 ok(JSON.stringify(tItems) === JSON.stringify(['Rename…', 'Auto rename', 'Exit session', 'Archive', 'Exit & archive']), `thread ⋮ menu: ${tItems.join(' | ')}`)
 await page.getByRole('menuitem', { name: 'Exit session' }).click()
-await page.getByRole('button', { name: 'End session' }).click()
 await page.waitForTimeout(200)
 ok((await page.locator('.bar .badge').innerText()) === 'ended', 'header says ended at once')
 await page.waitForSelector('.status.failed', { timeout: 5000 })
 ok((await page.locator('.bar .badge').first().innerText()) !== 'ended', `refused → rolled back (${await page.locator('.bar .badge').first().innerText()})`)
 ok((await page.locator('.status.failed').innerText()).includes('could not close'), 'refusal said in the status line')
+ok(page.url() === BASE + '/t/' + working, 'refused: stays on the thread')
 await ctl('fail=none&delay=0')
 
 // 4. Archive a shelved thread from the list → it moves at once; Unarchive in its header
@@ -134,15 +131,20 @@ ok((await rowOf(shelved).count()) === 1 && !(await inArchived(shelved)), 'refuse
 ok((await page.locator('.notice.error').innerText()).includes('could not archive'), 'refusal said on the list')
 await ctl('fail=none&delay=0')
 
-// 6. Exit & archive (thread ⋮): close, then archive; both at once on screen
-await page.goto(BASE + '/t/' + working)
+// 6. Exit & archive (thread ⋮): close, then archive; both at once on
+// screen, then back to the list the thread was opened from
+await page.goto(BASE + '/threads')
+await rowOf(working).click()
 await page.waitForSelector('.bar .badge')
 const before = posts.length
+await ctl('delay=500')
 await page.getByRole('button', { name: 'Thread menu' }).click()
 await page.getByRole('menuitem', { name: 'Exit & archive' }).click()
-await page.getByRole('button', { name: 'End & archive' }).click()
 await page.waitForTimeout(150)
 ok((await page.locator('.bar .badge').first().innerText()) === 'ended' && (await page.locator('.badge.archived').count()) === 1, 'header: ended and Archived at once')
+await page.waitForURL(BASE + '/threads', { timeout: 5000 }).catch(() => {})
+ok(page.url() === BASE + '/threads', `closed: back to the list (${page.url()})`)
+await ctl('delay=0')
 await page.waitForTimeout(600)
 const seq = posts.slice(before).map((p) => p.p).filter((p) => p.startsWith('/session/'))
 ok(JSON.stringify(seq) === JSON.stringify(['/session/close', '/session/archive']), `two requests, close then archive (${seq.join(', ')})`)

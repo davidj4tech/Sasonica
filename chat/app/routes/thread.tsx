@@ -10,7 +10,7 @@
  * (lib/snapshots.ts), with "updating…" in the header until the first
  * snapshot — never a spinner over content.
  */
-import { BackLink } from '../components/Nav'
+import { BackLink, useGoBack } from '../components/Nav'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { answer, ApiError, reply, stopSession } from '../api'
@@ -21,7 +21,7 @@ import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
 import { knownArchived, knownLive, knownProject, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
 import { useSessionActions } from '../hooks/useSessionActions'
-import { ACTION_LABEL, ConfirmExitSheet, sessionMenuItems, type SessionAction } from '../components/SessionSheets'
+import { ACTION_LABEL, sessionMenuItems, type SessionAction } from '../components/SessionSheets'
 import { archivedOf, clearArchivedOverride, clearEnded, endedHere, useSessionFlags } from '../lib/sessionFlags'
 import { useAutoRename, useRename } from '../hooks/useRename'
 import { RenameSheet } from '../components/RenameSheet'
@@ -69,10 +69,10 @@ function ThreadPage({ session }: { session: string }) {
   const [renaming, setRenaming] = useState(false)
   const [menu, setMenu] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
-  const [confirmExit, setConfirmExit] = useState<{ archive: boolean } | null>(null)
   const rename = useRename()
   const autoRename = useAutoRename()
   const acts = useSessionActions()
+  const goBack = useGoBack()
   useSessionFlags()
   const archived = archivedOf(session, knownArchived(session))
 
@@ -219,7 +219,14 @@ function ThreadPage({ session }: { session: string }) {
     else if (a === 'auto-rename') {
       setStatus({ text: 'Thinking of a name…' })
       void autoRename(session).then((r) => setStatus({ text: r.message, failed: !r.ok }))
-    } else if (a === 'exit' || a === 'exit-archive') setConfirmExit({ archive: a === 'exit-archive' })
+    } else if (a === 'exit' || a === 'exit-archive') {
+      // No confirm (a send resumes it); once the close is accepted, back to
+      // the screen this thread was opened from.
+      setStatus(null)
+      void (a === 'exit-archive' ? acts.exitAndArchive(session) : acts.exit(session)).then((r) =>
+        r.ok ? goBack() : setStatus({ text: r.message, failed: true })
+      )
+    }
     else {
       setStatus(null)
       void acts.archive(session, a === 'archive').then((r) => setStatus({ text: r.message, failed: !r.ok }))
@@ -276,18 +283,6 @@ function ThreadPage({ session }: { session: string }) {
         </div>
       </header>
       <AgentsStrip session={session} counts={log.agents} />
-      {confirmExit && (
-        <ConfirmExitSheet
-          archive={confirmExit.archive}
-          onClose={() => setConfirmExit(null)}
-          onConfirm={() => {
-            const withArchive = confirmExit.archive
-            setConfirmExit(null)
-            setStatus(null)
-            void (withArchive ? acts.exitAndArchive(session) : acts.exit(session)).then((r) => setStatus({ text: r.message, failed: !r.ok }))
-          }}
-        />
-      )}
       {renaming && (
         <RenameSheet
           title={title}

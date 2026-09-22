@@ -93,14 +93,13 @@ a { color: var(--accent); }
 .rename-sheet button:disabled { opacity: .45; cursor: default; }
 .rename-sheet button.primary.danger { background: var(--bad); color: var(--on-accent); }
 /* A thread's actions (components/SessionSheets.tsx): the list's long-press
-   menu and the exit confirmation, in the rename sheet's frame. */
+   menu, in the rename sheet's frame. */
 .action-sheet { gap: 4px; }
 .action-title { margin: 0 0 4px; color: var(--muted); font-size: .867rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .action-list { display: flex; flex-direction: column; }
 .action-list button { width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 0 12px; }
 .action-list button:hover { background: var(--panel-2); }
 .action-list button.danger, .menu button.danger { color: var(--bad); }
-.confirm-text { margin: 4px 0; }
 .notice { margin: 12px 16px; color: var(--muted); }
 .error, .notice.error { color: var(--bad); }
 /* A snapshot is on screen and the server has not confirmed it yet. Quiet on

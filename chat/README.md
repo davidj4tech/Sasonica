@@ -112,7 +112,7 @@ steps grouped and mounted only when opened; follow-along on the stream's
 clock; a dropped stream reconnects to a snapshot with no duplicates; a
 refused one falls back to polling and comes back; Load earlier keeps the
 reader's place), Exit and Archive (`sessions.mjs`: the long-press menu and
-the thread's ⋮, the confirm, optimistic with rollback, the folded Archived
+the thread's ⋮, no confirm, back to the list once closed, optimistic with rollback, the folded Archived
 section, Exit & archive, the saved list, sending un-archives), and the brand (`brand.mjs`: icons, manifest, the wordmark
 and Pair's tagline, the faces leaving the text-size scale alone, no sideways
 scroll), and Home (`dashboard.mjs`: every section; a multi-select question

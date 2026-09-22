@@ -45,6 +45,12 @@ export function HomeTabs({ current }: { current: Tab }) {
   )
 }
 
+/** What ← does, for code that leaves a screen itself: back, else Home. */
+export function useGoBack() {
+  const navigate = useNavigate()
+  return () => (historyIdx() > 0 ? navigate(-1) : navigate('/', { replace: true }))
+}
+
 /** ← : back where you came from inside the app, else Home. */
 export function BackLink({ title = 'Back', children = '←' }: { title?: string; children?: ReactNode }) {
   const navigate = useNavigate()
