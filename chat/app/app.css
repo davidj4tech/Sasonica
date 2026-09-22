@@ -44,7 +44,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
  * first paint by the inline script in root.tsx). Sizes were designed on a
  * 15px base, so 1rem here is "body text" and the rest keep their ratios.
  */
-html { font-size: var(--text-size, 19px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html { font-size: var(--text-size, 15px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { font: 1rem/1.45 var(--font-body); }
 button, input, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }
@@ -269,6 +269,10 @@ a { color: var(--accent); }
 .brand-hero .mark { width: 4.5rem; height: 4.5rem; }
 .brand-hero .wordmark { margin: 4px 0 0; font-size: 1.733rem; line-height: 1.15; }
 .brand-hero .tagline { margin: 0; color: var(--muted); }
+/* About: the mark as the page's picture — large, capped by the screen so the
+ * biggest text sizes don't blow it past the width. */
+.about .brand-hero { padding: 24px 0 8px; gap: 8px; }
+.about .brand-hero .mark { width: min(10rem, 50vw); height: min(10rem, 50vw); }
 
 /* Settings */
 .settings { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
@@ -451,6 +455,9 @@ a { color: var(--accent); }
   .brand-hero { flex-direction: row; justify-content: center; gap: 10px; padding: 4px 0 0; }
   .brand-hero .mark { width: 2.4rem; height: 2.4rem; }
   .brand-hero .wordmark { margin: 0; font-size: 1.333rem; }
+  /* About scrolls, so its mark stays large and stacked in landscape too. */
+  .about .brand-hero { flex-direction: column; padding: 12px 0 4px; }
+  .about .brand-hero .mark { width: min(7rem, 35vh); height: min(7rem, 35vh); }
   .icon { padding: 2px 8px; }
   .footer { padding: 4px 0 6px; gap: 4px; }
   .viewport { padding-top: 6px; gap: 8px; }

@@ -63,7 +63,7 @@ export default function About() {
       </header>
       <div className="settings about">
         <div className="brand-hero">
-          <Mark size={72} />
+          <Mark size={160} />
           <p className="wordmark">Sasonica</p>
           <p className="tagline">Talk to your agents.</p>
         </div>

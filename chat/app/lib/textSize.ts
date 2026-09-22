@@ -8,28 +8,28 @@
  * applies before first paint — see TEXT_SIZE_BOOT in root.tsx). Blocked
  * storage means the default, every time.
  *
- * Default is what was Large (19 px). The small end goes down to 13 px for
+ * Default is 15 px. The small end goes down to 9 px for
  * smart glasses, where a line has to fit a narrow display — three steps
  * below Default, three above.
  */
 
 export const TEXT_SIZES = [
-  { id: 'smallest', label: 'Smallest', px: 13 },
-  { id: 'smaller', label: 'Smaller', px: 15 },
-  { id: 'small', label: 'Small', px: 17 },
-  { id: 'default', label: 'Default', px: 19 },
-  { id: 'large', label: 'Large', px: 22 },
-  { id: 'larger', label: 'Larger', px: 25 },
-  { id: 'largest', label: 'Largest', px: 28 }
+  { id: 'smallest', label: 'Smallest', px: 9 },
+  { id: 'smaller', label: 'Smaller', px: 11 },
+  { id: 'small', label: 'Small', px: 13 },
+  { id: 'default', label: 'Default', px: 15 },
+  { id: 'large', label: 'Large', px: 17 },
+  { id: 'larger', label: 'Larger', px: 19 },
+  { id: 'largest', label: 'Largest', px: 22 }
 ] as const
 
 export type TextSizeId = (typeof TEXT_SIZES)[number]['id']
 
-/** A new key: the old one's ids meant other sizes (its Large is today's
- * Default), so a saved choice is carried over by size, not by name. */
+/** The key moved when the scale did; a choice saved under the first key is
+ * carried over to the same size. */
 export const TEXT_SIZE_KEY = 'sasonica.chat.textSize2'
 const OLD_KEY = 'sasonica.chat.textSize'
-const OLD_TO_NEW: Record<string, TextSizeId> = { small: 'smaller', large: 'default', larger: 'large' }
+const OLD_TO_NEW: Record<string, TextSizeId> = { small: 'default', large: 'larger', larger: 'largest' }
 const DEFAULT: TextSizeId = 'default'
 
 export function getTextSize(): TextSizeId {
