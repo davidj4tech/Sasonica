@@ -24,6 +24,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- The digital-assistant slot: with this the app can be chosen
+                 under Default apps > Digital assistant, so the assist gesture,
+                 the power key's long press and an earbud's long press open it
+                 (David, 22 Sep 2026: Next takes the slot from the old
+                 Sasonica). Only the intent arrives: no microphone, no
+                 lock-screen session. -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
         </activity>
 
         <provider
