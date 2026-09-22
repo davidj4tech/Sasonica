@@ -491,3 +491,7 @@ It passed the mock and failed on the phone because real live lines differ:
   assistant-ui's own, not the 8 s reader hold from ConversationLog.vue.
 - The device token is in localStorage; the Capacitor build moves it to the
   Android keystore (`readDevice`/`writeDevice` in `api/auth.ts`).
+
+## Licence
+
+This directory (the chat app and the Sasonica Next shell) is MIT — see `LICENSE` here. The rest of this repository is the Audiobookshelf app fork and stays GPL v3.

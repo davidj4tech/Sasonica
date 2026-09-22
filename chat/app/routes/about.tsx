@@ -116,7 +116,7 @@ export default function About() {
         <a className="button source" href={REPO} target="_blank" rel="noreferrer">
           Source on GitHub · davidj4tech/Sasonica
         </a>
-        <small>Sasonica is free software under the GNU GPL v3.</small>
+        <small>Sasonica is free software under the MIT licence.</small>
       </div>
     </div>
   )
