@@ -32,7 +32,7 @@ import { loadTargets, patchTargetRow } from '../lib/snapshots'
 import { buildItems } from '../lib/convert'
 import { draftSent } from '../lib/drafts'
 import { markSeen, setOpenSession } from '../lib/arrivals'
-import { withPaused, withSkew, type LiveClock } from '../lib/followAlong'
+import { isThisTurn, playerClockOf, withPaused, withSkew, type LiveClock } from '../lib/followAlong'
 import type { SpeechNow } from '../api/types'
 
 type Status = { text: string; failed?: boolean } | null
@@ -117,9 +117,25 @@ function ThreadPage({ session }: { session: string }) {
     return clock ? withSkew(clock, skew) : clock
   }, [log.live, press, skew])
 
+  // When the server has no live row but the player is still on one of these
+  // turns, the bold rides the player's own position instead (§6.2 `timeline`
+  // + §6.5 `turn`). This is the path that survives a barge-in taking the live
+  // row away mid-reply: the words and their offsets are on the message, and
+  // `pos` says how far in the voice is. The live clock always wins when there
+  // is one — it is the finer of the two.
+  const played = useMemo(() => {
+    if (live || !speakingHere) return null
+    const m = log.messages.find((msg) => isThisTurn(msg, speech.now))
+    const clock = m && playerClockOf(m, speech.now, speech.nowAskedAt)
+    return clock ? { clock, id: m!.id } : null
+  }, [live, speakingHere, log.messages, speech.now, speech.nowAskedAt])
+
   const items = useMemo(
-    () => buildItems({ session, messages: log.messages, approval: log.approval, live, liveId: log.liveId, optimistic: log.optimistic }),
-    [session, log.messages, log.approval, live, log.liveId, log.optimistic]
+    () => buildItems({ session, messages: log.messages, approval: log.approval,
+                       live: live || played?.clock || null,
+                       liveId: live ? log.liveId : played?.id || null,
+                       optimistic: log.optimistic }),
+    [session, log.messages, log.approval, live, played, log.liveId, log.optimistic]
   )
 
   // The message shows at once ("sending…") and is replaced by the server's

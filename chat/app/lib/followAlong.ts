@@ -11,7 +11,7 @@
  * and the bold leads the clock by the per-device lead (lib/followLead.ts),
  * because a sentence is taken in as it starts.
  */
-import type { Line, LiveFields } from '../api/types'
+import type { Line, LiveFields, Message, SpeechNow, Timeline } from '../api/types'
 import { getFollowLead } from './followLead'
 
 /**
@@ -62,6 +62,60 @@ export function liveClockFrom(f: Partial<LiveFields>, receivedAtMs: number, roun
     paused,
     anchorMs: paused ? receivedAtMs : receivedAtMs - Math.min(roundTripMs / 2, TRANSIT_CAP_MS)
   }
+}
+
+/**
+ * The clock for a turn the server is NOT calling live (§6.2 `timeline`,
+ * §6.5 `turn`).
+ *
+ * `live` exists only while the server's now-playing row names the reply, and
+ * a barge-in — or a submit that died, or a phone playing clips it was already
+ * handed — takes that row away while the audio plays on. The bold then had
+ * nothing to ride and stopped for the rest of the reply.
+ *
+ * The turn's words and offsets survive on `spoken.timeline`; the position
+ * comes from the player instead of from a dead `elapsed`. `/speech/now.turn`
+ * is what makes `pos` usable — it says which turn the position is INTO, so a
+ * message only takes it when the player names that same turn (`at`, or the
+ * history row on a replay).
+ *
+ * `delay` is 0: `pos` is where the player itself has got to, so the hop to it
+ * has already happened. `paused` freezes the clock exactly as it does live.
+ */
+export function playerClockOf(
+  message: Message,
+  now: SpeechNow | null,
+  askedAtMs: number
+): LiveClock | null {
+  const timeline = message.spoken?.timeline
+  if (!timeline?.sentences?.length || !now?.live || now.pos == null) return null
+  if (!isThisTurn(message, now)) return null
+  return {
+    sentences: timeline.sentences,
+    offsets: timeline.offsets || [],
+    sentence: null,
+    elapsed: Number(now.pos) || 0,
+    delay: 0,
+    paused: !!now.paused,
+    // `pos` is no newer than the moment its request was SENT (useSpeech's
+    // `nowAskedAt`) — the same rule the skew estimate uses, for the same
+    // reason: dating it to receipt would run the bold ahead by the trip.
+    anchorMs: askedAtMs
+  }
+}
+
+/** Is the voice on this very turn? `id` wins on a replay; else the line's `at`. */
+export function isThisTurn(message: Message, now: SpeechNow | null): boolean {
+  const turn = now?.turn
+  const spoken = message.spoken
+  if (!turn || !spoken) return false
+  if (turn.id && spoken.id) return turn.id === spoken.id
+  return Math.abs(Number(turn.at) - Number(spoken.at)) < 0.01
+}
+
+/** Does this message carry a timeline nothing is claiming to play? */
+export function timelineOf(message: Message): Timeline | null {
+  return message.spoken?.timeline?.sentences?.length ? message.spoken.timeline : null
 }
 
 /**

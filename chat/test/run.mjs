@@ -15,6 +15,8 @@
 //   skew    the bold follows /speech/now's pos when `elapsed` runs ahead
 //   resync  a skip taken elsewhere leaves the bold behind the voice; the
 //           "Follow along" pill asks where the voice is and catches up
+//   lostlive  the live row goes while the audio plays on (a barge-in): the
+//           bold rides the player's own position off the turn's timeline
 //   rename  long press / title tap / ⋮ → POST /rename; optimistic
 //           everywhere, rolled back on refusal
 //   finished  the finished bar: a slim Replay strip (portrait, landscape,
@@ -90,9 +92,9 @@ const agentsMock = await mockAt(P + 3, { MOCK_SPEECH_REST_S: '0', MOCK_AGENT_STE
 const moveMock = await mockAt(P + 4, { MOCK_SPEECH_REST_S: '0' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['lostlive.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
-    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' || file === 'resync.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : file === 'move.mjs' ? P + 4 : P}`, ...env })) ? 1 : 0
+    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' || file === 'resync.mjs' || file === 'lostlive.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : file === 'move.mjs' ? P + 4 : P}`, ...env })) ? 1 : 0
   }
 } finally {
   mock.kill()

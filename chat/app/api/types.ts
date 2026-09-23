@@ -303,6 +303,21 @@ export interface Spoken {
   figure?: boolean
   /** Only while it plays. */
   live?: LiveFields
+  /**
+   * The newest spoken turn's timeline when it is NOT playing (§6.2). No
+   * `elapsed`: it says where the words are, not that anything is saying
+   * them. `live` and this are exclusive. Paired with `/speech/now`'s `turn`
+   * and `pos`, it is what keeps the bold alive when the live row is gone.
+   */
+  timeline?: Timeline
+}
+
+/** A turn's words and where each begins, with no claim to be playing. */
+export interface Timeline {
+  sentences: string[]
+  offsets: number[]
+  /** Measured by the player; `false` means apportioned from clip lengths. */
+  measured: boolean
 }
 
 /** One message read from the agent's transcript (§6.2.2). */
@@ -686,6 +701,12 @@ export interface SpeechNow extends Envelope {
   queued?: QueuedReply[]
   /** Where the voice is (live), or where the next reply will play (§6.9 names). */
   target?: string | null
+  /**
+   * Which turn is being spoken, keyed as the log's lines are (§6.5): `at`,
+   * and `id` on a replay. Present only while live. Without it `pos` is a
+   * position into nothing.
+   */
+  turn?: { at: number; id?: number }
 }
 
 /** One reply waiting for the voice (§6.5 `queued`). */

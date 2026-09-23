@@ -486,6 +486,19 @@ function realState(s) {
   // fraction of a second from poll to poll.
   const wobble = Math.floor(pos / 3) % 2 ? 0.35 : 0
   const offsets = s.variant === 'nooffsets' ? [] : sentences.map((_, i) => r3(i * REAL_STEP_S + (i * REAL_STEP_S > pos ? wobble : 0)))
+  if (realLost) {
+    // The live row is gone while the audio plays on — a barge-in took it, or
+    // the submit that owned it died (agent-media, 23 Sep 2026). What is left
+    // is the turn's timeline with no claim to be playing (§6.2), and a
+    // /speech/now that still knows where the player is and which turn it is
+    // on. This is the case the bold used to give up on for the rest of a
+    // reply. `measured: true` — the offsets are the ones the player reached.
+    lines.push({ ...s.reply, id: s.reply.id, sentences, offsets, measured: true })
+    s.pending = false
+    s.working = null
+    s.state = 'waiting'
+    return { lines }
+  }
   const live = {
     ...s.reply,
     id: undefined,
@@ -642,6 +655,12 @@ const realSnap = { t: 0, pos: 0 }
  * what the "Follow along" pill resyncs. Cleared by /mock/real/restart.
  */
 let realJump = 0
+/**
+ * The live row has been lost while the audio plays on (GET /mock/real/lose).
+ * The message keeps its words and offsets as a `timeline`, and /speech/now
+ * keeps reporting a live player and which turn it is on.
+ */
+let realLost = false
 function realVoiceNow() {
   const s = Object.values(S).find((x) => x.variant === 'real')
   if (!s || s.real.hold) return null
@@ -652,7 +671,10 @@ function realVoiceNow() {
     realSnap.t = t
     realSnap.pos = Math.max(0, realPlayerPos(e) + realJump)
   }
-  return { ok: true, live: true, speaking: e >= 2, paused: e < 2, sentence: '', session: s.session, title: s.title, item: s.item, pos: Math.floor(realSnap.pos), dur: Math.ceil(REAL_LEN_S), speed: 1, muted: false }
+  return { ok: true, live: true, speaking: e >= 2, paused: e < 2, sentence: '', session: s.session, title: s.title, item: s.item, pos: Math.floor(realSnap.pos), dur: Math.ceil(REAL_LEN_S), speed: 1, muted: false,
+    // Which turn the player is on (§6.5) — what makes `pos` a position into
+    // something. `id` on a replay; here the live turn's own `at`.
+    turn: { at: s.reply.at } }
 }
 
 /** §6.5 `queued`: replies said but not heard yet (GET /mock/arrive?mode=queue adds one). */
@@ -1044,7 +1066,11 @@ function messagesOf(s, lines) {
             key: l.key,
             at: l.at,
             ...(l.images ? { images: l.images, figure: !!l.figure } : {}),
-            ...(l.live ? { live: Object.fromEntries(LIVE_KEYS.map((k) => [k, l[k]])) } : {})
+            ...(l.live ? { live: Object.fromEntries(LIVE_KEYS.map((k) => [k, l[k]])) } : {}),
+            // The newest turn's timeline when nothing is live (§6.2).
+            ...(!l.live && l.sentences
+              ? { timeline: { sentences: l.sentences, offsets: l.offsets || [], measured: !!l.measured } }
+              : {})
           }
         : null
     out.push({ id, role: 'assistant', at: l.at, parts, spoken, turn: { running: !!l.running && s.live } })
@@ -1397,9 +1423,17 @@ createServer(async (req, res) => {
     const hold = url.searchParams.get('ended') === '1'
     for (const x of Object.values(S)) if (x.real) x.real = { start: now() + lead, appended: 0, hold }
     realJump = 0
+    realLost = false
     realSnap.t = 0
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end('ok')
+  }
+  if (path === '/mock/real/lose') {
+    // Tests: lose the live row (`?on=0` to give it back) without stopping
+    // the player.
+    realLost = url.searchParams.get('on') !== '0'
+    res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
+    return res.end(String(realLost))
   }
   if (path === '/mock/real/jump') {
     // Tests: the player is `by` seconds further on than `elapsed` says.
