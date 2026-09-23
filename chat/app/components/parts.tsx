@@ -609,7 +609,7 @@ const WORKING_SHOWN = 4
  * indicator, where today's clients show the dots — with the step list and a
  * timer run on the local clock between polls.
  */
-export function WorkingIndicator({ working, workingAt, thinking }: { working: Working | null; workingAt: number; thinking: boolean }) {
+export function WorkingIndicator({ working, workingAt, thinking, asking }: { working: Working | null; workingAt: number; thinking: boolean; asking?: boolean }) {
   const now = useTick(!!working, 1000)
   const [open, setOpen] = useState(false)
   if (!working) {
@@ -626,6 +626,12 @@ export function WorkingIndicator({ working, workingAt, thinking }: { working: Wo
   }
   const seconds = Math.max(0, working.server_time - working.since + (now - workingAt) / 1000)
   const steps = open ? working.steps : working.steps.slice(-WORKING_SHOWN)
+  // A question on screen is the one thing in a thread that is WAITING on the
+  // reader, and the step list sits below it — four steps of it pushed the
+  // card's own question off the top of the screen (David's screenshot,
+  // 23 Sep 2026: the option text was all that was left of it). So fold to
+  // the head while an answer is outstanding. The head still opens the list,
+  // and answering gives it back without a tap.
   return (
     <div className="working">
       <button className="working-head" onClick={() => setOpen((o) => !o)}>
@@ -636,13 +642,15 @@ export function WorkingIndicator({ working, workingAt, thinking }: { working: Wo
         </span>
         Working {duration(seconds)} · {working.count} step{working.count === 1 ? '' : 's'}
       </button>
-      <ol className="steps" start={Math.max(1, working.count - steps.length + 1)}>
-        {steps.map((s, i) => (
-          <li key={i} className={i === steps.length - 1 ? 'current' : ''}>
-            {s}
-          </li>
-        ))}
-      </ol>
+      {!(asking && !open) && (
+        <ol className="steps" start={Math.max(1, working.count - steps.length + 1)}>
+          {steps.map((s, i) => (
+            <li key={i} className={i === steps.length - 1 ? 'current' : ''}>
+              {s}
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   )
 }

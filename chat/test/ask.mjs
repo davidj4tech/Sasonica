@@ -33,6 +33,15 @@ const gone = async () => { for (let i = 0; i < 40; i++) { if (!(await page.locat
 // 1. One single-select question: a tap sends it; no Send button
 await open('Mock: asking a question')
 ok((await page.locator('.question-card .send-answer').count()) === 0, 'single-select: no Send button until words are typed')
+// The running turn's step list sits BELOW the card and pushed the question
+// itself off the top of the screen (David, 23 Sep 2026). Folded to its head
+// until the question is answered; the head still opens it by hand.
+ok((await page.locator('.working .working-head').count()) === 1, 'a question with a turn still running: the Working head shows')
+ok((await page.locator('.working .steps').count()) === 0, 'the step list is folded while the question waits')
+await page.locator('.working .working-head').click()
+ok((await page.locator('.working .steps').count()) === 1, 'tapping the head opens the steps anyway')
+await page.locator('.working .working-head').click()
+ok((await page.locator('.working .steps').count()) === 0, 'and folds them again')
 ok((await page.locator('.question-card [role=radio]').count()) === 3, 'single-select: the three options as radios (not the "Type something" row)')
 await page.screenshot({ path: SHOTS + '/ask-01-single.png' })
 await page.locator('.question-card [role=radio]', { hasText: 'Last thread' }).click()
@@ -40,6 +49,7 @@ await waitAnswers(1)
 let a = lastAnswer()
 ok(a && JSON.stringify(a.answers) === JSON.stringify([{ question_index: 0, selected: [2] }]) && a.key && !('choice' in a), `tap → structured answer (${JSON.stringify(a)})`)
 ok(await gone(), 'the card goes once answered')
+ok((await page.locator('.working .steps').count()) === 1, 'the step list comes back once it is answered')
 
 // 2. Multi-select: the desk's tick is kept; toggle; Other words; Send
 await open('Mock: multi-select question')

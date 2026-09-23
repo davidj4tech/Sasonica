@@ -253,6 +253,10 @@ add(
   session(randomUUID(), 'Mock: asking a question', {
     pane: '%13',
     state: 'approval',
+    // A question is asked BY a turn that is still running, so the thread has
+    // a step list under the card — which is the state the app has to fold
+    // (ask.mjs 1, parts.tsx WorkingIndicator).
+    workingSince: T0 - 35,
     lines: [
       youLine('Ask me something with options.', T0 - 90),
       agentLine('Which screen should the prototype open on?', T0 - 80, { ask: ASK })

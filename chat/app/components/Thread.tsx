@@ -490,6 +490,14 @@ export function Thread(props: ThreadProps) {
     [onNew]
   )
 
+  // Is a card on screen waiting to be answered — a question, or a permission
+  // prompt? Either placement counts: on its message's pending ask part, or as
+  // its own item at the foot (lib/convert.ts buildItems).
+  const asking = useMemo(
+    () => items.some((it) => it.kind === 'approval' || (it.kind === 'message' && !!it.approval)),
+    [items]
+  )
+
   const runtime = useExternalStoreRuntime<ChatItem>({
     messages: items,
     convertMessage: convertItem,
@@ -519,7 +527,7 @@ export function Thread(props: ThreadProps) {
               </div>
             )}
             <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
-            <WorkingIndicator working={props.working} workingAt={props.workingAt} thinking={props.thinking} />
+            <WorkingIndicator working={props.working} workingAt={props.workingAt} thinking={props.thinking} asking={asking} />
             <ThreadPrimitive.ViewportFooter className="footer">
               {(follow.detached || (newBelow > 0 && follow.guarded)) && (
                 <div className="float-pills">
