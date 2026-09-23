@@ -208,7 +208,9 @@ await page.locator('.tabs .tab', { hasText: 'Home' }).click()
 await page.waitForURL(BASE + '/')
 const idx = await page.evaluate(() => window.history.state?.idx)
 ok(idx !== undefined && idx <= 2, `tabs: Threads → Home pops rather than stacking (history idx ${idx})`)
-await page.locator('.all-threads').click()
+// Not `.all-threads` alone: the Organiser link on the agenda carries that
+// class too, and with notes set up a bare selector matches both.
+await page.locator('.all-threads:not(.open-organiser)').click()
 await page.waitForURL(BASE + '/threads')
 ok(true, 'tabs: "All threads →" opens the list')
 
