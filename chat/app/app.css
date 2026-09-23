@@ -446,8 +446,13 @@ a { color: var(--accent); }
    the scroll to top button" (David, 23 Sep 2026). */
 :root { --keys-lane: calc(44px + 12px + 4px); }
 .jump-pills { position: absolute; right: var(--keys-lane); bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.jump-pill { pointer-events: auto; width: 2.6rem; height: 2.6rem; min-width: 40px; min-height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font: inherit; font-size: 1rem; box-shadow: 0 3px 10px #0005; cursor: pointer; opacity: .9; }
-.jump-pill:hover { color: var(--text); opacity: 1; }
+/* See-through: they sit over the conversation and are only wanted when you
+   are already looking for them, so they tint what is behind rather than
+   hide it. The blur is what keeps the arrow readable over text; where it
+   is unsupported the tint alone still carries it. Touched, a pill goes
+   solid, so it is plainly a thing you pressed. */
+.jump-pill { pointer-events: auto; width: 2.6rem; height: 2.6rem; min-width: 40px; min-height: 40px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: color-mix(in srgb, var(--panel) 30%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: var(--muted); font: inherit; font-size: 1rem; cursor: pointer; opacity: .8; }
+.jump-pill:hover, .jump-pill:active { background: var(--panel); border-color: var(--line); color: var(--text); opacity: 1; }
 
 /* Play/pause beside a spoken reply. */
 .msg.agent { max-width: 100%; }

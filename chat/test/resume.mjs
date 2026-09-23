@@ -69,12 +69,18 @@ const geom = await page.evaluate(() => {
   // Its lane must also be clear of the keys' column, not merely clear of the
   // keys that happen to be rendered right now.
   const lane = Math.min(...keys.map((k) => k.getBoundingClientRect().left))
+  // See-through, so what it floats over is still readable through it.
+  const bg = getComputedStyle(pills.firstElementChild).backgroundColor
+  // Two spellings reach us: rgba(r, g, b, a) and color-mix's color(srgb r g b / a).
+  const a = /\/\s*([\d.]+)\s*\)/.exec(bg) || /rgba\([^)]*,\s*([\d.]+)\s*\)/.exec(bg)
+  const opaque = !a || Number(a[1]) >= 0.95
   pills.remove()
-  return { hits, keys: keys.length, clear: p.right <= lane + 0.5, pillRight: p.right, lane }
+  return { hits, keys: keys.length, clear: p.right <= lane + 0.5, pillRight: p.right, lane, bg, opaque }
 })
 if (geom) {
   ok(geom.hits === 0, `no bubble key sits under a jump pill (${geom.hits} of ${geom.keys} overlapping)`)
   ok(geom.clear, `the pill stays left of the keys' column (${Math.round(geom.pillRight)} vs ${Math.round(geom.lane)})`)
+  ok(!geom.opaque, `and it is see-through, not a disc over the words (${geom.bg})`)
 } else {
   console.log('SKIP no bubble keys on screen')
 }
