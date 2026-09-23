@@ -144,12 +144,12 @@ for name, px in [("favicon-32.png", 32), ("apple-touch-icon.png", 180),
 
 build_round_mark()
 # Sasonica carries the ABS wordmark; Next carries the mark alone.
-build_abs(MARK, ABS_MARK, centre=60, lift=11, scale=0.80, baseline=105, cap=15, weight=4.2)
+build_abs(MARK, ABS_MARK, centre=60, lift=13, scale=0.72, baseline=105, cap=15, weight=4.2)
 # The adaptive foreground has to clear Android's 66 dp safe circle with the
-# wordmark inside it too. These numbers put the furthest ink at 31.96 dp
-# against the 33.0 radius; anything larger spills (0.86/13 measures 33.27).
-build_abs(FOREGROUND, ABS_FOREGROUND, centre=54, lift=9.85, scale=0.82,
-          baseline=78.05, cap=12.5, weight=3.5)
+# wordmark inside it too. These numbers put the furthest ink at 32.42 dp
+# against the 33.0 radius; anything larger spills (0.80/13 measures 33.62).
+build_abs(FOREGROUND, ABS_FOREGROUND, centre=54, lift=9.45, scale=0.76,
+          baseline=80.05, cap=12.5, weight=3.5)
 app_icons(APP_RES, background_png=True, mark=ABS_MARK, foreground=ABS_FOREGROUND)
 app_icons(NEXT_RES, background_png=False, mark=MARK, foreground=FOREGROUND)
 for tmp in (ROUND_MARK, ABS_MARK, ABS_FOREGROUND):
