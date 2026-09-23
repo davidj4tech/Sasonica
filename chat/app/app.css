@@ -45,6 +45,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
  * 15px base, so 1rem here is "body text" and the rest keep their ratios.
  */
 html { font-size: var(--text-size, 15px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* A pinch changes --text-size (hooks/usePinchTextSize.ts), never the zoom. */
+html { touch-action: pan-x pan-y; }
 body { font: 1rem/1.45 var(--font-body); }
 button, input, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }

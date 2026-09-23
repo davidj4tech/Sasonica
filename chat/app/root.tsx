@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react'
 import { Links, Meta, Navigate, Outlet, Scripts, ScrollRestoration, useLocation } from 'react-router'
 import './app.css'
 import { SpeechProvider } from './hooks/useSpeech'
+import { usePinchTextSize } from './hooks/usePinchTextSize'
 import { Notices } from './components/Notices'
 import { TEXT_SIZE_BOOT } from './lib/textSize'
 import { Mark } from './components/Mark'
@@ -80,6 +81,7 @@ function useVisualViewportHeight() {
 
 export default function App() {
   useVisualViewportHeight()
+  usePinchTextSize()
   // A pairing link opened straight into the app (`/?pair=<code>&server=<base>`,
   // e.g. the preview server's redirect): hand it to the pairing screen, which
   // pairs at once.

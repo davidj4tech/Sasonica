@@ -55,6 +55,9 @@ export function applyTextSize(id: TextSizeId) {
   document.documentElement.style.setProperty('--text-size', `${size.px}px`)
 }
 
+/** Fired on window when the size changes, so an open Settings follows a pinch. */
+export const TEXT_SIZE_EVENT = 'sasonica:textsize'
+
 export function setTextSize(id: TextSizeId) {
   try {
     if (id === DEFAULT) window.localStorage.removeItem(TEXT_SIZE_KEY)
@@ -63,6 +66,16 @@ export function setTextSize(id: TextSizeId) {
     // Applies for this visit only.
   }
   applyTextSize(id)
+  window.dispatchEvent(new CustomEvent(TEXT_SIZE_EVENT, { detail: id }))
+}
+
+/** One step larger (+1) or smaller (-1), saved; stops at either end. */
+export function stepTextSize(by: 1 | -1): TextSizeId {
+  const cur = getTextSize()
+  const i = TEXT_SIZES.findIndex((s) => s.id === cur)
+  const next = TEXT_SIZES[Math.max(0, Math.min(TEXT_SIZES.length - 1, i + by))].id
+  if (next !== cur) setTextSize(next)
+  return next
 }
 
 /**

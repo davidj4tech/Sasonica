@@ -10,14 +10,14 @@
  * its "Tool steps" filter.
  */
 import { BackLink } from '../components/Nav'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { getTargets } from '../api'
 import { credentialKind, hasLegacyToken, pairedDevice, serverBase, setBaseUrl, setLegacyToken, storedBaseUrl, unpair } from '../api/auth'
 import { LEAD_DEFAULT_S, LEAD_MAX_S, LEAD_MIN_S, LEAD_STEP_S, setFollowLead, useFollowLead } from '../lib/followLead'
 import { getShowAmbient, setShowAmbient } from '../lib/pictures'
 import { setAdvanced, useAdvanced } from '../lib/advanced'
-import { getTextSize, setTextSize, TEXT_SIZES, type TextSizeId } from '../lib/textSize'
+import { getTextSize, setTextSize, TEXT_SIZE_EVENT, TEXT_SIZES, type TextSizeId } from '../lib/textSize'
 
 function when(ms: number): string {
   try {
@@ -34,6 +34,12 @@ export default function Settings() {
   const [saved, setSaved] = useState('')
   const [check, setCheck] = useState('')
   const [size, setSize] = useState<TextSizeId>(() => getTextSize())
+  // A pinch on this page changes the size too (hooks/usePinchTextSize.ts).
+  useEffect(() => {
+    const follow = () => setSize(getTextSize())
+    window.addEventListener(TEXT_SIZE_EVENT, follow)
+    return () => window.removeEventListener(TEXT_SIZE_EVENT, follow)
+  }, [])
   const [ambient, setAmbient] = useState(() => getShowAmbient())
   const [kind, setKind] = useState(() => credentialKind())
   const lead = useFollowLead()
@@ -139,7 +145,7 @@ export default function Settings() {
               </button>
             ))}
           </div>
-          <small>On this device only. Applies at once.</small>
+          <small>On this device only. Applies at once. Pinch anywhere to change it too.</small>
         </fieldset>
         {advanced && (
           <fieldset>
