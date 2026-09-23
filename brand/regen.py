@@ -32,7 +32,12 @@ def png(master, out, px, background=None):
 # The launcher icon the app ships. Derived from the same masters, so brand/ and
 # the app never drift. The debug variant keeps its own icons on purpose: they
 # are how you tell a debug install from the release one side by side.
-APP_RES = HERE.parent / "android/app/src/main/res"
+# Two apps ship the mark: Sasonica (android/, com.sasonica.app) and Sasonica
+# Next (chat/android/, com.sasonica.next). Both are written from these masters
+# so brand/ and the apps cannot drift. Sasonica's debug variant keeps its own
+# icons on purpose: they are how you tell a debug install from the release one.
+APP_RES = ROOT / "android/app/src/main/res"
+NEXT_RES = ROOT / "chat/android/app/src/main/res"
 TILE = "#15201c"
 
 # The round legacy icon is the mark on a circle instead of the rounded tile.
@@ -52,16 +57,17 @@ def solid(out, px):
     print(f"{out.relative_to(ROOT)}  {px}x{px}  solid {TILE}")
 
 
-def app_icons():
-    build_round_mark()
+def app_icons(res, background_png):
+    """background_png: Sasonica's adaptive XML points at @mipmap/ic_launcher_background,
+    so it needs the colour as a bitmap; Next's points at @color and does not."""
     for density, scale in DENSITIES.items():
-        d = APP_RES / f"mipmap-{density}"
+        d = res / f"mipmap-{density}"
         png(MARK, d / "ic_launcher.png", int(48 * scale))
         png(ROUND_MARK, d / "ic_launcher_round.png", int(48 * scale))
         png(FOREGROUND, d / "ic_launcher_foreground.png", int(108 * scale))
-        solid(d / "ic_launcher_background.png", int(108 * scale))
-        png(NOTIFICATION, APP_RES / f"drawable-{density}/ic_notification.png", int(24 * scale))
-    ROUND_MARK.unlink()
+        if background_png:
+            solid(d / "ic_launcher_background.png", int(108 * scale))
+        png(NOTIFICATION, res / f"drawable-{density}/ic_notification.png", int(24 * scale))
 
 for density, scale in DENSITIES.items():
     png(MARK, HERE / f"android/mipmap-{density}/ic_launcher.png", int(48 * scale))
@@ -77,4 +83,7 @@ for name, px in [("favicon-32.png", 32), ("apple-touch-icon.png", 180),
                  ("icon-192.png", 192), ("icon-512.png", 512)]:
     png(MARK, HERE / "web" / name, px)
 
-app_icons()
+build_round_mark()
+app_icons(APP_RES, background_png=True)
+app_icons(NEXT_RES, background_png=False)
+ROUND_MARK.unlink()
