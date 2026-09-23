@@ -452,12 +452,12 @@ a { color: var(--accent); }
    is unsupported the tint alone still carries it. Touched, a pill goes
    solid, so it is plainly a thing you pressed.
 
-   Lighter again (23 Sep 2026): the tint went 30% -> 15% and the edge 60% ->
-   35%, so the disc reads as a smudge over the words rather than a lid on
-   them. The blur is doing the legibility work, not the fill, so thinning the
+   Lighter again (23 Sep 2026): the tint went 30% -> 15% -> 10% and the edge
+   60% -> 35%, so the disc reads as a smudge over the words rather than a lid
+   on them. The blur is doing the legibility work, not the fill, so thinning the
    fill costs the arrow almost nothing — which is why the opacity barely
    moved (.8 -> .75): it fades the glyph as well as the disc. */
-.jump-pill { pointer-events: auto; width: 2.6rem; height: 2.6rem; min-width: 40px; min-height: 40px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--line) 35%, transparent); background: color-mix(in srgb, var(--panel) 15%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: var(--muted); font: inherit; font-size: 1rem; cursor: pointer; opacity: .75; }
+.jump-pill { pointer-events: auto; width: 2.6rem; height: 2.6rem; min-width: 40px; min-height: 40px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--line) 35%, transparent); background: color-mix(in srgb, var(--panel) 10%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: var(--muted); font: inherit; font-size: 1rem; cursor: pointer; opacity: .75; }
 .jump-pill:hover, .jump-pill:active { background: var(--panel); border-color: var(--line); color: var(--text); opacity: 1; }
 
 /* Play/pause beside a spoken reply. */
