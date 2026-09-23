@@ -63,6 +63,9 @@
 //           searches; portrait, landscape, Largest
 //   filter  the thread list's Show: Active / Live / Closed / Archived /
 //           Everything and one project; the empty line; kept per device
+//   resume  the app opens where it was left (an install, an update or a swipe
+//           away all end in a launch); the ↑/↓ pills clear a bubble's ▶; the
+//           speed row reads the rate and resets with a key of its own
 //   tapread  "Read from here": a tap on a sentence of the message being said
 //           jumps the voice (goto-sentence, bold at once, then the real
 //           position); a selection in an older reply → the chip → replay-id
@@ -98,7 +101,7 @@ const agentsMock = await mockAt(P + 3, { MOCK_SPEECH_REST_S: '0', MOCK_AGENT_STE
 const moveMock = await mockAt(P + 4, { MOCK_SPEECH_REST_S: '0' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['lostlive.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs'], ['pinch.mjs'], ['notify.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['lostlive.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs'], ['pinch.mjs'], ['notify.mjs'], ['resume.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
     failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' || file === 'resync.mjs' || file === 'lostlive.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : file === 'move.mjs' ? P + 4 : P}`, ...env })) ? 1 : 0
   }

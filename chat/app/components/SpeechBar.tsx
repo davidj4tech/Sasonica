@@ -115,6 +115,12 @@ function speedLabel(v: number | null | undefined): string {
   return n ? `${n.toFixed(2).replace(/\.?0+$/, '')}×` : '1×'
 }
 
+/** Nothing to reset: no rate reported, or one that rounds to normal. */
+function isNormalSpeed(v: number | null | undefined): boolean {
+  const n = Number(v)
+  return !n || Math.abs(n - 1) < 0.005
+}
+
 /** 0–1, or null when the server gave no position. */
 function progressOf(pos: number | null | undefined, dur: number | null | undefined): number | null {
   if (pos == null || !dur) return null
@@ -334,16 +340,32 @@ function SpeechSheet(props: { title: string; session: SessionId | null; inHere: 
                 </button>
               )}
             </div>
+            {/* The rate is a reading, not a button. It used to be both: the
+                one element showed the speed AND reset it, so as soon as it
+                said 1× it read as a reset key that had eaten the indicator
+                ("the speed indicator only stays for a few seconds before
+                switching back to a button to reset it" — David, 23 Sep 2026).
+                Reset is its own key now, and it is only offered when there is
+                something to reset. */}
             <div className="knob">
               <span className="knob-label">Speed</span>
               <button className="skey" aria-label="Slower" onClick={() => void speech.ctl('speed-')}>
                 −
               </button>
-              <button className="knob-value" aria-label="Reset speed to 1×" title="Reset to 1×" onClick={() => void speech.ctl('speed0')}>
+              <span className="knob-value" aria-live="polite" aria-label={`Speed ${speedLabel(now?.speed)}`}>
                 {speedLabel(now?.speed)}
-              </button>
+              </span>
               <button className="skey" aria-label="Faster" onClick={() => void speech.ctl('speed+')}>
                 +
+              </button>
+              <button
+                className="skey knob-reset"
+                aria-label="Reset speed to 1×"
+                title="Reset to 1×"
+                disabled={isNormalSpeed(now?.speed)}
+                onClick={() => void speech.ctl('speed0')}
+              >
+                <IconReplay />
               </button>
             </div>
             <div className="knob">

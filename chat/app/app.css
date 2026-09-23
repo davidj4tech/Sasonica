@@ -438,7 +438,14 @@ a { color: var(--accent); }
 .thread-row .unread-dot { width: .5rem; height: .5rem; border-radius: 50%; background: var(--accent); flex: none; }
 .thread-row.unread .title { font-weight: 600; }
 /* ↑ top / ↓ bottom in a thread: small, at the right, clear of the centred pills. */
-.jump-pills { position: absolute; right: 4px; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+/* The bubble keys (▶ replay, and a second key on a tall bubble) live in a
+   fixed 44px column at the right of every message, inside the viewport's
+   12px padding. The jump pills float over the messages, so they have to
+   clear that column or they land on a reply's play button — which is
+   exactly what they did: "the little play button seems to be hidden below
+   the scroll to top button" (David, 23 Sep 2026). */
+:root { --keys-lane: calc(44px + 12px + 4px); }
+.jump-pills { position: absolute; right: var(--keys-lane); bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 .jump-pill { pointer-events: auto; width: 2.6rem; height: 2.6rem; min-width: 40px; min-height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font: inherit; font-size: 1rem; box-shadow: 0 3px 10px #0005; cursor: pointer; opacity: .9; }
 .jump-pill:hover { color: var(--text); opacity: 1; }
 
@@ -477,8 +484,12 @@ a { color: var(--accent); }
 .pill.on { color: var(--warn); border-color: var(--warn); }
 .knob { display: flex; align-items: center; gap: 6px; }
 .knob-label { width: 4.6rem; color: var(--muted); font-size: .867rem; }
-.knob-value { flex: 1; min-height: 44px; display: grid; place-items: center; background: none; border: 0; font: 1rem ui-monospace, monospace; cursor: pointer; }
-.knob-value.quiet { color: var(--muted); cursor: default; }
+.knob-value { flex: 1; min-height: 44px; display: grid; place-items: center; background: none; border: 0; font: 1rem ui-monospace, monospace; }
+.knob-value.quiet { color: var(--muted); }
+/* Reset sits beside the reading rather than replacing it, and greys out
+   when the rate is already normal — so the row always says where it is. */
+.knob-reset { color: var(--muted); }
+.knob-reset:disabled { opacity: .3; cursor: default; }
 
 /*
  * Short screens: a phone in landscape (~412 px tall), and far shorter with

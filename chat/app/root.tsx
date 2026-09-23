@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Links, Meta, Navigate, Outlet, Scripts, ScrollRestoration, useLocation } from 'react-router'
 import './app.css'
 import { SpeechProvider } from './hooks/useSpeech'
@@ -8,6 +8,7 @@ import { TEXT_SIZE_BOOT } from './lib/textSize'
 import { Mark } from './components/Mark'
 import { initAuth } from './api/auth'
 import { NativeHooks } from './components/NativeHooks'
+import { rememberRoute, savedRoute } from './lib/lastRoute'
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -89,6 +90,21 @@ function useVisualViewportHeight() {
   }, [])
 }
 
+/**
+ * Open where the app was left, once per launch.
+ *
+ * "Once per launch" is the whole of it: the ref is module-free state inside
+ * this component instance, which exists for as long as the page does, so a
+ * later visit to Home is a visit to Home and not a bounce back to a thread.
+ * Returns the path to restore on this render, or ''.
+ */
+function useResumeOnce(pathname: string, search: string): string {
+  const spent = useRef(false)
+  const want = spent.current || pathname !== '/' || search ? '' : savedRoute()
+  spent.current = true
+  return want
+}
+
 export default function App() {
   useVisualViewportHeight()
   usePinchTextSize()
@@ -96,9 +112,14 @@ export default function App() {
   // e.g. the preview server's redirect): hand it to the pairing screen, which
   // pairs at once.
   const location = useLocation()
+  const resume = useResumeOnce(location.pathname, location.search)
+  useEffect(() => {
+    rememberRoute(location.pathname + location.search)
+  }, [location.pathname, location.search])
   if (location.pathname !== '/pairing' && new URLSearchParams(location.search).has('pair')) {
     return <Navigate to={`/pairing${location.search}`} replace />
   }
+  if (resume) return <Navigate to={resume} replace />
   // One /speech/now poll for every screen (hooks/useSpeech.tsx).
   return (
     <SpeechProvider>
