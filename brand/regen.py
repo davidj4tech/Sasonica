@@ -60,6 +60,7 @@ def app_icons():
         png(ROUND_MARK, d / "ic_launcher_round.png", int(48 * scale))
         png(FOREGROUND, d / "ic_launcher_foreground.png", int(108 * scale))
         solid(d / "ic_launcher_background.png", int(108 * scale))
+        png(NOTIFICATION, APP_RES / f"drawable-{density}/ic_notification.png", int(24 * scale))
     ROUND_MARK.unlink()
 
 for density, scale in DENSITIES.items():

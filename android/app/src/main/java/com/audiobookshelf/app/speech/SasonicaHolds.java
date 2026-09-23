@@ -257,7 +257,7 @@ public final class SasonicaHolds {
             android.app.Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                     ? new android.app.Notification.Builder(c, CARD_CHANNEL)
                     : new android.app.Notification.Builder(c);
-            b.setSmallIcon(android.R.drawable.ic_lock_silent_mode)
+            b.setSmallIcon(com.audiobookshelf.app.R.drawable.ic_notification)
                     .setContentTitle("Sam has something to say")
                     .setContentText("Waiting until you are done talking")
                     .setOnlyAlertOnce(true)

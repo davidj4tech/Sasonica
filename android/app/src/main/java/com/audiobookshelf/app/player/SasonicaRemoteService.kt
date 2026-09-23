@@ -28,6 +28,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.audiobookshelf.app.R
 import com.audiobookshelf.app.speech.SasonicaHolds
 import com.audiobookshelf.app.speech.SasonicaSpeech
 import java.net.InetAddress
@@ -163,7 +164,7 @@ class SasonicaRemoteService : Service() {
       PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE)
     }
     return NotificationCompat.Builder(this, CHANNEL)
-      .setSmallIcon(android.R.drawable.ic_media_play)
+      .setSmallIcon(R.drawable.ic_notification)
       .setContentTitle("Sasonica remote control")
       .setContentText("Listening on port ${SasonicaControl.REMOTE_PORT}")
       .setOngoing(true)
