@@ -569,6 +569,24 @@ export interface HarnessRun extends Envelope {
   cmd: string
 }
 
+/** One row of GET /harnesses/updates (§6.6): is something newer out? */
+export interface HarnessUpdate {
+  name: Agent
+  /** The version here, as a bare number ("0.155.1"). */
+  installed: string
+  /** The newest published one, or "" for the one that is not a package. */
+  latest: string
+  /** `null` is "nobody could say" — never render it as up to date. */
+  behind: boolean | null
+  /** What the agent's own check said, when that is how it answered. */
+  line: string
+  checked_at: number
+}
+
+export interface HarnessUpdates extends Envelope {
+  updates: HarnessUpdate[]
+}
+
 /** POST /harnesses/logout: it ran and exited; no window to watch. */
 export interface HarnessLogout extends Envelope {
   agent: Agent

@@ -30,6 +30,7 @@ import type {
   DraftResponse,
   HarnessesResponse,
   HarnessLogout,
+  HarnessUpdates,
   HarnessRun,
   RenameResponse,
   ReplyRequest,
@@ -432,6 +433,16 @@ export function getHarnesses(signal?: AbortSignal) {
  */
 export function runHarness(agent: Agent, action: 'install' | 'login') {
   return request<HarnessRun>('POST', '/harnesses/run', { agent, action })
+}
+
+/**
+ * Which harnesses something newer exists for. Its own call because it goes
+ * to the network (npm, and Hermes's own check): the rows draw from
+ * getHarnesses first and this fills in when it lands. `refresh` asks again
+ * rather than taking the server's hour-old answer.
+ */
+export function getHarnessUpdates(refresh?: boolean, signal?: AbortSignal) {
+  return request<HarnessUpdates>('GET', `/harnesses/updates${refresh ? '?refresh=1' : ''}`, undefined, signal)
 }
 
 /**

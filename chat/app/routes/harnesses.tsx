@@ -5,6 +5,12 @@
  * A fresh machine, or a token that expired overnight, is what makes "new
  * codex chat" answer `codex: not found`; this page is the fix from the chair.
  *
+ * Whether any of them is out of date is a second, slower question (it goes
+ * to npm, and to Hermes's own check), so it is asked after the rows are up
+ * and fills in when it lands: an agent with something newer says what it
+ * would move to, and one that is current loses its Update button, since
+ * there is nothing for it to do.
+ *
  * Install and sign-in both run in a window on the server, watched here
  * through components/SetupWindow — the sign-in's OAuth code is pasted back
  * into its line. Signing out is the odd one: it deletes the stored
@@ -14,7 +20,8 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router'
-import { getHarnesses, logoutHarness, runHarness, type HarnessRow } from '../api'
+import { getHarnesses, getHarnessUpdates, logoutHarness, runHarness, type HarnessRow } from '../api'
+import type { HarnessUpdate } from '../api/types'
 import { hasCredential } from '../api/auth'
 import { BackLink } from '../components/Nav'
 import { SetupWindow } from '../components/SetupWindow'
@@ -26,12 +33,15 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** "0.155.1 · signed in (you@example.com)", or "not installed". */
-function describe(h: HarnessRow): string {
+/** "0.155.1 · signed in (you@example.com) · up to date", or "not installed". */
+function describe(h: HarnessRow, u?: HarnessUpdate): string {
   if (!h.present) return 'not installed'
   const bits = [h.version || 'installed']
   if (h.auth === 'in') bits.push(h.account ? `signed in (${h.account})` : 'signed in')
   else if (h.auth === 'out') bits.push('signed out')
+  // Only the two answers anyone can act on; "could not ask" says nothing.
+  if (u?.behind === false) bits.push('up to date')
+  else if (u?.behind === true) bits.push(u.latest ? `${u.latest} is out` : 'an update is out')
   return bits.join(' · ')
 }
 
@@ -56,6 +66,16 @@ function HarnessesPage() {
   // Which row is asking "sign out?" — one at a time, cleared on any answer.
   const [confirm, setConfirm] = useState('')
 
+  // What is out of date, by name. Undefined until the slow call lands, and
+  // a row missing from it is one nobody could answer for.
+  const [updates, setUpdates] = useState<Record<string, HarnessUpdate>>({})
+
+  const check = useCallback((refresh?: boolean, signal?: AbortSignal) => {
+    getHarnessUpdates(refresh, signal)
+      .then((r) => setUpdates(Object.fromEntries(r.updates.map((u) => [u.name, u]))))
+      .catch(() => {})
+  }, [])
+
   const load = useCallback((signal?: AbortSignal) => {
     getHarnesses(signal)
       .then((r) => {
@@ -70,8 +90,9 @@ function HarnessesPage() {
   useEffect(() => {
     const ac = new AbortController()
     load(ac.signal)
+    check(false, ac.signal)
     return () => ac.abort()
-  }, [load])
+  }, [load, check])
 
   const run = async (h: HarnessRow, action: 'install' | 'login') => {
     setBusy(`${h.name}:${action}`)
@@ -111,7 +132,15 @@ function HarnessesPage() {
       <header className="bar">
         <BackLink />
         <h1 className="grow">Coding agents</h1>
-        <button className="icon" onClick={() => load()} title="Check again" aria-label="Check again">
+        <button
+          className="icon"
+          onClick={() => {
+            load()
+            check(true)
+          }}
+          title="Check again"
+          aria-label="Check again"
+        >
           ↻
         </button>
       </header>
@@ -123,13 +152,18 @@ function HarnessesPage() {
       <div className="note-list">
         {rows && (
           <ul className="setup-list">
-            {rows.map((h) => (
+            {rows.map((h) => {
+              // An up-to-date agent has no Update button, and a row whose
+              // only button that was renders no action bar at all.
+              const showInstall = h.actions.includes('install') && !(h.present && updates[h.name]?.behind === false)
+              const anyAction = showInstall || h.actions.includes('login') || h.actions.includes('logout')
+              return (
               <li key={h.name} className="setup-item" data-agent={h.name}>
                 <div className="setup-head">
                   <span className={`setup-dot ${dot(h)}`} aria-hidden />
                   <span className="setup-label">{LABEL[h.name] || h.name}</span>
                 </div>
-                <p className="setup-detail">{describe(h)}</p>
+                <p className="setup-detail">{describe(h, updates[h.name])}</p>
                 {confirm === h.name ? (
                   <>
                     <p className="setup-why">
@@ -145,11 +179,17 @@ function HarnessesPage() {
                       </button>
                     </div>
                   </>
-                ) : h.actions.length > 0 && (
+                ) : anyAction && (
                   <div className="setup-actions">
-                    {h.actions.includes('install') && (
+                    {showInstall && (
                       <button className={h.present ? 'notes-button' : 'notes-button primary'} disabled={!!busy || !!pane} onClick={() => void run(h, 'install')}>
-                        {busy === `${h.name}:install` ? '…' : h.installed_action === 'update' ? 'Update' : 'Install'}
+                        {busy === `${h.name}:install`
+                          ? '…'
+                          : h.installed_action !== 'update'
+                            ? 'Install'
+                            : updates[h.name]?.behind && updates[h.name]?.latest
+                              ? `Update to ${updates[h.name].latest}`
+                              : 'Update'}
                       </button>
                     )}
                     {h.actions.includes('login') && (
@@ -165,7 +205,8 @@ function HarnessesPage() {
                   </div>
                 )}
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
         {rows && (
@@ -180,6 +221,9 @@ function HarnessesPage() {
             onClose={() => {
               setPane(null)
               load()
+              // An install that just ran changes the answer, so it is asked
+              // again rather than leaving the old one on screen.
+              check(true)
             }}
           />
         )}

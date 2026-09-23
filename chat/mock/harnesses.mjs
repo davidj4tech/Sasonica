@@ -4,13 +4,16 @@
 // A sign-in shows its link and waits for a code; typing one (then Enter)
 // signs Codex in. Sign out (only on a row that is signed in) needs no
 // window: it answers at once and the row goes back to signed out. An install finishes on its third screen and installs pi.
-// Panes that aren't ours fall through to the notes window (mock/notes.mjs).
+// Codex has a newer version out, Claude is current (so it offers no Update),
+// Hermes answers its own check. Panes that aren't ours fall through to the
+// notes window (mock/notes.mjs).
 
 const fixtures = () => ({
-  claude: { present: true, version: '2.3.1 (Claude Code)', auth: 'in', account: 'you@example.com' },
-  codex: { present: true, version: 'codex-cli 0.155.1', auth: 'out', account: '' },
-  pi: { present: false, version: '', auth: 'unknown', account: '' },
-  hermes: { present: true, version: 'Hermes 0.9', auth: 'unknown', account: '' }
+  claude: { present: true, version: '2.3.1 (Claude Code)', auth: 'in', account: 'you@example.com', latest: '2.3.1' },
+  codex: { present: true, version: 'codex-cli 0.155.1', auth: 'out', account: '', latest: '0.156.0' },
+  pi: { present: false, version: '', auth: 'unknown', account: '', latest: '1.0.0' },
+  // The one that is not a package answers about itself, with no version.
+  hermes: { present: true, version: 'Hermes 0.9', auth: 'unknown', account: '', check: true }
 })
 const INSTALL = { claude: 'npm install -g @anthropic-ai/claude-code', codex: 'npm install -g @openai/codex', pi: 'npm install -g @mariozechner/pi-coding-agent', hermes: 'hermes update' }
 const LOGIN = { claude: 'claude auth login', codex: 'codex login --device-auth' }
@@ -32,8 +35,23 @@ function rows() {
   })
 }
 
+const number = (v) => (String(v).match(/\d+(?:\.\d+)+/) || [''])[0]
+
+/** GET /harnesses/updates: the slow half — what is out of date. */
+function updateRows() {
+  return Object.entries(H)
+    .filter(([, h]) => h.present)
+    .map(([name, h]) => {
+      const installed = number(h.version)
+      if (h.check) return { name, installed, latest: '', behind: true, line: '⚕ Update available (behind origin/main).', checked_at: 1 }
+      const behind = installed && h.latest ? installed !== h.latest : null
+      return { name, installed, latest: h.latest || '', behind, line: '', checked_at: 1 }
+    })
+}
+
 export function harnessRoute(method, path, q, body, ok, err) {
   if (method === 'GET' && path === '/harnesses') return ok({ agents: rows() })
+  if (method === 'GET' && path === '/harnesses/updates') return ok({ updates: updateRows() })
   if (method === 'POST' && path === '/harnesses/run') {
     const { agent, action } = body
     if (!(agent in H)) return err(400, `not an agent: '${agent}'`)

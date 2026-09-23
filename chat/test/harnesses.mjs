@@ -42,14 +42,20 @@ for (const [name, vp, size] of [
   ok((await row('pi').innerText()).includes('not installed'), `${name}: pi not installed`)
   ok(!(await row('hermes').innerText()).includes('signed'), `${name}: Hermes claims no sign-in state`)
   ok((await row('pi').getByRole('button', { name: 'Sign in' }).count()) === 0, `${name}: pi has no Sign in`)
-  ok((await row('claude').getByRole('button', { name: 'Update' }).count()) === 1, `${name}: an installed one says Update`)
+  // The slow half (GET /harnesses/updates) lands after the rows: Codex has
+  // something newer, Claude has not and so loses its Update button.
+  await page.waitForFunction(() => document.querySelector('.setup-item[data-agent=claude]')?.textContent?.includes('up to date'))
+  ok((await row('claude').getByRole('button', { name: 'Update' }).count()) === 0, `${name}: an up-to-date agent offers no Update`)
+  ok((await row('codex').getByRole('button', { name: 'Update to 0.156.0' }).count()) === 1, `${name}: one that is behind says what it would move to`)
+  ok((await row('codex').innerText()).includes('0.156.0 is out'), `${name}: and its row says so`)
+  ok((await row('hermes').innerText()).includes('an update is out'), `${name}: the one that is not a package answers its own check`)
   await page.screenshot({ path: path.join(SHOTS, `harnesses-${name}.png`) })
 
   // Sign in to Codex: the link shows, a code goes back, the list agrees.
   await row('codex').getByRole('button', { name: 'Sign in' }).click()
   await page.waitForSelector('.setup-window .setup-screen:has-text("auth.example.com")')
   ok((await page.locator('.setup-cmd').innerText()) === 'codex login --device-auth', `${name}: the window names its command`)
-  ok(await row('claude').getByRole('button', { name: 'Update' }).isDisabled(), `${name}: other buttons wait while a window is open`)
+  ok(await row('codex').getByRole('button', { name: 'Update to 0.156.0' }).isDisabled(), `${name}: other buttons wait while a window is open`)
   await page.screenshot({ path: path.join(SHOTS, `harnesses-${name}-signin.png`) })
   await page.getByLabel('Type into the window').fill('ABCD-1234')
   await page.getByLabel('Type into the window').press('Enter')
@@ -80,7 +86,9 @@ for (const [name, vp, size] of [
   await page.waitForSelector('.setup-exit.ok', { timeout: 10000 })
   await page.locator('.setup-window').getByRole('button', { name: 'Done' }).click()
   await page.waitForFunction(() => !document.querySelector('.setup-item[data-agent=pi]')?.textContent?.includes('not installed'))
-  ok((await row('pi').getByRole('button', { name: 'Update' }).count()) === 1, `${name}: pi installed, its button now Update`)
+  // Freshly installed, so it is current: nothing to update, and no button.
+  await page.waitForFunction(() => document.querySelector('.setup-item[data-agent=pi]')?.textContent?.includes('up to date'))
+  ok((await row('pi').getByRole('button', { name: 'Update' }).count()) === 0, `${name}: pi is current, so it offers no Update`)
   const log = await (await fetch(BASE + '/mock/harnesses')).json()
   ok(JSON.stringify(log.runs) === JSON.stringify([{ agent: 'codex', action: 'login' }, { agent: 'pi', action: 'install' }]), `${name}: ran exactly codex login, pi install`)
   ok(log.closed.length === 2, `${name}: both windows closed on the server`)
