@@ -23,4 +23,4 @@ Files:
   rings, arrow — the cup and boom are too fine at 24 dp), `playstore-512.png`.
 - `web/` — `favicon.svg`, `favicon-32.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`.
 
-Regenerate from the master with cairosvg (see the session notes); every size is derived, never hand-edited.
+Regenerate every derived size with `python3 brand/regen.py` (needs cairosvg); they are derived, never hand-edited.
