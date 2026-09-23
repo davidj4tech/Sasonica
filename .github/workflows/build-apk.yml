@@ -2,9 +2,8 @@ name: Build APK
 
 on:
   push:
-    # android-next builds Sasonica Next (build-next-apk.yml), not this app.
-    branches-ignore:
-      - android-next
+    # android-next carries both apps: this one and Sasonica Next
+    # (build-next-apk.yml). Both build from it until this app is retired.
     paths-ignore:
       - 'ios/**'
       - 'readme.md'
