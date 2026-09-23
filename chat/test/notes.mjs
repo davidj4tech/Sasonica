@@ -68,6 +68,7 @@ await page.waitForSelector('.note-body')
 ok((await page.locator('.bar h1').innerText()).includes('NEXT') && (await page.locator('.bar h1').innerText()).includes('Ring the plumber'), 'title shows the state and heading')
 ok((await page.locator('.org-date').innerText()).startsWith('DEADLINE'), 'the deadline line is shown')
 ok(!(await page.locator('.note-body').innerText()).includes('Library hold'), 'only that subtree')
+ok((await page.locator('.note-actions .note-play.msg-key').count()) === 1, 'the play key, under the title')
 await page.click('button[title="Read aloud"]')
 await page.waitForSelector('.notice:has-text("Reading it out")')
 const said = (await mock()).said

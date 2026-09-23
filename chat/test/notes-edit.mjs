@@ -105,7 +105,7 @@ ok(files['tickler.org'].includes('** WAITING Library hold on the atlas\n   SCHED
 // 6. Roam notes are read-only here
 await page.goto(BASE + '/organiser/note?path=' + encodeURIComponent('roam/projects/garden.org'))
 await page.waitForSelector('.note-body')
-ok((await page.locator('.note-actions').count()) === 0, 'no state keys on a roam note')
+ok((await page.locator('.note-actions .state-key').count()) === 0, 'no state keys on a roam note')
 
 // 7. A heading changed at the desk: said, not guessed
 await page.goto(BASE + '/organiser')

@@ -1,6 +1,6 @@
 /**
  * One note, or one heading of a GTD file (`?path=…&at=<line>`), rendered
- * from its Org text (lib/org.tsx). The speaker key hands it to the voice
+ * from its Org text (lib/org.tsx). The play key hands it to the voice
  * (`POST /notes/say`), which reads it like any reply. A to-do's date is a
  * key: tapped, a sheet picks a new one (`POST /notes/date`). A 409 means the
  * file changed under us since the list was drawn: back to the list to refresh.
@@ -14,7 +14,7 @@ import { DateSheet } from '../components/DateSheet'
 import { MoveSheet } from '../components/MoveSheet'
 import { NoteAsk } from '../components/NoteAsk'
 import { noteHref as noteHrefOf, OrgBody, ownPlanning, parseHeading, planStamps, StateBadge } from '../lib/org'
-import { SpeechBar } from '../components/SpeechBar'
+import { IconPlay, SpeechBar } from '../components/SpeechBar'
 import '../notes.css'
 
 export default function Note() {
@@ -126,11 +126,6 @@ function NotePage() {
         <h1>
           {head && <StateBadge state={head.state} />} {note?.title || where}
         </h1>
-        {note && (
-          <button className="icon" onClick={() => void say()} title="Read aloud">
-            🔊
-          </button>
-        )}
       </header>
 
       {error && (
@@ -140,21 +135,28 @@ function NotePage() {
         </p>
       )}
       {said && <p className={said.failed ? 'notice error' : 'notice'}>{said.text}</p>}
-      {note && head && isEditable(path) && (
+      {note && (
         <div className="note-actions">
-          {(['TODO', 'NEXT', 'WAITING', 'DONE'] as const).map((st) => (
-            <button key={st} className={head.state === st ? 'state-key on' : 'state-key'} disabled={busy || head.state === st} onClick={() => void changeState(st)}>
-              {st === 'DONE' ? '✓ Done' : st}
-            </button>
-          ))}
-          {!stamps.some((st) => st.kind === 'SCHEDULED') && (
-            <button className="state-key" disabled={busy} onClick={() => setDating({ kind: 'scheduled', date: '', time: '' })}>
-              Schedule…
-            </button>
-          )}
-          <button className="state-key move" disabled={busy} onClick={() => setMoving(true)}>
-            Move to…
+          <button className="msg-key note-play" onClick={() => void say()} title="Read aloud" aria-label="Read aloud">
+            <IconPlay />
           </button>
+          {head && isEditable(path) && (
+              <>
+                {(['TODO', 'NEXT', 'WAITING', 'DONE'] as const).map((st) => (
+                  <button key={st} className={head.state === st ? 'state-key on' : 'state-key'} disabled={busy || head.state === st} onClick={() => void changeState(st)}>
+                    {st === 'DONE' ? '✓ Done' : st}
+                  </button>
+                ))}
+                {!stamps.some((st) => st.kind === 'SCHEDULED') && (
+                  <button className="state-key" disabled={busy} onClick={() => setDating({ kind: 'scheduled', date: '', time: '' })}>
+                    Schedule…
+                  </button>
+                )}
+                <button className="state-key move" disabled={busy} onClick={() => setMoving(true)}>
+                  Move to…
+                </button>
+              </>
+            )}
         </div>
       )}
       {moving && <MoveSheet from={path} onMove={(to, date) => void move(to, date)} onClose={() => setMoving(false)} />}
