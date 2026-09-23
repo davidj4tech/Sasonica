@@ -67,21 +67,24 @@ let page = await newPage()
 
 // entry
 await page.goto(BASE + '/threads')
-await page.waitForSelector('.tabs .tab-search')
-const entry = page.locator('.tabs .tab-search')
+await page.waitForSelector('.list-tools .tab-search')
+const entry = page.locator('.list-tools .tab-search')
 ok((await box(entry)).height >= 40 && (await box(entry)).width >= 44, `the ⌕ is a full-size target (${JSON.stringify(await box(entry))})`)
 await page.screenshot({ path: SHOTS + '/search-01-entry.png' })
 await page.goto(BASE + '/organiser')
 await page.waitForSelector('.tabs')
-ok((await page.locator('.tabs .tab-search').count()) === 0, 'not on the Organiser (it has its own ⌕)')
+ok((await page.locator('.tab-search').count()) === 0, 'not on the Organiser (it has its own ⌕)')
 await page.goto(BASE + '/')
-await page.waitForSelector('.tabs .tab-search')
-await page.locator('.tabs .tab-search').click()
+await page.waitForSelector('.tabs')
+ok((await page.locator('.tab-search').count()) === 0, 'not on Home (it looks through threads)')
+await page.goto(BASE + '/threads')
+await page.locator('.list-tools .tab-search').click()
 await page.waitForURL('**/find')
 await page.waitForSelector('.search-field input')
 await page.waitForFunction(() => document.activeElement?.getAttribute('type') === 'search', null, { timeout: 2000 }).catch(() => {})
 ok(await page.evaluate(() => document.activeElement?.getAttribute('type') === 'search'), 'the field has focus')
-ok((await page.locator('.search-filters').count()) === 0, 'Advanced off: no filters row')
+ok((await page.locator('.search-filters .chip').count()) === 0, 'Advanced off: no Tool steps chip')
+ok((await page.locator('.search-filters .filter-button').innerText()).startsWith('Show: Everything'), 'the filter opens on Everything')
 
 // typing
 page.searches = 0
@@ -102,9 +105,23 @@ ok((await hit.locator('mark').first().innerText()) === 'Question 7', 'the match 
 ok((await box(hit)).height >= 44, '44 px hit')
 await page.screenshot({ path: SHOTS + '/search-03-messages.png' })
 
+// the filter: its own Show on this screen, and nothing hidden without a reason
+await page.locator('.search-filters .filter-button').click()
+await page.waitForSelector('.filter-menu')
+await page.locator('.filter-menu button', { hasText: 'Archived' }).first().click()
+await page.keyboard.press('Escape')
+await page.waitForFunction(() => document.querySelectorAll('section[aria-label="Messages"] .hit').length === 0)
+ok((await page.locator('.search-filters .filter-button.on').count()) === 1, 'a narrowed filter is marked on the button')
+ok(/Archived/.test(await page.locator('.notice').first().innerText()), 'the empty says which filter hid it')
+await page.screenshot({ path: SHOTS + '/search-04-filtered.png' })
+await page.locator('.notice .link', { hasText: 'Search everything' }).first().click()
+await page.waitForFunction(() => document.querySelectorAll('section[aria-label="Messages"] .hit').length === 1)
+ok((await page.locator('.search-filters .filter-button').innerText()).startsWith('Show: Everything'), 'Search everything puts the hits back')
+const hit2 = page.locator('section[aria-label="Messages"] .hit').first()
+
 // jump
 const id = (await api('/search?q=' + encodeURIComponent('"Question 7:"'))).messages[0].message
-await hit.click()
+await hit2.click()
 await page.waitForURL(/\/t\/.+\?at=/)
 const target = `[data-mid="${id}"]`
 await page.waitForSelector(target, { timeout: 8000 })

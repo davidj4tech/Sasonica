@@ -12,12 +12,35 @@
  *
  * With the Advanced setting on (lib/advanced.ts), a "Tool steps" filter adds
  * the commands and files the agents touched (`tools=1`).
+ *
+ * The thread list's narrowing follows you here, as its own Show button at
+ * the top of the screen (lib/threadFilter.ts `searchFilterOf`): Show,
+ * project and agent, seeded from the list but shown and changeable, so a
+ * missing hit always has a visible reason. It rides in the URL, so coming
+ * back from a thread comes back to the same results. The server is asked
+ * for everything either way (§6.14); the filter is applied to the hits.
  */
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { search, type SearchMessageHit, type SearchResponse } from '../api'
+import type { Harness } from '../api/types'
 import { BackLink } from '../components/Nav'
+import { Popover } from '../components/Popover'
 import { useAdvanced } from '../lib/advanced'
+import {
+  EVERYTHING,
+  HARNESSES,
+  HARNESS_LABEL,
+  SHOWS,
+  SHOW_LABEL,
+  type HitFilter,
+  type ThreadShow,
+  hitFilterLabel,
+  isEverything,
+  loadThreadFilter,
+  matchesHit,
+  searchFilterOf
+} from '../lib/threadFilter'
 import { Marked, termSpans } from '../lib/highlight'
 import { forgetSearches, recentSearches, rememberSearch } from '../lib/recentSearches'
 
@@ -40,11 +63,35 @@ function when(at: number): string {
 
 const WHO: Record<string, string> = { user: 'You', assistant: 'Agent' }
 
+/**
+ * The narrowing this screen opens with: what the URL says (coming back from
+ * a thread, or a shared link), else the thread list's own.
+ */
+function fromParams(params: URLSearchParams): HitFilter {
+  if (!params.has('show') && !params.has('project') && !params.has('agent')) {
+    try {
+      return searchFilterOf(loadThreadFilter())
+    } catch {
+      return EVERYTHING
+    }
+  }
+  const show = params.get('show')
+  const agent = params.get('agent')
+  return {
+    show: SHOWS.includes(show as ThreadShow) ? (show as ThreadShow) : 'all',
+    project: params.get('project') || null,
+    harness: HARNESSES.includes(agent as Harness) ? (agent as Harness) : null
+  }
+}
+
 export default function Search() {
   const [params, setParams] = useSearchParams()
   const [text, setText] = useState(() => params.get('q') || '')
   const advanced = useAdvanced()
   const [tools, setTools] = useState(() => params.get('tools') === '1')
+  const [filter, setFilter] = useState<HitFilter>(() => fromParams(params))
+  const [filterOpen, setFilterOpen] = useState(false)
+  const filterButton = useRef<HTMLButtonElement>(null)
   const [res, setRes] = useState<SearchResponse | null>(null)
   const [more, setMore] = useState<{ loading: boolean; error: string }>({ loading: false, error: '' })
   const [busy, setBusy] = useState(false)
@@ -58,14 +105,24 @@ export default function Search() {
     input.current?.focus()
   }, [])
 
-  // As you type: the query goes into the URL (back from a thread comes back
-  // to the same results), then out to the server after a pause.
+  // The screen, in the URL: back from a thread comes back to the same words
+  // and the same narrowing.
   useEffect(() => {
     const q = text.trim()
     const next = new URLSearchParams()
     if (q) next.set('q', q)
     if (withTools) next.set('tools', '1')
+    if (filter.show !== 'all') next.set('show', filter.show)
+    if (filter.project) next.set('project', filter.project)
+    if (filter.harness) next.set('agent', filter.harness)
     if (next.toString() !== params.toString()) setParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, withTools, filter])
+
+  // As you type, out to the server after a pause. The filter is not in this:
+  // the index is asked for everything, and the hits are sifted here.
+  useEffect(() => {
+    const q = text.trim()
     if (q.length < MIN_CHARS) {
       setRes(null)
       setError('')
@@ -117,8 +174,21 @@ export default function Search() {
   }
 
   const q = text.trim()
-  const empty = res && !res.threads.length && !res.messages.length && !(res.memory?.available && res.memory.items.length)
+  // What the filter leaves. Memory is not a thread and is never narrowed.
+  const threads = (res?.threads || []).filter((t) => matchesHit(t, filter))
+  const messages = (res?.messages || []).filter((h) => matchesHit(h.thread, filter))
   const memory = res?.memory?.available ? res.memory : null
+  const empty = res && !threads.length && !messages.length && !(memory && memory.items.length)
+  const hidden = res ? res.threads.length - threads.length + (res.messages.length - messages.length) : 0
+  // The projects the menu offers: those this search actually turned up, and
+  // the one already picked even when nothing here is in it.
+  const projects = [...new Set([...(res?.threads || []).map((t) => t.project), ...(res?.messages || []).map((h) => h.thread.project)].map((p) => p || 'Other'))].sort(
+    (a, b) => Number(a === 'Other') - Number(b === 'Other') || a.localeCompare(b)
+  )
+  if (filter.project && !projects.includes(filter.project)) projects.push(filter.project)
+  const harnesses = HARNESSES.filter((h) =>
+    h === filter.harness || (res?.threads || []).some((t) => t.harness === h) || (res?.messages || []).some((m) => m.thread.harness === h)
+  )
 
   return (
     <div className="page search-page">
@@ -153,12 +223,54 @@ export default function Search() {
         </form>
       </header>
 
-      {advanced && (
-        <div className="search-filters" role="group" aria-label="Filters">
+      <div className="search-filters" role="group" aria-label="Filters">
+        <button
+          ref={filterButton}
+          type="button"
+          className={isEverything(filter) ? 'filter-button' : 'filter-button on'}
+          aria-haspopup="menu"
+          aria-expanded={filterOpen}
+          onClick={() => setFilterOpen((o) => !o)}
+        >
+          Show: {hitFilterLabel(filter)} <span aria-hidden="true">▾</span>
+        </button>
+        {advanced && (
           <button type="button" className={tools ? 'chip on' : 'chip'} aria-pressed={tools} onClick={() => setTools((v) => !v)}>
             Tool steps
           </button>
-        </div>
+        )}
+      </div>
+
+      {filterOpen && (
+        <Popover anchor={filterButton} label="Filter results" align="left" className="sort-menu filter-menu" onClose={() => setFilterOpen(false)}>
+          <div className="menu-head" role="presentation">Show</div>
+          {SHOWS.filter((k) => k !== 'active').map((k) => (
+            <button key={k} role="menuitemradio" aria-checked={filter.show === k} className={filter.show === k ? 'on' : ''} onClick={() => setFilter({ ...filter, show: k })}>
+              <span className="mark" aria-hidden="true">
+                {filter.show === k ? '✓' : ''}
+              </span>
+              {SHOW_LABEL[k]}
+            </button>
+          ))}
+          <div className="menu-head" role="presentation">Agent</div>
+          {[null, ...harnesses].map((hn) => (
+            <button key={hn ?? ''} role="menuitemradio" aria-checked={filter.harness === hn} className={filter.harness === hn ? 'on' : ''} onClick={() => setFilter({ ...filter, harness: hn })}>
+              <span className="mark" aria-hidden="true">
+                {filter.harness === hn ? '✓' : ''}
+              </span>
+              {hn ? HARNESS_LABEL[hn] : 'All agents'}
+            </button>
+          ))}
+          <div className="menu-head" role="presentation">Project</div>
+          {[null, ...projects].map((pr) => (
+            <button key={pr ?? ''} role="menuitemradio" aria-checked={filter.project === pr} className={filter.project === pr ? 'on' : ''} onClick={() => setFilter({ ...filter, project: pr })}>
+              <span className="mark" aria-hidden="true">
+                {filter.project === pr ? '✓' : ''}
+              </span>
+              {pr ?? 'All projects'}
+            </button>
+          ))}
+        </Popover>
       )}
 
       <main className="search-results" aria-busy={busy}>
@@ -186,13 +298,31 @@ export default function Search() {
         {error && <p className="notice error">{error}</p>}
         {busy && !res && <p className="notice delayed">Searching…</p>}
         {res?.indexing && <p className="notice search-indexing">Still indexing — the newest words may be missing.</p>}
-        {empty && !busy && <p className="notice">Nothing found for “{res!.q}”.</p>}
+        {empty && !busy && (
+          <p className="notice">
+            Nothing found for “{res!.q}”
+            {isEverything(filter) ? '.' : ` under ${hitFilterLabel(filter)}.`}{' '}
+            {!isEverything(filter) && (
+              <button type="button" className="link" onClick={() => setFilter(EVERYTHING)}>
+                Search everything
+              </button>
+            )}
+          </p>
+        )}
+        {!empty && hidden > 0 && !busy && (
+          <p className="notice search-hidden">
+            {hidden} more {hidden === 1 ? 'hit is' : 'hits are'} outside {hitFilterLabel(filter)}.{' '}
+            <button type="button" className="link" onClick={() => setFilter(EVERYTHING)}>
+              Search everything
+            </button>
+          </p>
+        )}
 
-        {res && res.threads.length > 0 && (
+        {threads.length > 0 && (
           <section aria-label="Threads">
             <h2 className="search-head">Threads</h2>
             <ul className="hits">
-              {res.threads.map((t) => (
+              {threads.map((t) => (
                 <li key={t.session}>
                   <Link className="hit thread-hit" to={`/t/${encodeURIComponent(t.session)}`} state={{ title: t.title, fromSearch: true }} onClick={keep}>
                     <span className="hit-title">
@@ -220,11 +350,11 @@ export default function Search() {
           </section>
         )}
 
-        {res && res.messages.length > 0 && (
+        {messages.length > 0 && (
           <section aria-label="Messages">
             <h2 className="search-head">Messages</h2>
             <ul className="hits">
-              {res.messages.map((h) => (
+              {messages.map((h) => (
                 <li key={`${h.session}:${h.message}:${h.kind}`}>
                   <button type="button" className="hit message-hit" onClick={() => openMessage(h)}>
                     <span className="hit-meta">
@@ -240,7 +370,7 @@ export default function Search() {
                 </li>
               ))}
             </ul>
-            {res.next && (
+            {res?.next && (
               <div className="search-more">
                 <button type="button" className="earlier-button" disabled={more.loading} onClick={() => void loadMore()}>
                   {more.loading ? 'Loading…' : 'More'}

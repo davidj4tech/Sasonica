@@ -123,3 +123,43 @@ export function projectsOf(rows: SessionRow[]): string[] {
   const names = [...new Set(rows.map(projectOf))]
   return names.sort((a, b) => Number(a === OTHER_PROJECT) - Number(b === OTHER_PROJECT) || a.localeCompare(b))
 }
+
+/**
+ * Search's share of the filter (David, 23 Sep 2026). A hit is a hit, not a
+ * live row: it has no state to be in and no 30-day window, so the search
+ * screen carries Show, project and agent, and no more.
+ *
+ * It is seeded from the list's filter so the narrowing you just made
+ * follows you — except Active, which on the list folds the archived rows
+ * rather than dropping them; searching, that is Everything. It is shown on
+ * the screen, so nothing is ever missing for a reason you cannot see.
+ */
+export type HitFilter = Pick<ThreadFilter, 'show' | 'project' | 'harness'>
+export const EVERYTHING: HitFilter = { show: 'all', project: null, harness: null }
+
+export const searchFilterOf = (f: ThreadFilter): HitFilter => ({
+  show: f.show === 'active' ? 'all' : f.show,
+  project: f.project,
+  harness: f.harness
+})
+
+export const isEverything = (f: HitFilter) => f.show === 'all' && !f.project && !f.harness
+
+/** The button's words: "Everything", "Archived · sasonica", "Live · Codex". */
+export function hitFilterLabel(f: HitFilter): string {
+  const parts = [SHOW_LABEL[f.show]]
+  if (f.project) parts.push(f.project)
+  if (f.harness) parts.push(HARNESS_LABEL[f.harness])
+  return parts.join(' · ')
+}
+
+/** Does this hit's thread pass? `project` is null for none — "Other". */
+export function matchesHit(t: { project: string | null; harness: string; live: boolean; archived: boolean }, f: HitFilter): boolean {
+  if (f.project && (t.project || OTHER_PROJECT) !== f.project) return false
+  if (f.harness && (HARNESSES.includes(t.harness as Harness) ? t.harness : 'claude') !== f.harness) return false
+  if (f.show === 'archived') return t.archived
+  if (f.show === 'live') return !t.archived && t.live
+  if (f.show === 'closed') return !t.archived && !t.live
+  if (f.show === 'active') return !t.archived
+  return true
+}

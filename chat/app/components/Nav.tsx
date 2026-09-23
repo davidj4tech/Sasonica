@@ -9,9 +9,10 @@
  * the app has somewhere to go back to — the screen you came from, Home or
  * Threads — else Home.
  *
- * The switch ends in ⌕, search (routes/search.tsx), on Home and Threads: the
- * two places a thread is looked for, and one component, so neither header
- * gains another icon. The Organiser keeps its own ⌕ for notes.
+ * Search (routes/search.tsx) is not in the switch: it looks through threads,
+ * so it sits with the other thread-list controls (Show / Sort) on Threads —
+ * `ThreadSearchLink` below, used by routes/threads.tsx. The Organiser keeps
+ * its own ⌕ for notes.
  */
 import type { MouseEvent, ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
@@ -46,15 +47,19 @@ export function HomeTabs({ current }: { current: Tab }) {
       {tab('home', 'Home')}
       {tab('threads', 'Threads')}
       {tab('organiser', 'Organiser')}
-      {current !== 'organiser' && (
-        <Link className="tab-search" to="/find" title="Search threads" aria-label="Search threads">
-          <svg viewBox="0 0 24 24" width="1.25em" height="1.25em" aria-hidden="true" focusable="false">
-            <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
-            <path d="M15.5 15.5 L21 21" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-          </svg>
-        </Link>
-      )}
     </nav>
+  )
+}
+
+/** ⌕ : search every thread (routes/search.tsx), from the thread list. */
+export function ThreadSearchLink() {
+  return (
+    <Link className="tab-search" to="/find" title="Search threads" aria-label="Search threads">
+      <svg viewBox="0 0 24 24" width="1.25em" height="1.25em" aria-hidden="true" focusable="false">
+        <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+        <path d="M15.5 15.5 L21 21" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      </svg>
+    </Link>
   )
 }
 

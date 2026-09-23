@@ -51,7 +51,7 @@
 //           refused one, the project line following
 //   sort    the thread list: Smart / Most recent / By project (headings,
 //           Archived too), kept per device; the project line under titles
-//   search  ⌕ on Home and Threads → /find: threads, messages and memory as
+//   search  ⌕ beside Show / Sort on Threads → /find: threads, messages and memory as
 //           you type; a hit opens its thread at that message, lit; memory
 //           only when the server has it; Advanced adds "Tool steps"; recent
 //           searches; portrait, landscape, Largest

@@ -17,7 +17,7 @@ import type { SessionRow, SessionState } from '../api/types'
 import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
 import { Mark } from '../components/Mark'
-import { HomeTabs } from '../components/Nav'
+import { HomeTabs, ThreadSearchLink } from '../components/Nav'
 import { ProjectPickerSheet, SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { archivedOf, endedHere, projectOverrideOf, useSessionFlags } from '../lib/sessionFlags'
@@ -205,19 +205,22 @@ function ThreadList() {
       </header>
       <HomeTabs current="threads" />
       <div className="list-tools">
-        <button
-          ref={filterButton}
-          type="button"
-          className={isDefaultFilter(filter) ? 'filter-button' : 'filter-button on'}
-          aria-haspopup="menu"
-          aria-expanded={filterOpen}
-          onClick={() => setFilterOpen((o) => !o)}
-        >
-          Show: {filterLabel(filter)} <span aria-hidden="true">▾</span>
-        </button>
-        <button ref={sortButton} type="button" className="sort-button" aria-haspopup="menu" aria-expanded={sortOpen} onClick={() => setSortOpen((o) => !o)}>
-          Sort: {SORT_LABEL[sort]} <span aria-hidden="true">▾</span>
-        </button>
+        <div className="tool-menus">
+          <button
+            ref={filterButton}
+            type="button"
+            className={isDefaultFilter(filter) ? 'filter-button' : 'filter-button on'}
+            aria-haspopup="menu"
+            aria-expanded={filterOpen}
+            onClick={() => setFilterOpen((o) => !o)}
+          >
+            Show: {filterLabel(filter)} <span aria-hidden="true">▾</span>
+          </button>
+          <button ref={sortButton} type="button" className="sort-button" aria-haspopup="menu" aria-expanded={sortOpen} onClick={() => setSortOpen((o) => !o)}>
+            Sort: {SORT_LABEL[sort]} <span aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <ThreadSearchLink />
       </div>
       {sortOpen && (
         <Popover anchor={sortButton} label="Sort threads" align="left" className="sort-menu" onClose={() => setSortOpen(false)}>

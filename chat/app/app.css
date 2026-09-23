@@ -634,7 +634,8 @@ a { color: var(--accent); }
 .thread-bar .thread-sub .menu-anchor .icon { min-height: 38px; }
 
 /* ── The thread list's sort control and By project headings ────────────── */
-.list-tools { display: flex; justify-content: space-between; padding: 2px 12px 0; }
+.list-tools { display: flex; align-items: center; justify-content: space-between; padding: 2px 12px 0; }
+.tool-menus { display: flex; align-items: center; min-width: 0; }
 .sort-button, .filter-button { background: none; border: 0; color: var(--muted); font: inherit; font-size: .867rem; min-height: 40px; padding: 0 6px; cursor: pointer; }
 .sort-menu button { display: flex; align-items: center; gap: 8px; }
 .sort-menu .mark { width: 1rem; color: var(--accent); }
