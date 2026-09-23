@@ -19,7 +19,7 @@
  * of each harness's store, and `history=all` lifts that window (§6.16).
  */
 import type { Harness, SessionRow, SessionState } from '../api/types'
-import { OTHER_PROJECT, projectOf } from './threadSort'
+import { OTHER_PROJECT, projectOf, projectOptions } from './threadSort'
 
 export type ThreadShow = 'active' | 'live' | 'closed' | 'archived' | 'all'
 
@@ -118,10 +118,13 @@ export function harnessesOf(rows: SessionRow[]): Harness[] {
   return HARNESSES.filter((h) => seen.has(h))
 }
 
-/** The projects the menu offers: every one the rows name, by name, "Other" last. */
+/**
+ * The projects the menu offers: every one the rows name, most recently used
+ * first, "Other" last (`projectOptions`). The Show menu and the move
+ * picker read the same order, so a project is where it was last time.
+ */
 export function projectsOf(rows: SessionRow[]): string[] {
-  const names = [...new Set(rows.map(projectOf))]
-  return names.sort((a, b) => Number(a === OTHER_PROJECT) - Number(b === OTHER_PROJECT) || a.localeCompare(b))
+  return projectOptions(rows).map((o) => o.name)
 }
 
 /**

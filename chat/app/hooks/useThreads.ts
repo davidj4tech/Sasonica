@@ -6,6 +6,7 @@ import { confirmTitles } from '../lib/titles'
 import { confirmFlags } from '../lib/sessionFlags'
 import { usePoll } from './usePoll'
 import { noteStates } from '../lib/arrivals'
+import { OTHER_PROJECT, projectOptions, type ProjectOption } from '../lib/threadSort'
 
 /**
  * Rows seen in /targets, so a thread page has a heading (and knows whether
@@ -28,13 +29,15 @@ export function knownProject(session: string): string | null {
 
 /**
  * Every project the last /targets named (§6.15): what a move can offer from a
- * thread page, which has one row and not the list.
+ * thread page, which has one row and not the list. Ordered like the list's
+ * own menus — most recently used first (`projectOptions`) — and without
+ * "Other", which is the absence of a project and no place to move to.
  */
-export function knownProjects(): string[] {
-  const rows = peekTargets()?.sessions || []
-  const names = new Set<string>()
-  for (const r of [...known.values(), ...rows]) if (r.project) names.add(r.project)
-  return [...names].sort((a, b) => a.localeCompare(b))
+export function knownProjects(): ProjectOption[] {
+  const byId = new Map<string, SessionRow>()
+  // The snapshot's rows first, so a row this page has since patched wins.
+  for (const r of [...(peekTargets()?.sessions || []), ...known.values()]) byId.set(r.session, r)
+  return projectOptions([...byId.values()]).filter((o) => o.name !== OTHER_PROJECT)
 }
 
 /** Archived per the last /targets seen (the server's flag, before any change made here). */

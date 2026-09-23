@@ -48,6 +48,17 @@ const offered = await page.locator('.action-list [role=menuitem]').allInnerTexts
 ok(!offered.includes('sasonica'), 'the picker does not offer the project it is already in')
 ok(offered.includes('agent-media') && offered.includes('runlet'), 'the other projects are offered')
 ok((await page.locator('.action-note').innerText()).includes('next time'), 'a closed thread: it opens there next time')
+// The Show menu's treatment (David, 23 Sep 2026): section heads, most
+// recently used first, and a list that scrolls rather than running off the
+// screen. Every mock project has a session running in it.
+const heads = await page.locator('.project-list .menu-head').allInnerTexts()
+ok(/^running now$/i.test(heads[0] || ''), `the first head names the projects in use (${heads.join(' | ')})`)
+const scrolls = await page.evaluate(() => {
+  const el = document.querySelector('.project-list')
+  const cs = getComputedStyle(el)
+  return { overflow: cs.overflowY, capped: cs.maxHeight !== 'none' }
+})
+ok(scrolls.overflow === 'auto' && scrolls.capped, `the list is capped and scrolls (${JSON.stringify(scrolls)})`)
 await page.screenshot({ path: SHOTS + '/move-01-picker.png' })
 
 // 2. Picking one moves it

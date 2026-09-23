@@ -8,7 +8,8 @@
  * restarts (§6.15: the agent cannot change directory mid-session), because that
  * is the one thing about it nobody would guess.
  */
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
+import type { ProjectOption } from '../lib/threadSort'
 import { useScrim } from '../lib/layers'
 import { createPortal } from 'react-dom'
 
@@ -70,19 +71,29 @@ export function SessionMenuSheet(props: { title: string; live: boolean; archived
 
 
 /**
- * Where to move a thread: the projects the thread list knows, its own first
- * and struck out — picking it is a no-op, so it is shown as where it already
- * is rather than offered.
+ * Where to move a thread: the projects the thread list knows, most recently
+ * used first (`projectOptions`), under two heads — the ones with a session
+ * running in them now, then the rest. Its own project is left out: picking
+ * it is a no-op, and the note above says where it already is.
+ *
+ * The list takes the room the sheet has and scrolls (David, 23 Sep 2026),
+ * the way the threads screen's Show menu does: a server with thirty
+ * projects used to run the list off the bottom of the screen with no way to
+ * reach the foot of it.
  */
 export function ProjectPickerSheet(props: {
   title: string
   current: string | null
-  projects: string[]
+  projects: ProjectOption[]
   live: boolean
   onPick: (project: string) => void
   onClose: () => void
 }) {
-  const others = props.projects.filter((p) => p !== props.current)
+  const others = props.projects.filter((p) => p.name !== props.current)
+  const sections: { head: string; items: ProjectOption[] }[] = [
+    { head: 'Running now', items: others.filter((p) => p.live) },
+    { head: 'Recently used', items: others.filter((p) => !p.live) }
+  ]
   return (
     <Sheet label="Move to project" onClose={props.onClose} className="action-sheet">
       <p className="action-title">{props.title}</p>
@@ -90,12 +101,21 @@ export function ProjectPickerSheet(props: {
         {props.current ? <>In {props.current}. </> : null}
         {props.live ? 'Moving restarts the session in the new directory.' : 'It will open in the new directory next time.'}
       </p>
-      <div role="menu" className="action-list">
-        {others.map((p) => (
-          <button key={p} role="menuitem" onClick={() => props.onPick(p)}>
-            {p}
-          </button>
-        ))}
+      <div role="menu" className="action-list project-list">
+        {sections.map((s) =>
+          s.items.length === 0 ? null : (
+            <Fragment key={s.head}>
+              <div className="menu-head" role="presentation">
+                {s.head}
+              </div>
+              {s.items.map((p) => (
+                <button key={p.name} role="menuitem" onClick={() => props.onPick(p.name)}>
+                  {p.name}
+                </button>
+              ))}
+            </Fragment>
+          )
+        )}
         {others.length === 0 && <p className="action-note">No other project on this server yet.</p>}
       </div>
       <div className="row">

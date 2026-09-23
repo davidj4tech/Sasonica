@@ -125,3 +125,31 @@ export function sortThreads(rows: SessionRow[], sort: ThreadSort, states: States
   }
   return out
 }
+
+/**
+ * The projects a set of rows names, most recently used first (David, 23 Sep
+ * 2026): alphabetical order put the one he wanted anywhere but the top. A
+ * project is as recent as its most recent thread — a running one is now
+ * (`recency`, the same measure the list's Most recent uses), a shelved one
+ * its `at` — and "Other" is last whatever its threads say, since it is not a
+ * project but the absence of one. Ties (two projects last touched in the
+ * same second, or two that only have rows with no time at all) fall back to
+ * the name, so the order is stable between renders.
+ *
+ * `live` is "a session is running there now", which is what the picker heads
+ * its first section with.
+ */
+export type ProjectOption = { name: string; live: boolean }
+
+export function projectOptions(rows: SessionRow[], nowS = Date.now() / 1000): ProjectOption[] {
+  const at = new Map<string, number>()
+  const live = new Map<string, boolean>()
+  for (const row of rows) {
+    const p = projectOf(row)
+    at.set(p, Math.max(at.get(p) ?? 0, recency(row, nowS)[0]))
+    live.set(p, !!live.get(p) || !!row.live)
+  }
+  return [...at.keys()]
+    .sort((a, b) => Number(a === OTHER_PROJECT) - Number(b === OTHER_PROJECT) || at.get(b)! - at.get(a)! || a.localeCompare(b))
+    .map((name) => ({ name, live: !!live.get(name) }))
+}

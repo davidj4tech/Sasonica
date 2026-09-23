@@ -105,6 +105,9 @@ a { color: var(--accent); }
 .action-list { display: flex; flex-direction: column; }
 .action-list button { width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 0 12px; }
 .action-list button:hover { background: var(--panel-2); }
+/* The move picker's list of projects: it takes the room the sheet has and
+   scrolls, like the filter menu (components/SessionSheets.tsx). */
+.project-list { max-height: min(50vh, 20rem); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .notice { margin: 12px 16px; color: var(--muted); }
 .error, .notice.error { color: var(--bad); }
 /* A snapshot is on screen and the server has not confirmed it yet. Quiet on
@@ -644,8 +647,8 @@ a { color: var(--accent); }
 .filter-menu .menu-sep { height: 1px; margin: 4px 0; background: var(--line); }
 /* The filter menu's three parts (Show, Project, State): a small heading each,
  * so the states below the fold are findable (routes/threads.tsx). */
-.filter-menu .menu-head { padding: 10px 14px 4px; font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); margin-top: 4px; }
-.filter-menu .menu-head:first-child { border-top: 0; margin-top: 0; padding-top: 6px; }
+.filter-menu .menu-head, .project-list .menu-head { padding: 10px 14px 4px; font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); margin-top: 4px; }
+.filter-menu .menu-head:first-child, .project-list .menu-head:first-child { border-top: 0; margin-top: 0; padding-top: 6px; }
 .thread-row .archived-mark { color: var(--muted); }
 .filter-empty .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .project-head { border-bottom: 1px solid var(--line); }

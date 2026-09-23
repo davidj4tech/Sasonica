@@ -27,6 +27,7 @@ import {
   loadThreadSort,
   openEntries,
   OTHER_PROJECT,
+  projectOptions,
   saveClosedGroups,
   saveThreadSort,
   SORT_LABEL,
@@ -324,7 +325,7 @@ function ThreadList() {
         <ProjectPickerSheet
           title={moving.title}
           current={sessions.find((r) => r.session === moving.session)?.project || null}
-          projects={projects.filter((p) => p !== OTHER_PROJECT)}
+          projects={projectOptions(sessions).filter((p) => p.name !== OTHER_PROJECT)}
           live={moving.live}
           onClose={() => setMoving(null)}
           onPick={(to) => {
