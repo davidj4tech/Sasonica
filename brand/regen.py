@@ -112,7 +112,13 @@ def solid(out, px):
 
 def app_icons(res, background_png, mark, foreground):
     """background_png: Sasonica's adaptive XML points at @mipmap/ic_launcher_background,
-    so it needs the colour as a bitmap; Next's points at @color and does not."""
+    so it needs the colour as a bitmap; Next's points at @color and does not.
+
+    A tree that is not in this branch is skipped — brand/ is cherry-picked between
+    branches, and chat/ only exists on the ones that carry Next."""
+    if not res.is_dir():
+        print(f"skipped {res.relative_to(ROOT)} — not in this branch")
+        return
     for density, scale in DENSITIES.items():
         d = res / f"mipmap-{density}"
         png(mark, d / "ic_launcher.png", int(48 * scale))
