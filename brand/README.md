@@ -23,4 +23,7 @@ Files:
   rings, arrow — the cup and boom are too fine at 24 dp), `playstore-512.png`.
 - `web/` — `favicon.svg`, `favicon-32.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`.
 
-Regenerate every derived size with `python3 brand/regen.py` (needs cairosvg); they are derived, never hand-edited.
+Regenerate every derived size with `python3 brand/regen.py` (needs cairosvg); they are derived,
+never hand-edited. It also writes the app's own launcher icons into
+`android/app/src/main/res/mipmap-*`, so `brand/` and the app cannot drift. The debug variant
+keeps its own icons on purpose — they are how you tell a debug install from the release one.
