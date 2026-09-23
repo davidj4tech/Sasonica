@@ -264,6 +264,12 @@ a { color: var(--accent); }
 @keyframes pulse { 50% { opacity: .3; } }
 
 .footer { position: sticky; bottom: 0; margin-top: auto; background: var(--bg); padding: 8px 0 12px; display: flex; flex-direction: column; gap: 6px; }
+/* The question the session is stopped on, docked above the speech bar
+   (components/Thread.tsx): it stays in view until it is answered, whatever
+   is above it in the thread, and takes at most half the screen — a long
+   form scrolls inside the dock rather than pushing the composer away. */
+.ask-dock { max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; border-top: 1px solid var(--line); padding-top: 6px; }
+.ask-dock .tool-card { margin: 0; }
 .suggestion { align-self: flex-start; background: none; border: 1px dashed var(--line); color: var(--muted); border-radius: 99px; padding: 5px 12px; cursor: pointer; text-align: left; }
 .status { margin: 0 4px; font-size: 0.867rem; color: var(--muted); }
 .status.failed { color: var(--bad); }

@@ -41,6 +41,8 @@ export type ChatItem =
       /** The question on screen, shown on this message's pending ask part `askPart`. */
       approval?: Approval
       askPart?: number
+      /** `askPart` is still waiting, but the form itself is docked above the composer. */
+      askPending?: boolean
     }
   | { kind: 'approval'; session: SessionId; approval: Approval }
   /** Sent from here, not yet back (lib/pending.ts). */
@@ -69,6 +71,8 @@ export interface AskArgs {
   questions: AskQuestion[]
   /** Kept for the tool UI's shape; the ask on screen is the approval item. */
   approval: Approval | null
+  /** Waiting on an answer, with the form docked above the composer. */
+  pending?: boolean
   /** The chosen label(s), lower-cased. */
   answeredWith: string[]
   /** The answer as the agent got it, e.g. "Apple, Plum, kiwi". */
@@ -190,13 +194,14 @@ export function convertItem(item: ChatItem): ThreadMessageLike {
       }
       case 'ask': {
         const onScreen = item.askPart === i && item.approval ? item.approval : null
-        const args: AskArgs = { session, questions: p.ask || [], approval: onScreen, answeredWith: answeredWith(p.answer), answerText: p.answer || '' }
+        const pending = item.askPart === i && !!item.askPending
+        const args: AskArgs = { session, questions: p.ask || [], approval: onScreen, pending, answeredWith: answeredWith(p.answer), answerText: p.answer || '' }
         content.push({
           type: 'tool-call',
           toolCallId: p.tool_use_id || `${m.id}:${i}:ask`,
           toolName: ASK_TOOL,
           args: args as unknown as Record<string, never>,
-          ...(onScreen ? {} : { result: { answered: args.answeredWith } })
+          ...(onScreen || pending ? {} : { result: { answered: args.answeredWith } })
         })
         return
       }
@@ -233,19 +238,27 @@ export function buildItems(args: {
   live: LiveClock | null
   liveId: string | null
   optimistic: PendingSend[]
+  /**
+   * The thread page docks the dialog above the composer, where it stays in
+   * view until it is answered (David, 23 Sep 2026), so the stream must not
+   * show a second copy of it: a pending ask keeps its place in the
+   * conversation, marked as waiting, and nothing is appended at the foot.
+   */
+  dock?: boolean
 }): ChatItem[] {
-  const { session, messages, approval, live, liveId } = args
+  const { session, messages, approval, live, liveId, dock } = args
   const items: ChatItem[] = messages.map((message) => ({ kind: 'message', session, message, live: live && message.id === liveId ? live : null }))
   const target = approval ? pendingAsk(messages, approval) : null
   if (target && approval) {
     const it = items[target.message]
     if (it.kind === 'message') {
-      it.approval = approval
+      if (dock) it.askPending = true
+      else it.approval = approval
       it.askPart = target.part
     }
   }
   for (const send of args.optimistic) items.push({ kind: 'optimistic', session, send })
-  if (approval && !target) items.push({ kind: 'approval', session, approval })
+  if (approval && !target && !dock) items.push({ kind: 'approval', session, approval })
   return items
 }
 

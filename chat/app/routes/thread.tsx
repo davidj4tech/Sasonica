@@ -16,6 +16,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { answer, ApiError, reply, stopSession } from '../api'
 import type { Approval, QuestionAnswer } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
+import { ApprovalCard } from '../components/parts'
 import { Thread } from '../components/Thread'
 import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
@@ -134,7 +135,7 @@ function ThreadPage({ session }: { session: string }) {
     () => buildItems({ session, messages: log.messages, approval: log.approval,
                        live: live || played?.clock || null,
                        liveId: live ? log.liveId : played?.id || null,
-                       optimistic: log.optimistic }),
+                       optimistic: log.optimistic, dock: true }),
     [session, log.messages, log.approval, live, played, log.liveId, log.optimistic]
   )
 
@@ -353,6 +354,7 @@ function ThreadPage({ session }: { session: string }) {
         earlierLoading={log.earlier.loading}
         earlierError={log.earlier.error}
         placeholder={closed ? 'Session closed. Sending resumes it' : undefined}
+        dock={log.approval ? <ApprovalCard approval={log.approval} /> : null}
         speechBar={<SpeechBar here={session} />}
         jumpTo={jumpTo}
         onResync={resync}

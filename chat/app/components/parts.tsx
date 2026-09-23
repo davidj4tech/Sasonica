@@ -567,7 +567,7 @@ export function otherWords(answer: string, labels: string[]): string {
  * as "Other".
  */
 export const AskToolUI: ToolCallMessagePartComponent<AskArgs> = ({ args }) => {
-  const { questions, approval, answeredWith, answerText } = args
+  const { questions, approval, pending, answeredWith, answerText } = args
   const chosen = (label: string) => answeredWith.includes(label.trim().toLowerCase())
   if (approval) {
     return (
@@ -577,8 +577,11 @@ export const AskToolUI: ToolCallMessagePartComponent<AskArgs> = ({ args }) => {
     )
   }
   const other = otherWords(answerText || '', questions.flatMap((q) => q.options.map((o) => o.label)))
+  // Still waiting, with the form docked above the composer: the question
+  // keeps its place in the conversation and says where it is answered.
   return (
-    <div className="tool-card ask answered">
+    <div className={pending ? 'tool-card ask asking' : 'tool-card ask answered'}>
+      {pending && <p className="tool-title">Waiting on your answer — the form is below.</p>}
       {questions.map((q, i) => (
         <div key={i}>
           {questions.length > 1 && <p className="tool-title">{q.question}</p>}

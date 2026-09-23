@@ -263,6 +263,25 @@ add(
   })
 )
 
+// The same question, at the foot of a reply taller than the screen (David,
+// 23 Sep 2026): what he actually gets at the desk — steps, a thought and a
+// long reply above the card, which used to leave the form below the fold
+// with nothing saying it was there.
+add(
+  session(randomUUID(), 'Mock: asking after a long reply', {
+    pane: '%16',
+    state: 'approval',
+    lines: [
+      youLine('Work through it and then ask me.', T0 - 100),
+      agentLine(SPOKEN_TEXT, T0 - 90, { work: work(22.5, ['Read the contract', 'Find the live line', 'Split into sentences', 'Measure the clip']) }),
+      agentLine('Which screen should the prototype open on?', T0 - 80, { ask: ASK })
+    ],
+    approval: questionApproval(ASK, {
+      options: ASK[0].options.map((o, i) => ({ n: i + 1, label: o.label, detail: o.description })).concat([{ n: 4, label: 'Type something.', detail: '' }])
+    })
+  })
+)
+
 // The multi-select and several-question forms (§6.2 `approval`, kind
 // "question"): answered with the structured /session/answer only.
 const MULTI = [

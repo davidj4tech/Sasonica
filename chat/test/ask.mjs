@@ -1,8 +1,9 @@
 // AskUserQuestion answered from the phone (§6.4, structured): the single-
 // select fast path (a tap sends), a multi-select's checkboxes + Send (the
 // ticks the desk made start ticked), "Other" words, two questions with one
-// Send, a 409 that re-renders the card, and a headless session whose card
-// sits on its pending ask part and echoes `request_id`. Mock only.
+// Send, a 409 that re-renders the card, a headless session that echoes
+// `request_id`, and the card docked above the composer — in view under a
+// reply taller than the screen. Mock only.
 import { chromium, SHOTS } from './lib.mjs'
 const BASE = process.env.BASE || 'http://127.0.0.1:8811'
 let fails = 0
@@ -95,8 +96,9 @@ ok(await gone(), 'two: the card goes once answered')
 
 // 4. Headless: the card is on the pending ask part; request_id echoed
 await open('Mock: headless question')
-ok((await page.locator('.tool-card.ask .question-card').count()) === 1, 'headless: the card sits on the ask part')
-ok((await page.locator('.question-card').count()) === 1, 'headless: one card, not a second at the foot')
+ok((await page.locator('.ask-dock .question-card').count()) === 1, 'headless: the card is docked above the composer')
+ok((await page.locator('.question-card').count()) === 1, 'headless: one card, not a second on the ask part')
+ok((await page.locator('.tool-card.ask.asking').count()) === 1, 'headless: the ask keeps its place in the thread, marked as waiting')
 await page.locator('.question-card [role=checkbox]', { hasText: 'Plum' }).click()
 await page.locator('.question-card .send-answer').click()
 await waitAnswers(before + 4)
@@ -108,12 +110,27 @@ await page.waitForSelector('.tool-card.ask.answered', { timeout: 6000 }).catch((
 ok((await page.locator('.tool-card.ask.answered li.chosen', { hasText: 'Plum' }).count()) === 1, 'answered ask part marks the chosen option')
 await page.screenshot({ path: SHOTS + '/ask-05-answered.png' })
 
-// 5. A permission prompt still answers by number
+// 5. The form stays in view under a reply taller than the screen (David,
+// 23 Sep 2026): scrolled to the top of the thread, it is still on screen.
+await open('Mock: asking after a long reply')
+ok((await page.locator('.ask-dock .question-card').count()) === 1, 'long reply: the card is docked')
+ok((await page.locator('.question-card').count()) === 1, 'long reply: one card only')
+await page.evaluate(() => document.querySelector('.viewport').scrollTo(0, 0))
+await page.waitForTimeout(400)
+const box = await page.locator('.ask-dock').boundingBox()
+const vh = await page.evaluate(() => innerHeight)
+ok(box.y >= 0 && box.y + box.height <= vh + 1, `scrolled to the top, the form is still on screen (${Math.round(box.y)}…${Math.round(box.y + box.height)} of ${vh})`)
+await page.screenshot({ path: SHOTS + '/ask-06-docked.png' })
+await page.locator('.question-card [role=radio]', { hasText: 'New chat' }).click()
+await waitAnswers(before + 5)
+ok(await gone(), 'long reply: answered from the dock, and the dock goes')
+
+// 6. A permission prompt still answers by number
 await page.goto(BASE + '/t/' + sid('Mock: needs approval'))
 await page.waitForSelector('.approval-options .option')
 ok((await page.locator('.question-card').count()) === 0, 'a permission prompt is not a question card')
 await page.locator('.approval-options .option').first().click()
-await waitAnswers(before + 5)
+await waitAnswers(before + 6)
 a = lastAnswer()
 ok(a && a.choice === 1 && !a.answers, `permission prompt: {choice, key} (${JSON.stringify(a)})`)
 

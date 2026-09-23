@@ -281,6 +281,13 @@ export interface ThreadProps {
   disabled?: boolean
   /** Docked at the top of the footer, above the composer: the speech bar. */
   speechBar?: ReactNode
+  /**
+   * The dialog the session is stopped on (David, 23 Sep 2026): docked above
+   * the speech bar, where it stays in view until it is answered rather than
+   * sitting at the foot of a reply taller than the screen. It scrolls when
+   * it is taller than the room there is.
+   */
+  dock?: ReactNode
   /** Messages exist above the first one (§6.2 paging). */
   older?: boolean
   /** Fetch the page before the first message; resolves true when some came. */
@@ -544,6 +551,7 @@ export function Thread(props: ThreadProps) {
                   )}
                 </div>
               )}
+              {props.dock && <div className="ask-dock">{props.dock}</div>}
               {props.speechBar}
               {suggestion && (
                 <ThreadPrimitive.Suggestion className="suggestion" prompt={suggestion} send={false}>
