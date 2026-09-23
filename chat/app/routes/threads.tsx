@@ -77,7 +77,7 @@ function ThreadList() {
   // Read before the list is asked for: "Older conversations" is a different
   // request, not a different view of the same rows (§6.16).
   const [filter, setFilterState] = useState<ThreadFilter>(() => loadThreadFilter())
-  const { sessions, error, loading, stale, reload } = useTargets(filter.older)
+  const { sessions, places, error, loading, stale, reload } = useTargets(filter.older)
   const states = useSessionStates()
   usePrefetch(sessions, !stale && !loading && !error)
   const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
@@ -137,6 +137,12 @@ function ThreadList() {
   )
   const projects = projectsOf(sessions)
   if (filter.project && !projects.includes(filter.project)) projects.push(filter.project)
+
+  // Filtered to one project: the + starts the new chat there, so the place is
+  // already picked (only when /targets knows a directory by that name — the
+  // picker shows places, and "Other" is not one).
+  const filteredPlace = filter.project ? places.find((p) => p.name === filter.project) : undefined
+  const newChatTo = filteredPlace ? `/new?cwd=${encodeURIComponent(filteredPlace.path)}` : '/new'
   // The agents these rows name (§6.16); the chosen one stays offered even
   // when nothing it holds is in view, so it can be turned off again.
   const harnesses = harnessesOf(sessions)
@@ -342,7 +348,7 @@ function ThreadList() {
       {/* The foot of the list: the speech bar when a voice is live, and the
           + button, which rides above it (app.css .dock). */}
       <div className="dock">
-        <Link to="/new" className="fab" title="New chat" aria-label="New chat">
+        <Link to={newChatTo} className="fab" title="New chat" aria-label="New chat">
           <svg className="fab-plus" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
           </svg>
