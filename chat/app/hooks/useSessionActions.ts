@@ -14,6 +14,7 @@ import { useCallback } from 'react'
 import { archiveSession, closeSession, moveSession, prioritySession } from '../api'
 import { clearArchivedOverride, clearEnded, setArchivedOverride, setEnded, setProjectOverride } from '../lib/sessionFlags'
 import { patchTargetRow } from '../lib/snapshots'
+import type { SpeechLevel } from '../api/types'
 import { noteRow } from './useThreads'
 
 export interface ActionOutcome {
@@ -50,13 +51,20 @@ async function archive(session: string, archived: boolean): Promise<ActionOutcom
   }
 }
 
-/** Always speak (§6.4 /session/priority): not optimistic — the server's word is what the menu shows next. */
-async function priority(session: string, flag: boolean): Promise<ActionOutcome> {
+const SPEECH_SAID: Record<SpeechLevel, string> = {
+  interrupt: 'Its replies will cut in on other chats.',
+  auto: 'Its replies will always speak.',
+  normal: 'Its replies speak as usual.',
+  quiet: 'Its replies will wait here, unheard.'
+}
+
+/** The speech level (§6.4 /session/priority): not optimistic — the server's word is what the menu shows next. */
+async function speech(session: string, level: SpeechLevel): Promise<ActionOutcome> {
   try {
-    const res = await prioritySession(session, flag)
-    patchTargetRow(session, { priority: res.priority })
-    noteRow(session, { priority: res.priority })
-    return { ok: true, message: res.priority ? 'Its replies will always speak.' : 'Its replies speak as usual.' }
+    const res = await prioritySession(session, level)
+    patchTargetRow(session, { priority: res.priority, speech: res.level })
+    noteRow(session, { priority: res.priority, speech: res.level })
+    return { ok: true, message: SPEECH_SAID[res.level] }
   } catch (err) {
     return { ok: false, message: `Not changed: ${why(err)}` }
   }
@@ -97,7 +105,7 @@ export function useSessionActions() {
     exit: useCallback(exit, []),
     archive: useCallback(archive, []),
     move: useCallback(move, []),
-    priority: useCallback(priority, []),
+    speech: useCallback(speech, []),
     exitAndArchive: useCallback(exitAndArchive, [])
   }
 }

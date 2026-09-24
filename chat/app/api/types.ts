@@ -45,8 +45,10 @@ export interface SessionRow {
   rested?: { at: number; reason: string } | null
   /** Kept open against the idle reaper (POST /session/pin). */
   pinned?: boolean
-  /** Always speak: its replies are never held or muted (POST /session/priority, 24 Sep 2026). */
+  /** Its replies are never held or muted: speech is interrupt or auto (24 Sep 2026). */
   priority?: boolean
+  /** The thread's speech level (POST /session/priority {level}, 24 Sep 2026). */
+  speech?: SpeechLevel
   /** "Where this thread was" (§6.1 Recaps), or null. */
   recap?: Recap | null
   /** The project it runs in, for display (§6.1, 22 Sep 2026), or null. */
@@ -663,9 +665,13 @@ export interface ArchiveResponse extends Envelope {
   archived: boolean
 }
 
-/** POST /session/priority {session, priority} (§6.4): always speak this thread. */
+/** What happens to a thread's replies (§6.4 /session/priority). */
+export type SpeechLevel = 'interrupt' | 'auto' | 'normal' | 'quiet'
+
+/** POST /session/priority {session, level} (§6.4): the thread's speech level. */
 export interface PriorityResponse extends Envelope {
   session: SessionId
+  level: SpeechLevel
   priority: boolean
 }
 

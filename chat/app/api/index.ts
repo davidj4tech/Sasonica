@@ -18,6 +18,7 @@ import type {
   AnswerRequest,
   ArchiveResponse,
   PriorityResponse,
+  SpeechLevel,
   MoveResponse,
   CloseResponse,
   AnswerResponse,
@@ -349,9 +350,9 @@ export function closeSession(session: SessionId) {
   return request<CloseResponse>('POST', '/session/close', { session })
 }
 
-/** POST /session/priority (§6.4): always speak this thread, or stop. */
-export function prioritySession(session: SessionId, priority: boolean) {
-  return request<PriorityResponse>('POST', '/session/priority', { session, priority })
+/** POST /session/priority (§6.4): the thread's speech level. */
+export function prioritySession(session: SessionId, level: SpeechLevel) {
+  return request<PriorityResponse>('POST', '/session/priority', { session, level })
 }
 
 /** POST /session/archive (§6.4): file the thread under Archived, or take it out. */

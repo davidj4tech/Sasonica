@@ -110,6 +110,10 @@ a { color: var(--accent); }
 .action-list button { width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 0 12px; }
 .action-list button:hover { background: var(--panel-2); }
 .action-list button.on { color: var(--accent); font-weight: 600; }
+/* The speech sheet: each level says what it does, under its name. */
+.speech-sheet .action-list button { padding: 8px 12px; }
+.speech-sheet .action-list small { display: block; font-weight: 400; color: color-mix(in srgb, var(--text) 75%, var(--muted)); font-size: .9rem; }
+.badge.speech.interrupt { color: var(--warn); border-color: var(--warn); }
 .sheet-hint { margin: 6px 12px 0; color: var(--muted); font-size: .9rem; }
 /* The move picker's list of projects: it takes the room the sheet has and
    scrolls, like the filter menu (components/SessionSheets.tsx). */
@@ -142,7 +146,7 @@ a { color: var(--accent); }
 .badge.waiting { color: var(--accent); }
 .badge.working { color: var(--warn); }
 .badge.approval { color: var(--on-accent); background: var(--bad); }
-.badge.archived, .badge.always-speak { color: var(--muted); border: 1px solid var(--line); background: none; }
+.badge.archived, .badge.speech { color: var(--muted); border: 1px solid var(--line); background: none; }
 /* Archived threads: one folded row at the foot of the list, tap to open. */
 .archived-head button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 16px; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .867rem; font-weight: 500; text-align: left; cursor: pointer; }
 .archived-head .caret { width: .6rem; font-size: .8em; }
