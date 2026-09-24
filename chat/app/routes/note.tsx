@@ -140,13 +140,26 @@ function NotePage() {
 
   return (
     <div className="page note-page">
-      <header className="bar">
-        <button className="icon back" onClick={goBack} title="Back" aria-label="Back">
-          ←
-        </button>
-        <h1>
-          {head && <StateBadge state={head.state} />} {note?.title || where}
-        </h1>
+      {/* The conversation's title bar (thread.tsx): the title has the first
+          row, ← and where the note lives sit under it; the play key is the
+          big one at the right, beside both. */}
+      <header className="bar thread-bar note-bar">
+        <div className="note-bar-text">
+          <h1>
+            {head && <StateBadge state={head.state} />} {note?.title || where}
+          </h1>
+          <div className="thread-sub">
+            <button className="icon back" onClick={goBack} title="Back" aria-label="Back">
+              ←
+            </button>
+            <span className="thread-project">{at ? `${where} · line ${at}` : where}</span>
+          </div>
+        </div>
+        {note && (
+          <button className="msg-key note-play" onClick={() => void say()} title="Read aloud" aria-label="Read aloud">
+            <IconPlay />
+          </button>
+        )}
       </header>
 
       {error && (
@@ -156,31 +169,24 @@ function NotePage() {
         </p>
       )}
       {said && <p className={said.failed ? 'notice error' : 'notice'}>{said.text}</p>}
-      {note && (
+      {note && head && isEditable(path) && (
         <div className="note-actions">
-          <button className="msg-key note-play" onClick={() => void say()} title="Read aloud" aria-label="Read aloud">
-            <IconPlay />
+          {(['TODO', 'NEXT', 'WAITING', 'DONE'] as const).map((st) => (
+            <button key={st} className={head.state === st ? 'state-key on' : 'state-key'} disabled={busy || head.state === st} onClick={() => void changeState(st)}>
+              {st === 'DONE' ? '✓ Done' : st}
+            </button>
+          ))}
+          {!stamps.some((st) => st.kind === 'SCHEDULED') && (
+            <button className="state-key" disabled={busy} onClick={() => setDating({ kind: 'scheduled', date: '', time: '' })}>
+              Schedule…
+            </button>
+          )}
+          <button className={head.priority ? 'state-key prio-set' : 'state-key'} disabled={busy} onClick={() => setPrioritising(true)}>
+            {head.priority ? `Priority ${head.priority}` : 'Priority…'}
           </button>
-          {head && isEditable(path) && (
-              <>
-                {(['TODO', 'NEXT', 'WAITING', 'DONE'] as const).map((st) => (
-                  <button key={st} className={head.state === st ? 'state-key on' : 'state-key'} disabled={busy || head.state === st} onClick={() => void changeState(st)}>
-                    {st === 'DONE' ? '✓ Done' : st}
-                  </button>
-                ))}
-                {!stamps.some((st) => st.kind === 'SCHEDULED') && (
-                  <button className="state-key" disabled={busy} onClick={() => setDating({ kind: 'scheduled', date: '', time: '' })}>
-                    Schedule…
-                  </button>
-                )}
-                <button className={head.priority ? 'state-key prio-set' : 'state-key'} disabled={busy} onClick={() => setPrioritising(true)}>
-                  {head.priority ? `Priority ${head.priority}` : 'Priority…'}
-                </button>
-                <button className="state-key move" disabled={busy} onClick={() => setMoving(true)}>
-                  Move to…
-                </button>
-              </>
-            )}
+          <button className="state-key move" disabled={busy} onClick={() => setMoving(true)}>
+            Move to…
+          </button>
         </div>
       )}
       {prioritising && head && <PrioritySheet current={head.priority} onPick={(p) => void changePriority(p)} onClose={() => setPrioritising(false)} />}
@@ -190,7 +196,6 @@ function NotePage() {
 
       {note && (
         <article className="note-body">
-          <p className="note-where">{at ? `${where} · line ${at}` : where}</p>
           <OrgBody
             text={note.text}
             links={note.links}

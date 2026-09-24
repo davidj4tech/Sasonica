@@ -51,7 +51,6 @@
 
 /* One note */
 .note-body { flex: 1; overflow-y: auto; padding: 4px 16px 24px; line-height: 1.55; overflow-wrap: anywhere; min-height: 0; }
-.note-where { color: var(--muted); font-size: .8rem; margin: 8px 0; }
 .note-body p { margin: .5rem 0; }
 .org-h { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-weight: 600; margin: 1.1rem 0 .3rem; }
 .org-h1 { font-size: 1.133rem; }
@@ -140,8 +139,20 @@ button.done-key:hover, button.done-key:focus-visible { color: var(--accent); }
 .org-date button.date-key { font: inherit; color: var(--accent); background: none; border: 0; border-bottom: 1px dashed currentColor; padding: 0; cursor: pointer; }
 .rename-sheet .date-quick button { padding: 0 12px; }
 
-/* A to-do's page: the title takes two lines; the play key (the threads' own,
-   parts.tsx) leads the row of keys under it. */
-.note-page .bar h1 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; overflow-wrap: anywhere; }
+/* A to-do's page: the conversation's title bar (app.css .thread-bar) — title
+   on two lines, ← and where it lives under it — with the play key at the
+   right, beside both. It wears an unheard reply's filled disc
+   (.msg-key.unheard), a size down and without the ring. */
+.note-bar { flex-direction: row; align-items: center; gap: 8px; }
+.note-bar-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.note-page .bar h1 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; overflow-wrap: anywhere; }
+.note-bar .thread-sub > button.icon { flex: none; min-width: 48px; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; margin-left: -10px; padding: 0; font-size: 1.6rem; }
+.note-bar .note-play { width: 56px; height: 56px; background: var(--accent); color: var(--bg); opacity: 1; }
+.note-bar .note-play .ico { width: 1.6rem; height: 1.6rem; }
 .note-actions { align-items: center; }
-.note-actions .note-play { margin: -6px 2px -6px -12px; }
+@media (max-height: 520px) {
+  .note-page .bar h1 { -webkit-line-clamp: 1; }
+  .note-bar .thread-sub > button.icon { min-height: 32px; }
+  .note-bar .note-play { width: 44px; height: 44px; }
+  .note-bar .note-play .ico { width: 1.3rem; height: 1.3rem; }
+}
