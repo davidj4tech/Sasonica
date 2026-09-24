@@ -37,6 +37,8 @@ ok(true, 'Undo on Home brings it back')
 // 1. Home → Organiser (the link, then the tabs); the agenda first, grouped by day
 await page.click('.dash-agenda a.open-organiser')
 await page.waitForURL(BASE + '/organiser')
+// The URL changes a render before the tab bar does: wait for the tab.
+await page.waitForSelector('.tabs .tab.on:has-text("Organiser")', { timeout: 5000 }).catch(() => {})
 ok((await page.locator('.tabs .tab.on').innerText()) === 'Organiser', 'the Organiser tab is on')
 await page.click('.tabs .tab:has-text("Threads")')
 await page.waitForURL(BASE + '/threads')
@@ -134,6 +136,8 @@ await page.click('.capture-kind button:has-text("Note")')
 await page.fill('.capture textarea', 'Fence posts are 1.8 m')
 await page.keyboard.press('Control+Enter')
 await page.waitForSelector('.capture-note:has-text("Noted in the inbox")')
+// The notice comes before the list refetches: wait for the row.
+await page.waitForSelector('.note-row:has-text("Fence posts")', { timeout: 5000 }).catch(() => {})
 const log = await mock()
 ok(log.captures.length === 2 && log.captures[0].kind === 'todo' && log.captures[1].kind === 'note', 'POST /notes/capture twice, todo then note')
 ok((await page.locator('.note-row:has-text("Fence posts")').count()) === 1 && (await page.locator('.note-section:has-text("Fence posts")').count()) === 0, 'a captured note is a row, not a section')
