@@ -60,6 +60,20 @@ const scrolls = await page.evaluate(() => {
 })
 ok(scrolls.overflow === 'auto' && scrolls.capped, `the list is capped and scrolls (${JSON.stringify(scrolls)})`)
 await page.screenshot({ path: SHOTS + '/move-01-picker.png' })
+// A long name wraps inside its row, never over the next ones (David's
+// screenshot, 25 Sep 2026: a worktree's project ran over three rows).
+const overlaps = await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('.project-list button')]
+  rows[0].textContent = 'p-agent-media--claude-worktrees-agent-a5b43898be9e83566-spike-headless-work'
+  const r = rows.map((b) => b.getBoundingClientRect())
+  return { wrapped: rows[0].offsetHeight > 60, n: r.filter((a, i) => i && a.top < r[i - 1].bottom - 1).length + rows.filter((b) => b.scrollHeight > b.clientHeight + 1).length }
+})
+ok(overlaps.wrapped && overlaps.n === 0, `a long name wraps in its own row, none overlapping (${JSON.stringify(overlaps)})`)
+await page.screenshot({ path: SHOTS + '/move-01b-long-name.png' })
+await page.locator('.action-sheet .quiet').click()
+await longPress(shelved)
+await page.getByRole('menuitem', { name: 'Move to project…' }).click()
+await page.waitForSelector('.action-sheet .action-note')
 
 // 2. Picking one moves it
 await page.getByRole('menuitem', { name: 'agent-media' }).click()
