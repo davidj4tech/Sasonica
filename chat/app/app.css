@@ -444,7 +444,7 @@ a { color: var(--accent); }
 .msg-keys > .msg-key:first-child:not(:last-child) { margin-bottom: auto; }
 .bubble-row .bubble { min-width: 0; max-width: calc(100% - 46px); }
 .msg-key { flex: none; width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; border-radius: 50%; color: var(--muted); opacity: .75; cursor: pointer; padding: 0; }
-.msg-key .ico { width: 1.1rem; height: 1.1rem; }
+.msg-key .ico { width: 1.45rem; height: 1.45rem; }
 .msg-key.on { color: var(--accent); opacity: 1; }
 
 /* The full set, as a sheet over the page. */
