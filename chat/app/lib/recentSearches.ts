@@ -34,3 +34,27 @@ export function forgetSearches() {
     // Nothing kept anyway.
   }
 }
+
+/**
+ * What is in the search box, kept as it is typed: leaving the screen any way
+ * (the back arrow, a tab, the app closed) and coming back to ⌕ finds the
+ * same words. The ✕ empties it.
+ */
+const DRAFT_KEY = 'sasonica.chat.searchDraft'
+
+export function searchDraft(): string {
+  try {
+    return window.localStorage.getItem(DRAFT_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+export function keepSearchDraft(text: string) {
+  try {
+    if (text.trim()) window.localStorage.setItem(DRAFT_KEY, text)
+    else window.localStorage.removeItem(DRAFT_KEY)
+  } catch {
+    // This visit only.
+  }
+}

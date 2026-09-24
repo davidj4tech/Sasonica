@@ -8,7 +8,9 @@
  * page served from the same origin as the API (the mock) must not shadow it. As you type, after a pause; the previous request is cancelled.
  * A message hit opens its thread scrolled to that message, the words lit
  * (`/t/:session?at=<message>&t=<at>&hl=<terms>`, routes/thread.tsx). The
- * last few searches are kept per device (lib/recentSearches.ts).
+ * last few searches are kept per device (lib/recentSearches.ts), and so are
+ * the words in the box: ⌕ opens on whatever was last typed, selected, so
+ * typing replaces it.
  *
  * With the Advanced setting on (lib/advanced.ts), a "Tool steps" filter adds
  * the commands and files the agents touched (`tools=1`).
@@ -42,7 +44,7 @@ import {
   searchFilterOf
 } from '../lib/threadFilter'
 import { Marked, termSpans } from '../lib/highlight'
-import { forgetSearches, recentSearches, rememberSearch } from '../lib/recentSearches'
+import { forgetSearches, keepSearchDraft, recentSearches, rememberSearch, searchDraft } from '../lib/recentSearches'
 
 /** Typing pause before a search goes out. */
 const DEBOUNCE_MS = 250
@@ -86,7 +88,7 @@ function fromParams(params: URLSearchParams): HitFilter {
 
 export default function Search() {
   const [params, setParams] = useSearchParams()
-  const [text, setText] = useState(() => params.get('q') || '')
+  const [text, setText] = useState(() => params.get('q') ?? searchDraft())
   const advanced = useAdvanced()
   const [tools, setTools] = useState(() => params.get('tools') === '1')
   const [filter, setFilter] = useState<HitFilter>(() => fromParams(params))
@@ -103,7 +105,10 @@ export default function Search() {
 
   useEffect(() => {
     input.current?.focus()
+    input.current?.select()
   }, [])
+
+  useEffect(() => keepSearchDraft(text), [text])
 
   // The screen, in the URL: back from a thread comes back to the same words
   // and the same narrowing.

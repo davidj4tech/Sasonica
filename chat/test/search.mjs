@@ -11,6 +11,8 @@
 //   memory    no Memory section when the server says it is unavailable
 //   advanced  off: no "Tool steps" filter; on (Settings, per device): the
 //             filter finds a tool step, marked "Tool step"
+//   kept      the words typed are there again when ⌕ opens (left by the
+//             back arrow or a reload), selected; the ✕ empties them for good
 //   recent    a search opened is kept; tapping it searches again; Clear
 //   sizes     portrait and landscape, Default and Largest: no overflow,
 //             44 px targets
@@ -53,6 +55,7 @@ async function newPage(viewport = { width: 390, height: 780 }, size = null) {
       localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() }))
       localStorage.removeItem('sasonica.chat.advanced')
       localStorage.removeItem('sasonica.chat.recentSearches')
+      localStorage.removeItem('sasonica.chat.searchDraft')
       if (size) localStorage.setItem('sasonica.chat.textSize2', size)
       else localStorage.removeItem('sasonica.chat.textSize2')
     },
@@ -177,6 +180,22 @@ await chip.click()
 await page.waitForSelector('.hit-who.tool')
 ok((await page.locator('.hit-who.tool').first().innerText()) === 'Tool step', 'the filter finds tool steps, marked')
 await page.screenshot({ path: SHOTS + '/search-06-tools.png' })
+
+// kept
+await page.goto(BASE + '/threads')
+await page.locator('.list-tools .tab-search').click()
+await page.waitForSelector('.search-field input')
+const field = page.locator('.search-field input')
+ok((await field.inputValue()) === 'Read a file', `⌕ opens on the words last typed (${await field.inputValue()})`)
+ok(await field.evaluate((el) => el.selectionStart === 0 && el.selectionEnd === el.value.length), 'selected, so typing replaces them')
+await page.keyboard.type('forty')
+ok((await field.inputValue()) === 'forty', 'typing replaced them')
+await page.reload()
+await page.goto(BASE + '/find')
+ok((await field.inputValue()) === 'forty', 'kept through a reload')
+await page.locator('.search-field .search-clear').click()
+await page.goto(BASE + '/find')
+ok((await field.inputValue()) === '', 'the ✕ empties them for good')
 
 // recent
 await page.goto(BASE + '/find')
