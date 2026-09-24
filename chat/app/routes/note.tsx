@@ -148,8 +148,7 @@ function NotePage() {
   return (
     <div className="page note-page">
       {/* The conversation's title bar (thread.tsx): the title has the first
-          row, ← and where the note lives sit under it; the play key is the
-          big one at the right, beside both. */}
+          row to itself; ←, where the note lives and the play key sit under it. */}
       <header className="bar thread-bar note-bar">
         <div className="note-bar-text">
           <h1>
@@ -160,13 +159,13 @@ function NotePage() {
               ←
             </button>
             <span className="thread-project">{at ? `${where} · line ${at}` : where}</span>
+            {note && (
+              <button className="msg-key note-play" onClick={() => void say()} title="Read aloud" aria-label="Read aloud">
+                <IconPlay />
+              </button>
+            )}
           </div>
         </div>
-        {note && (
-          <button className="msg-key note-play" onClick={() => void say()} title="Read aloud" aria-label="Read aloud">
-            <IconPlay />
-          </button>
-        )}
       </header>
 
       {error && (

@@ -493,11 +493,11 @@ a { color: var(--accent); }
 .msg-keys > .msg-key:first-child:not(:last-child) { margin-bottom: auto; }
 .bubble-row .bubble { min-width: 0; max-width: calc(100% - 46px); }
 .msg-key { flex: none; width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; border-radius: 50%; color: var(--muted); opacity: .75; cursor: pointer; padding: 0; }
-.msg-key .ico { width: 1.45rem; height: 1.45rem; }
+.msg-key .ico { width: 1.6rem; height: 1.6rem; }
 .msg-key.on { color: var(--accent); opacity: 1; }
 /* An unheard reply (held for the listener): a big filled key, not the faint one. */
-.msg-key.unheard { width: 64px; height: 64px; margin-left: .25rem; background: var(--accent); color: var(--bg); opacity: 1; box-shadow: 0 0 0 0 var(--accent); animation: unheard-ring 2.4s ease-out infinite; }
-.msg-key.unheard .ico { width: 1.9rem; height: 1.9rem; }
+.msg-key.unheard { width: 56px; height: 56px; margin-left: .25rem; background: var(--accent); color: var(--bg); opacity: 1; box-shadow: 0 0 0 0 var(--accent); animation: unheard-ring 2.4s ease-out infinite; }
+.msg-key.unheard .ico { width: 1.7rem; height: 1.7rem; }
 @keyframes unheard-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); } 70%, 100% { box-shadow: 0 0 0 12px transparent; } }
 
 /* The full set, as a sheet over the page. */
