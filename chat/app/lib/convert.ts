@@ -57,6 +57,8 @@ export interface LineCustom {
   /** The thread, for `goto-sentence` ("read from here" in the live message). */
   session?: SessionId
   figure?: boolean
+  /** Never heard: the play key is the big one. */
+  unheard?: boolean
   live?: LiveClock | null
   /** The text part the follow-along bolds: the spoken reply, as shown. */
   liveText?: string
@@ -138,6 +140,7 @@ export function convertItem(item: ChatItem): ThreadMessageLike {
     peer: m.peer ?? undefined,
     id: spoken?.id ?? undefined,
     figure: spoken?.figure,
+    unheard: spoken?.unheard,
     live: item.live,
     session
   }

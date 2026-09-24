@@ -36,6 +36,7 @@ import {
   type ListEntry,
   type ThreadSort
 } from '../lib/threadSort'
+import { PlayingMark } from '../components/PlayingMark'
 import {
   DEFAULT_FILTER,
   filterLabel,
@@ -448,6 +449,7 @@ function ThreadRow({
         {markArchived && <span className="draft-mark archived-mark">Archived</span>}
         {hasDraft(row.session) && <span className="draft-mark">Draft</span>}
         {unread && <span className="unread-dot" aria-label="New reply" />}
+        <PlayingMark session={row.session} />
         {live ? (
           <span className={`badge ${state || ''}`}>{state ? STATE_LABEL[state] : 'live'}</span>
         ) : (

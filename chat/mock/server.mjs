@@ -1090,6 +1090,8 @@ function messagesOf(s, lines) {
             at: l.at,
             ...(l.images ? { images: l.images, figure: !!l.figure } : {}),
             ...(l.live ? { live: Object.fromEntries(LIVE_KEYS.map((k) => [k, l[k]])) } : {}),
+            // Held for the listener and never played (the desk toast).
+            ...(l.unheard && !l.live ? { unheard: true } : {}),
             // The newest turn's timeline when nothing is live (§6.2).
             ...(!l.live && l.sentences
               ? { timeline: { sentences: l.sentences, offsets: l.offsets || [], measured: !!l.measured } }
@@ -1419,6 +1421,14 @@ const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '
     if (x.title === 'Mock: long conversation') x.pinned = true
   }
   seedAgents()
+}
+
+// MOCK_UNHEARD=1: the shelved conversation's last reply was held and never
+// played, so its play key is the big one (test/unheard.mjs). Off by default so
+// the other suites see the thread they always have.
+if (process.env.MOCK_UNHEARD === '1') {
+  const shelved = Object.values(S).find((x) => x.title === 'Mock: shelved conversation')
+  if (shelved) [...shelved.lines].reverse().find((l) => l.who === 'agent').unheard = true
 }
 
 createServer(async (req, res) => {

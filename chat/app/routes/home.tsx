@@ -21,6 +21,7 @@ import { HomeTabs } from '../components/Nav'
 import { OutputSheet } from '../components/OutputSheet'
 import { ApprovalCard, ThreadActionsContext, type ThreadActions } from '../components/parts'
 import { SpeechBar } from '../components/SpeechBar'
+import { PlayingMark } from '../components/PlayingMark'
 import { useDashboard } from '../hooks/useDashboard'
 import { useSpeech } from '../hooks/useSpeech'
 import { useTitle } from '../lib/titles'
@@ -222,6 +223,7 @@ function WorkingRow({ w, skew }: { w: DashWorking; skew: number }) {
             {w.count > 0 && ` · ${w.count} step${w.count === 1 ? '' : 's'}`}
           </span>
         </span>
+        <PlayingMark session={w.session} />
         {secs !== null && (
           <span className="dash-when" aria-label={`working for ${elapsed(secs)}`}>
             {elapsed(secs)}
@@ -244,7 +246,24 @@ function Listening({ queuedFallback, target, onOutput }: { queuedFallback: numbe
   const urgent = now?.queued?.some((q) => q.urgent)
   const where = now?.target ?? target
   let what: ReactNode
-  if (now?.live) what = <>{now.paused ? 'Paused' : 'Speaking'}{title ? <> · <b>{title}</b></> : null}</>
+  if (now?.live)
+    what = (
+      <>
+        {now.paused ? 'Paused' : 'Speaking'}
+        {title ? (
+          <>
+            {' · '}
+            {now.session ? (
+              <Link to={`/t/${encodeURIComponent(now.session)}`} state={{ title }} className="listening-thread">
+                <b>{title}</b>
+              </Link>
+            ) : (
+              <b>{title}</b>
+            )}
+          </>
+        ) : null}
+      </>
+    )
   else what = 'Quiet'
   return (
     <div className="listening-line">
@@ -273,6 +292,7 @@ function RecapRow({ r, skew }: { r: DashRecent; skew: number }) {
           </Link>
           {r.project && <span className="row-project">{r.project}</span>}
         </span>
+        <PlayingMark session={r.session} />
         {r.live ? <span className="badge waiting">live</span> : r.rested ? <span className="badge resting">resting</span> : null}
         <span className="dash-when">{ago(r.at, skew)}</span>
       </div>

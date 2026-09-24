@@ -301,6 +301,8 @@ export interface Spoken {
   at: number
   images?: string[]
   figure?: boolean
+  /** Held for the listener and never played (the desk toast); gone once it plays. */
+  unheard?: boolean
   /** Only while it plays. */
   live?: LiveFields
   /**

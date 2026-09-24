@@ -282,7 +282,7 @@ export const PictureData: DataMessagePartComponent<{ src: string }> = ({ data })
  * (or whose speech was not recognised, §6.2.2) have no id and no key.
  */
 export function MessageSpeechKey() {
-  const { id, live } = useCustom()
+  const { id, live, unheard } = useCustom()
   const { toggle, replayId } = useSpeechActions()
   if (live) {
     return (
@@ -292,6 +292,14 @@ export function MessageSpeechKey() {
     )
   }
   if (!id) return null
+  if (unheard) {
+    // Held and never played: the key the eye should land on.
+    return (
+      <button className="msg-key unheard" aria-label="Play this reply — not heard yet" onClick={() => replayId(id)}>
+        <IconPlay />
+      </button>
+    )
+  }
   return (
     <button className="msg-key" aria-label="Play this reply" onClick={() => replayId(id)}>
       <IconPlay />

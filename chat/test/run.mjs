@@ -34,6 +34,8 @@
 //           vanished heading
 //   draft   the composer's text per thread: switch, reload, hidden, a newer
 //           copy from another device, send clears it, new chat
+//   unheard  a held reply's big play key; the list and home mark the
+//           conversation the voice is on
 //   stream  the thread is its §11 stream: a new message renders < 1 s after
 //           the transcript append with no polling; reasoning collapsed;
 //           steps grouped and lazy; follow-along; reconnect without
@@ -99,11 +101,12 @@ const agentsMock = await mockAt(P + 3, { MOCK_SPEECH_REST_S: '0', MOCK_AGENT_STE
 // Moving changes which project a thread is in, which sort.mjs and filter.mjs
 // read: its own mock, so the order the suites run in does not matter.
 const moveMock = await mockAt(P + 4, { MOCK_SPEECH_REST_S: '0' })
+const unheardMock = await mockAt(P + 5, { MOCK_SPEECH_REST_S: '0', MOCK_UNHEARD: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['lostlive.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs'], ['pinch.mjs'], ['notify.mjs'], ['resume.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['lostlive.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs'], ['pinch.mjs'], ['notify.mjs'], ['resume.mjs'], ['unheard.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
-    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' || file === 'resync.mjs' || file === 'lostlive.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : file === 'move.mjs' ? P + 4 : P}`, ...env })) ? 1 : 0
+    failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' || file === 'resync.mjs' || file === 'lostlive.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : file === 'move.mjs' ? P + 4 : file === 'unheard.mjs' ? P + 5 : P}`, ...env })) ? 1 : 0
   }
 } finally {
   mock.kill()
@@ -111,6 +114,7 @@ try {
   dashMock.kill()
   agentsMock.kill()
   moveMock.kill()
+  unheardMock.kill()
 }
 console.log(failed ? `\n${failed} suite(s) failed` : '\nall suites pass')
 process.exit(failed ? 1 : 0)
