@@ -136,7 +136,12 @@ await page.waitForSelector('.menu.popover')
 const closed = await page.evaluate(() => window.__sasonicaBack())
 await page.waitForTimeout(100)
 const again = await page.evaluate(() => window.__sasonicaBack())
-ok(closed === true && again === false && (await page.locator('.menu.popover').count()) === 0, 'Android back closes the menu first (true), then has nothing to close (false)')
+// The thread was opened cold (nothing behind it), so the second back goes up
+// a level — Home — rather than leaving the app (components/Nav.tsx UpOnBack).
+await page.waitForTimeout(300)
+ok(closed === true && again === true && new URL(page.url()).pathname === '/', `Android back closes the menu first, then goes up to Home (${page.url()})`)
+await page.goto(url0)
+await menuBtn.waitFor()
 await menuBtn.click()
 await page.getByRole('menuitem', { name: 'Rename…' }).click()
 await page.waitForSelector('.rename-sheet')

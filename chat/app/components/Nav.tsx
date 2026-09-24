@@ -7,15 +7,23 @@
  * history honest: Home → Threads pushes (back returns Home), Threads → Home
  * pops that entry rather than stacking another, and ← is a real back when
  * the app has somewhere to go back to — the screen you came from, Home or
- * Threads — else Home.
+ * Threads — else up a level (`parentOf`).
+ *
+ * "Else up a level" is the phone's back too (`UpOnBack`, rendered in root):
+ * with no history behind the screen — the app reopened where it was left
+ * (lib/lastRoute.ts), a notification tap on a cold start — back used to
+ * leave the app from a thread. Now it climbs: agent → thread → Home, and
+ * only Home leaves (David, 24 Sep 2026: "when you press back and it closes
+ * the app, that's not so good").
  *
  * Search (routes/search.tsx) is not in the switch: it looks through threads,
  * so it sits with the other thread-list controls (Show / Sort) on Threads —
  * `ThreadSearchLink` below, used by routes/threads.tsx. The Organiser keeps
  * its own ⌕ for notes.
  */
-import type { MouseEvent, ReactNode } from 'react'
+import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
+import { onBackUp } from '../lib/layers'
 import '../search.css'
 
 type Tab = 'home' | 'threads' | 'organiser'
@@ -63,23 +71,61 @@ export function ThreadSearchLink() {
   )
 }
 
-/** What ← does, for code that leaves a screen itself: back, else Home. */
-export function useGoBack() {
-  const navigate = useNavigate()
-  return () => (historyIdx() > 0 ? navigate(-1) : navigate('/', { replace: true }))
+/**
+ * The screen above this one: an agent's page → its thread, a note or the
+ * notes setup → the Organiser, the agents list → Settings, everything
+ * else → Home. Null on Home, the top.
+ */
+export function parentOf(pathname: string): string | null {
+  const path = pathname.replace(/\/+$/, '') || '/'
+  if (path === '/') return null
+  const agent = path.match(/^(\/t\/[^/]+)\/agents\/[^/]+$/)
+  if (agent) return agent[1]
+  if (path.startsWith('/organiser/')) return '/organiser'
+  if (path.startsWith('/settings/')) return '/settings'
+  return '/'
 }
 
-/** ← : back where you came from inside the app, else Home. */
+/** Up a level in place of this screen: replace, so back never returns here. */
+function goUp(navigate: ReturnType<typeof useNavigate>, pathname: string): boolean {
+  const up = parentOf(pathname)
+  if (up === null) return false
+  navigate(up, { replace: true })
+  return true
+}
+
+/** What ← does, for code that leaves a screen itself: back, else up a level. */
+export function useGoBack() {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  return () => (historyIdx() > 0 ? navigate(-1) : goUp(navigate, pathname))
+}
+
+/**
+ * The phone's back with nothing behind this screen: up a level instead of
+ * out of the app. The shell asks the page first (lib/layers.ts); an open
+ * menu still closes before this is asked. Rendered once, in root.
+ */
+export function UpOnBack() {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const here = useRef(pathname)
+  here.current = pathname
+  useEffect(() => onBackUp(() => historyIdx() === 0 && goUp(navigate, here.current)), [navigate])
+  return null
+}
+
+/** ← : back where you came from inside the app, else up a level. */
 export function BackLink({ title = 'Back', children = '←' }: { title?: string; children?: ReactNode }) {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const onClick = (e: MouseEvent) => {
-    if (historyIdx() > 0) {
-      e.preventDefault()
-      navigate(-1)
-    }
+    e.preventDefault()
+    if (historyIdx() > 0) navigate(-1)
+    else goUp(navigate, pathname)
   }
   return (
-    <Link className="icon" to="/" title={title} aria-label={title} onClick={onClick}>
+    <Link className="icon" to={parentOf(pathname) ?? '/'} title={title} aria-label={title} onClick={onClick}>
       {children}
     </Link>
   )

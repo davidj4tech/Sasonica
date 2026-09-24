@@ -8,6 +8,7 @@ import { TEXT_SIZE_BOOT } from './lib/textSize'
 import { Mark } from './components/Mark'
 import { initAuth } from './api/auth'
 import { NativeHooks } from './components/NativeHooks'
+import { UpOnBack } from './components/Nav'
 import { rememberRoute, savedRoute } from './lib/lastRoute'
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -125,6 +126,7 @@ export default function App() {
     <SpeechProvider>
       <Outlet />
       <NativeHooks />
+      <UpOnBack />
       {/* Replies in other threads: told here, never followed (lib/arrivals.ts).
           Not on Home or the list, which already show what needs you, the
           dots and the states. */}

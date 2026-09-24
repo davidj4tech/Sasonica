@@ -1,6 +1,8 @@
 // Three things a listener asked for in one sitting (23 Sep 2026):
 //   * the app opens where it was left, so a reinstall does not lose the page
 //   * the ↑/↓ jump pills stop covering a reply's ▶
+//   * (24 Sep 2026) and so back from it, with no history behind it, goes up
+//     a level — agent → thread → Home — instead of closing the app
 //   * the speed row shows the rate AND offers reset, instead of one element
 //     that is both and reads as a reset key the moment it says 1×
 import { chromium, SHOTS } from './lib.mjs'
@@ -46,6 +48,41 @@ await page.evaluate(() => {
 })
 await page.waitForTimeout(600)
 ok(new URL(page.url()).pathname === '/', `Home reached from inside the app stays Home (${page.url()})`)
+
+// ── Back with nothing behind: up a level, not out of the app ──────────────
+// The shell asks window.__sasonicaBack() first (MainActivity); true means the
+// page handled it, false means the WebView's history, else leave the app.
+const back = () => page.evaluate(() => window.__sasonicaBack())
+const at = () => new URL(page.url()).pathname
+await page.goto(BASE + '/t/' + session)
+await page.waitForSelector('.msg')
+ok((await page.evaluate(() => window.history.state?.idx)) === 0, 'a thread opened cold has no history behind it')
+ok((await back()) === true, 'back from it is answered by the page')
+await page.waitForTimeout(300)
+ok(at() === '/', `and goes up to Home (${at()})`)
+ok((await back()) === false, 'back on Home is left to the shell (it leaves the app)')
+
+await page.goto(BASE + '/t/' + session + '/agents/a1')
+await page.waitForTimeout(600)
+ok((await back()) === true && (await page.waitForTimeout(300), at()) === '/t/' + session, `an agent's page goes up to its thread (${at()})`)
+
+await page.goto(BASE + '/settings/agents')
+await page.waitForTimeout(600)
+ok((await back()) === true && (await page.waitForTimeout(300), at()) === '/settings', `the agents list goes up to Settings (${at()})`)
+
+// With history behind it, back is the history's: the page does not answer.
+await page.goto(BASE + '/threads')
+await page.waitForSelector('a[href^="/t/"]')
+await page.click('a[href^="/t/"]')
+await page.waitForSelector('.msg')
+ok((await back()) === false, `a thread opened from the list leaves back to the history (${at()})`)
+
+// ← on a cold thread does the same.
+await page.goto(BASE + '/t/' + session)
+await page.waitForSelector('.msg')
+await page.click('header .icon[aria-label="Back"]')
+await page.waitForTimeout(300)
+ok(at() === '/', `← on a cold thread goes to Home (${at()})`)
 
 // ── The jump pills clear the bubble keys ───────────────────────────────────
 await page.goto(BASE + '/t/' + session)

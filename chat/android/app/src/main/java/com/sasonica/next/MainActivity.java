@@ -29,8 +29,10 @@ public class MainActivity extends BridgeActivity {
      * Back (the gesture or the button) asks the page first: an open menu or
      * sheet closes and nothing else happens (David, 22 Sep 2026). The page
      * answers through window.__sasonicaBack() (chat/app/lib/layers.ts), true
-     * when it closed one. Otherwise back is the WebView's history — the
-     * screen you came from — and, with none left, leaving the app as before.
+     * when it closed one — or, with no history behind the screen, when it
+     * went up a level instead (agent → thread → Home; David, 24 Sep 2026).
+     * Otherwise back is the WebView's history — the screen you came from —
+     * and, with none left (Home), leaving the app as before.
      * Without this, Capacitor (no App plugin) finished the activity on every
      * back press, whatever was on screen.
      */

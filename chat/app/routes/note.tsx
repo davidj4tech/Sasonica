@@ -13,6 +13,7 @@ import { isEditable, readNote, refileNote, REFILE_LABELS, sayNote, setNoteDate, 
 import { DateSheet } from '../components/DateSheet'
 import { MoveSheet } from '../components/MoveSheet'
 import { NoteAsk } from '../components/NoteAsk'
+import { useGoBack } from '../components/Nav'
 import { noteHref as noteHrefOf, OrgBody, ownPlanning, parseHeading, planStamps, StateBadge } from '../lib/org'
 import { IconPlay, SpeechBar } from '../components/SpeechBar'
 import '../notes.css'
@@ -27,6 +28,7 @@ function NotePage() {
   const path = params.get('path') || ''
   const at = Number(params.get('at') || 0) || 0
   const navigate = useNavigate()
+  const goBack = useGoBack()
   const [note, setNote] = useState<NoteText | null>(null)
   const [error, setError] = useState<{ text: string; changed?: boolean } | null>(null)
   const [said, setSaid] = useState<{ text: string; failed?: boolean } | null>(null)
@@ -120,7 +122,7 @@ function NotePage() {
   return (
     <div className="page note-page">
       <header className="bar">
-        <button className="icon" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/organiser'))} title="Back">
+        <button className="icon" onClick={goBack} title="Back">
           ←
         </button>
         <h1>

@@ -66,8 +66,9 @@
 //   filter  the thread list's Show: Active / Live / Closed / Archived /
 //           Everything and one project; the empty line; kept per device
 //   resume  the app opens where it was left (an install, an update or a swipe
-//           away all end in a launch); the ↑/↓ pills clear a bubble's ▶; the
-//           speed row reads the rate and resets with a key of its own
+//           away all end in a launch) and back from there climbs, not quits;
+//           the ↑/↓ pills clear a bubble's ▶; the speed row reads the rate
+//           and resets with a key of its own
 //   tapread  "Read from here": a tap on a sentence of the message being said
 //           jumps the voice (goto-sentence, bold at once, then the real
 //           position); a selection in an older reply → the chip → replay-id

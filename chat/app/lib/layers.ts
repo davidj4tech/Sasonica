@@ -8,8 +8,10 @@
  *  - Escape (web): the TOP layer only;
  *  - Android's back gesture / button (Sasonica Next): the shell's
  *    MainActivity asks `window.__sasonicaBack()` first; it closes the top
- *    layer and answers true, and only when nothing is open does back go
- *    back (the WebView's history, else leave the app).
+ *    layer and answers true; with nothing open, a screen with no history
+ *    behind it goes up a level (`onBackUp`, components/Nav.tsx UpOnBack)
+ *    and answers true; otherwise back goes back (the WebView's history,
+ *    else — from Home — leave the app).
  */
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
 
@@ -29,8 +31,18 @@ export function openLayers(): number {
   return stack.length
 }
 
+let up: (() => boolean) | null = null
+
+/** Who answers back once no layer is open; returns the unregister. */
+export function onBackUp(fn: () => boolean): () => void {
+  up = fn
+  return () => {
+    if (up === fn) up = null
+  }
+}
+
 if (typeof window !== 'undefined') {
-  ;(window as unknown as { __sasonicaBack?: () => boolean }).__sasonicaBack = closeTopLayer
+  ;(window as unknown as { __sasonicaBack?: () => boolean }).__sasonicaBack = () => closeTopLayer() || !!up?.()
   window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || !stack.length) return
     e.preventDefault()
