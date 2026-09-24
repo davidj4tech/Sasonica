@@ -9,9 +9,10 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { hasCredential } from '../api/auth'
 import { ApiError } from '../api'
-import { isEditable, readNote, refileNote, REFILE_LABELS, sayNote, setNoteDate, setNoteState, type DateKind, type NoteState, type NoteText, type RefileTarget } from '../api/notes'
+import { isEditable, readNote, refileNote, REFILE_LABELS, sayNote, setNoteDate, setNotePriority, setNoteState, type DateKind, type NoteState, type NoteText, type RefileTarget } from '../api/notes'
 import { DateSheet } from '../components/DateSheet'
 import { MoveSheet } from '../components/MoveSheet'
+import { PrioritySheet } from '../components/PrioritySheet'
 import { NoteAsk } from '../components/NoteAsk'
 import { useGoBack } from '../components/Nav'
 import { noteHref as noteHrefOf, OrgBody, ownPlanning, parseHeading, planStamps, StateBadge } from '../lib/org'
@@ -33,6 +34,7 @@ function NotePage() {
   const [error, setError] = useState<{ text: string; changed?: boolean } | null>(null)
   const [said, setSaid] = useState<{ text: string; failed?: boolean } | null>(null)
   const [moving, setMoving] = useState(false)
+  const [prioritising, setPrioritising] = useState(false)
   const [dating, setDating] = useState<{ kind: DateKind; date: string; time: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [reload, setReload] = useState(0)
@@ -86,6 +88,23 @@ function NotePage() {
       const r = await refileNote(path, at, note.title, to, date)
       navigate(noteHrefOf(r.path, r.at), { replace: true })
       setSaid({ text: `Moved to ${REFILE_LABELS[to].replace(/ \(.*\)$/, '')}${date ? ` for ${date}` : ''}.` })
+    } catch (err) {
+      setSaid({ text: err instanceof Error ? err.message : String(err), failed: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const changePriority = async (priority: string) => {
+    if (!note || busy) return
+    setPrioritising(false)
+    setBusy(true)
+    setSaid(null)
+    try {
+      const r = await setNotePriority(path, at, note.title, priority)
+      setSaid({ text: r.priority ? `Priority ${r.priority}.` : 'No priority.' })
+      if (r.at !== at) navigate(noteHrefOf(r.path, r.at), { replace: true })
+      else setReload((n) => n + 1)
     } catch (err) {
       setSaid({ text: err instanceof Error ? err.message : String(err), failed: true })
     } finally {
@@ -154,6 +173,9 @@ function NotePage() {
                     Schedule…
                   </button>
                 )}
+                <button className={head.priority ? 'state-key prio-set' : 'state-key'} disabled={busy} onClick={() => setPrioritising(true)}>
+                  {head.priority ? `Priority ${head.priority}` : 'Priority…'}
+                </button>
                 <button className="state-key move" disabled={busy} onClick={() => setMoving(true)}>
                   Move to…
                 </button>
@@ -161,6 +183,7 @@ function NotePage() {
             )}
         </div>
       )}
+      {prioritising && head && <PrioritySheet current={head.priority} onPick={(p) => void changePriority(p)} onClose={() => setPrioritising(false)} />}
       {moving && <MoveSheet from={path} onMove={(to, date) => void move(to, date)} onClose={() => setMoving(false)} />}
       {dating && <DateSheet {...dating} onSave={(date, time) => void changeDate(date, time)} onClose={() => setDating(null)} />}
       {!note && !error && <p className="notice">Loading…</p>}

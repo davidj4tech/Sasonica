@@ -110,6 +110,7 @@ button.done-key:hover, button.done-key:focus-visible { color: var(--accent); }
 .note-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex: none; }
 .state-key { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: .8rem; font-weight: 600; letter-spacing: .03em; color: var(--muted); cursor: pointer; }
 .state-key.on { color: var(--accent); border-color: var(--accent); }
+.state-key.prio-set { color: var(--text); border-color: var(--accent-2); }
 .state-key:disabled { cursor: default; }
 .state-key.move { margin-left: auto; color: var(--text); font-weight: 400; letter-spacing: 0; }
 .move-head { margin: 0; font-weight: 600; }

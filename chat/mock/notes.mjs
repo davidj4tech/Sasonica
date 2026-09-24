@@ -136,7 +136,7 @@ export async function notesRoute(method, path, q, body, ok, err) {
     NOTES_LOG.captures.push({ text, kind })
     return ok({ path: 'inbox.org', at, kind, remembered: body.memory !== false })
   }
-  if (method === 'POST' && (path === '/notes/state' || path === '/notes/refile' || path === '/notes/date')) {
+  if (method === 'POST' && (path === '/notes/state' || path === '/notes/refile' || path === '/notes/date' || path === '/notes/priority')) {
     // The same finding rule as the server: the line if it still holds the
     // title, else the one heading with that title, else 409.
     const p = String(body.path || '')
@@ -153,6 +153,13 @@ export async function notesRoute(method, path, q, body, ok, err) {
     const level = m[1].length
     const setState = (line, st) => { const h = HEAD.exec(line); return [h[1], st, h[3] ? `[#${h[3]}]` : '', h[4]].filter(Boolean).join(' ') + (h[5] ? ' ' + h[5] : '') }
     NOTES_LOG.edits.push({ path, ...body })
+    if (path === '/notes/priority') {
+      const pr = String(body.priority || '').toUpperCase()
+      if (!['', 'A', 'B', 'C'].includes(pr)) return err(400, `not a priority: '${body.priority}'`)
+      lines[i] = [m[1], m[2], pr ? `[#${pr}]` : '', m[4]].filter(Boolean).join(' ') + (m[5] ? ' ' + m[5] : '')
+      FILES[p] = lines.join('\n') + '\n'
+      return ok({ path: p, at: i + 1, priority: pr })
+    }
     if (path === '/notes/date') {
       // The stamp rewritten in place: its repeater kept, its time unless given.
       const kind = String(body.kind || 'scheduled').toUpperCase()
