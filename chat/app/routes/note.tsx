@@ -141,7 +141,7 @@ function NotePage() {
   return (
     <div className="page note-page">
       <header className="bar">
-        <button className="icon" onClick={goBack} title="Back">
+        <button className="icon back" onClick={goBack} title="Back" aria-label="Back">
           ←
         </button>
         <h1>

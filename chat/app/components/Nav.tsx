@@ -125,7 +125,7 @@ export function BackLink({ title = 'Back', children = '←' }: { title?: string;
     else goUp(navigate, pathname)
   }
   return (
-    <Link className="icon" to={parentOf(pathname) ?? '/'} title={title} aria-label={title} onClick={onClick}>
+    <Link className="icon back" to={parentOf(pathname) ?? '/'} title={title} aria-label={title} onClick={onClick}>
       {children}
     </Link>
   )
