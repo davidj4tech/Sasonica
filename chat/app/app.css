@@ -138,7 +138,7 @@ a { color: var(--accent); }
 .badge.waiting { color: var(--accent); }
 .badge.working { color: var(--warn); }
 .badge.approval { color: var(--on-accent); background: var(--bad); }
-.badge.archived { color: var(--muted); border: 1px solid var(--line); background: none; }
+.badge.archived, .badge.always-speak { color: var(--muted); border: 1px solid var(--line); background: none; }
 /* Archived threads: one folded row at the foot of the list, tap to open. */
 .archived-head button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 16px; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .867rem; font-weight: 500; text-align: left; cursor: pointer; }
 .archived-head .caret { width: .6rem; font-size: .8em; }

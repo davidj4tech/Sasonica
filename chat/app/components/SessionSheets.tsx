@@ -13,21 +13,23 @@ import type { ProjectOption } from '../lib/threadSort'
 import { useScrim } from '../lib/layers'
 import { createPortal } from 'react-dom'
 
-export type SessionAction = 'rename' | 'auto-rename' | 'move' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
+export type SessionAction = 'rename' | 'auto-rename' | 'move' | 'always-speak' | 'normal-speak' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
 
 export const ACTION_LABEL: Record<SessionAction, string> = {
   rename: 'Rename…',
   'auto-rename': 'Auto rename',
   move: 'Move to project…',
+  'always-speak': 'Always speak',
+  'normal-speak': 'Stop always speaking',
   exit: 'Exit session',
   archive: 'Archive',
   unarchive: 'Unarchive',
   'exit-archive': 'Exit & archive'
 }
 
-/** What a thread offers: exit only while it runs, one archive toggle, the pair when it runs and is not archived. */
-export function sessionMenuItems(live: boolean, archived: boolean): SessionAction[] {
-  const items: SessionAction[] = ['rename', 'auto-rename', 'move']
+/** What a thread offers: one always-speak toggle, exit only while it runs, one archive toggle, the pair when it runs and is not archived. */
+export function sessionMenuItems(live: boolean, archived: boolean, priority = false): SessionAction[] {
+  const items: SessionAction[] = ['rename', 'auto-rename', 'move', priority ? 'normal-speak' : 'always-speak']
   if (live) items.push('exit')
   items.push(archived ? 'unarchive' : 'archive')
   if (live && !archived) items.push('exit-archive')
@@ -49,12 +51,12 @@ export function Sheet(props: { label: string; onClose: () => void; children: Rea
 }
 
 /** The list's long-press menu for one thread. */
-export function SessionMenuSheet(props: { title: string; live: boolean; archived: boolean; onPick: (a: SessionAction) => void; onClose: () => void }) {
+export function SessionMenuSheet(props: { title: string; live: boolean; archived: boolean; priority?: boolean; onPick: (a: SessionAction) => void; onClose: () => void }) {
   return (
     <Sheet label="Thread actions" onClose={props.onClose} className="action-sheet">
       <p className="action-title">{props.title}</p>
       <div role="menu" className="action-list">
-        {sessionMenuItems(props.live, props.archived).map((a) => (
+        {sessionMenuItems(props.live, props.archived, props.priority).map((a) => (
           <button key={a} role="menuitem" onClick={() => props.onPick(a)}>
             {ACTION_LABEL[a]}
           </button>

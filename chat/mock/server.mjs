@@ -848,7 +848,7 @@ function liveLine(line) {
 }
 
 // §6.1 (22 Sep 2026): every row carries archived, rested (null while live) and pinned.
-const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, project: s.project ?? null, cwd: s.cwd ?? null, harness: s.harness || 'claude', ...(s.store ? { source: 'store' } : {}) })
+const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, priority: !!s.priority, project: s.project ?? null, cwd: s.cwd ?? null, harness: s.harness || 'claude', ...(s.store ? { source: 'store' } : {}) })
 const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, recap: s.recap || null, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, recap: s.recap || null, ...flags(s) })
 
 // ── Search (§6.14) ────────────────────────────────────────────────────────
@@ -1408,7 +1408,7 @@ function serveStatic(req, res, path) {
 /** The projects /session/move will accept, as the canvas's layout knows them. */
 const KNOWN_PROJECTS = new Set(['agent-media', 'sasonica', 'runlet'])
 
-const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/harnesses/logout', '/harnesses/updates', '/search'])
+const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/harnesses/logout', '/harnesses/updates', '/search'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1960,6 +1960,16 @@ async function route(method, path, q, body, res) {
     return ok({ session: sid, pane, live: false, closed: true })
   }
   // §6.4 POST /session/archive {session, archived} → {session, archived}.
+  if (method === 'POST' && path === '/session/priority') {
+    const sid = String(body.session || '')
+    if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
+    const s = S[sid]
+    if (!s) return err(404, `no such session ${sid.slice(0, 8)}`)
+    const priority = body.priority === undefined ? true : body.priority
+    if (typeof priority !== 'boolean') return err(400, 'priority must be true or false')
+    s.priority = priority
+    return ok({ session: sid, priority })
+  }
   if (method === 'POST' && path === '/session/archive') {
     const sid = String(body.session || '')
     if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
