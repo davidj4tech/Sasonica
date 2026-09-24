@@ -190,7 +190,7 @@ export function ShareSheet(props: { title: string; session: string; onPick: (to:
 export const SPEECH_LEVELS: { level: SpeechLevel; label: string; note: string; badge?: string }[] = [
   { level: 'interrupt', label: 'Interrupt', note: 'Plays at once, cutting in on another chat at its next sentence', badge: 'Interrupts' },
   { level: 'auto', label: 'Auto speak', note: 'Plays at once, even when muted or held at the desk', badge: 'Auto speak' },
-  { level: 'normal', label: 'Normal', note: 'The usual rules' },
+  { level: 'normal', label: 'Normal', note: 'Plays after anything already speaking; a mute silences it, and the desk can hold it' },
   { level: 'quiet', label: 'Quiet', note: 'Never plays by itself; waits here with a Play', badge: 'Quiet' }
 ]
 
