@@ -79,7 +79,7 @@ export function BackLink({ title = 'Back', children = '←' }: { title?: string;
     }
   }
   return (
-    <Link className="icon" to="/" title={title} aria-label={title} onClick={onClick}>
+    <Link className="icon back" to="/" title={title} aria-label={title} onClick={onClick}>
       {children}
     </Link>
   )

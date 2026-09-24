@@ -139,7 +139,7 @@ function NotePage() {
   return (
     <div className="page note-page">
       <header className="bar">
-        <button className="icon" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/organiser'))} title="Back">
+        <button className="icon back" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/organiser'))} title="Back" aria-label="Back">
           ←
         </button>
         <h1>

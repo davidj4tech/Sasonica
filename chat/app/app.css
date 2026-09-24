@@ -70,6 +70,8 @@ a { color: var(--accent); }
 .bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 2; }
 .bar h1 { font-family: var(--font-display); font-size: 1.133rem; margin: 0; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon { background: none; border: 0; font-size: 1.333rem; padding: 4px 8px; text-decoration: none; color: var(--text); cursor: pointer; }
+/* ← Back: a size up, and a thumb-sized target (David, 24 Sep 2026). */
+.icon.back { font-size: 1.7rem; min-width: 48px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 /* The thread title: a tap renames it. */
 .title-button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; text-align: left; }
 .menu-anchor { position: relative; }
@@ -643,7 +645,7 @@ a { color: var(--accent); }
 /* A long name wraps to a second line before it is cut short. */
 .thread-bar .title-button { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
 .thread-bar .thread-sub { justify-content: flex-start; margin: -5px 0; }
-.thread-bar .thread-sub > a.icon { flex: none; min-width: 40px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center; margin-left: -8px; font-size: 1.2rem; }
+.thread-bar .thread-sub > a.icon { flex: none; min-width: 48px; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; margin-left: -10px; font-size: 1.6rem; }
 .thread-bar .thread-sub .menu-anchor { flex: none; margin-left: auto; margin-right: -8px; }
 .thread-bar .thread-sub .menu-anchor .icon { min-height: 38px; }
 
