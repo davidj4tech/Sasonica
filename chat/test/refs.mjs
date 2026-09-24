@@ -109,9 +109,30 @@ await page.keyboard.press('Escape')
 await page.waitForTimeout(200)
 ok(!(await page.locator('.mention-list').count()), 'Escape closes it')
 
-// 4. Share into a new chat: the chip is in the new chat's box.
-await box().fill('')
+// 4. The thread's own ⋮ → Insert a thread…: the chip goes in at the caret,
+// and nothing typed is lost (David, 25 Sep 2026: "I'd rather it just insert
+// where the cursor is").
+await box().fill('compare this with that')
+await box().evaluate((el) => el.setSelectionRange('compare this '.length, 'compare this '.length))
 await page.locator('button[aria-label="Thread menu"]').click()
+ok(!(await page.getByRole('menuitem', { name: 'Share into…' }).count()), 'the thread\'s ⋮ offers Insert, not Share into…')
+await page.getByRole('menuitem', { name: 'Insert a thread…' }).click()
+await page.waitForSelector('.share-sheet')
+ok(!(await page.locator('.share-sheet').getByRole('menuitem', { name: 'New chat' }).count()), 'no New chat in the insert picker')
+await page.locator('.share-sheet').getByRole('menuitem', { name: /shelved conversation/ }).click()
+await page.waitForTimeout(300)
+ok((await box().inputValue()) === 'compare this @[Mock: shelved conversation] with that', `inserted at the caret: ${JSON.stringify(await box().inputValue())}`)
+ok(new URL(page.url()).pathname === `/t/${into}`, 'it stays in this thread')
+await page.reload()
+await page.waitForSelector('.composer textarea')
+await page.waitForTimeout(600)
+ok((await box().inputValue()) === 'compare this @[Mock: shelved conversation] with that', 'kept as the draft')
+
+// 5. Share into a new chat, from the list: the chip is in the new chat's box.
+await box().fill('')
+await page.goto(BASE + '/threads')
+await page.waitForSelector('.thread-row')
+await longPress(into)
 await page.getByRole('menuitem', { name: 'Share into…' }).click()
 await page.locator('.share-sheet').getByRole('menuitem', { name: 'New chat' }).click()
 await page.waitForURL('**/new')

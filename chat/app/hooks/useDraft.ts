@@ -26,6 +26,8 @@ export interface DraftHandle {
   keep(text: string): void
   /** A send failed where nothing else holds the words: back into the box, if it is still empty. */
   restore(text: string): void
+  /** Put `text` in the box where the caret was (the end when it never had one), spaced from its neighbours. */
+  insert(text: string): void
 }
 
 export function useDraft(key: string | undefined, ref: Ref<DraftHandle>) {
@@ -57,6 +59,30 @@ export function useDraft(key: string | undefined, ref: Ref<DraftHandle>) {
         writeDraft(key, t)
         apply(t)
         void pushDraft(key)
+      },
+      insert(t) {
+        // A textarea keeps its selection after it loses focus, so the caret
+        // from before a menu was opened is still there to read.
+        const ta = document.querySelector<HTMLTextAreaElement>('.composer textarea')
+        const now = aui.composer().getState().text
+        const at = ta && document.body.contains(ta) ? Math.min(ta.selectionStart ?? now.length, now.length) : now.length
+        const before = now.slice(0, at)
+        const after = now.slice(at)
+        const lead = before && !/\s$/.test(before) ? ' ' : ''
+        const tail = /^\s/.test(after) ? '' : ' '
+        const next = before + lead + t + tail + after
+        apply(next)
+        if (key) {
+          writeDraft(key, next)
+          void pushDraft(key)
+        }
+        const caret = (before + lead + t + tail).length
+        window.requestAnimationFrame(() => {
+          const box = document.querySelector<HTMLTextAreaElement>('.composer textarea')
+          if (!box) return
+          box.focus()
+          box.setSelectionRange(caret, caret)
+        })
       }
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

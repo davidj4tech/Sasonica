@@ -15,10 +15,11 @@ import type { SpeechLevel } from '../api/types'
 import { useScrim } from '../lib/layers'
 import { createPortal } from 'react-dom'
 
-export type SessionAction = 'share' | 'rename' | 'auto-rename' | 'move' | 'speech' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
+export type SessionAction = 'share' | 'insert' | 'rename' | 'auto-rename' | 'move' | 'speech' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
 
 export const ACTION_LABEL: Record<SessionAction, string> = {
   share: 'Share into…',
+  insert: 'Insert a thread…',
   rename: 'Rename…',
   'auto-rename': 'Auto rename',
   move: 'Move to project…',
@@ -35,8 +36,13 @@ export const ACTION_LABEL: Record<SessionAction, string> = {
  * Archive (David, 24 Sep 2026): archiving ends nothing, so it only hid a session
  * that went on working; Exit & archive is the way to file one that runs.
  */
-export function sessionMenuItems(live: boolean, archived: boolean): SessionAction[] {
-  const items: SessionAction[] = ['share', 'rename', 'auto-rename', 'move', 'speech']
+/**
+ * `inThread`: the thread's own ⋮, beside the box — there a chip goes in at the
+ * caret of the words being written (Insert a thread…); from the list, where
+ * no box is open, this thread is shared into another's (Share into…).
+ */
+export function sessionMenuItems(live: boolean, archived: boolean, inThread = false): SessionAction[] {
+  const items: SessionAction[] = [inThread ? 'insert' : 'share', 'rename', 'auto-rename', 'move', 'speech']
   if (live) items.push('exit')
   if (live && !archived) items.push('exit-archive')
   if (archived) items.push('unarchive')
@@ -143,7 +149,7 @@ export function ProjectPickerSheet(props: {
  * lands at the end of that thread's draft and the thread opens, so the words
  * around it are the reader's to write.
  */
-export function ShareSheet(props: { title: string; session: string; onPick: (to: RefCandidate | 'new') => void; onClose: () => void }) {
+export function ShareSheet(props: { title: string; session: string; insert?: boolean; onPick: (to: RefCandidate | 'new') => void; onClose: () => void }) {
   const [rows, setRows] = useState<RefCandidate[]>([])
   const [query, setQuery] = useState('')
   useEffect(() => {
@@ -155,8 +161,8 @@ export function ShareSheet(props: { title: string; session: string; onPick: (to:
   }, [props.session])
   const hits = matching(rows, query, 40)
   return (
-    <Sheet label="Share into" onClose={props.onClose} className="action-sheet share-sheet">
-      <p className="action-title">Share “{props.title}” into…</p>
+    <Sheet label={props.insert ? 'Insert a thread' : 'Share into'} onClose={props.onClose} className="action-sheet share-sheet">
+      <p className="action-title">{props.insert ? 'Insert a thread where you are typing' : <>Share “{props.title}” into…</>}</p>
       <input
         className="share-find"
         value={query}
@@ -166,9 +172,11 @@ export function ShareSheet(props: { title: string; session: string; onPick: (to:
         enterKeyHint="search"
       />
       <div role="menu" className="action-list project-list">
-        <button role="menuitem" onClick={() => props.onPick('new')}>
-          New chat
-        </button>
+        {!props.insert && (
+          <button role="menuitem" onClick={() => props.onPick('new')}>
+            New chat
+          </button>
+        )}
         {hits.map((r) => (
           <button key={r.session} role="menuitem" onClick={() => props.onPick(r)}>
             <span className="share-title">{r.title}</span>

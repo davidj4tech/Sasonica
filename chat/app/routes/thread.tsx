@@ -23,7 +23,7 @@ import { useSpeech } from '../hooks/useSpeech'
 import { knownArchived, knownLive, knownSpeech, knownProject, knownProjects, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { ACTION_LABEL, ProjectPickerSheet, sessionMenuItems, ShareSheet, SPEECH_LEVELS, SpeechSheet, type SessionAction } from '../components/SessionSheets'
-import { chipIntoDraft } from '../lib/refs'
+import { chipIntoDraft, chipOf, remember } from '../lib/refs'
 import { archivedOf, clearArchivedOverride, clearEnded, endedHere, projectOverrideOf, useSessionFlags } from '../lib/sessionFlags'
 import { useAutoRename, useRename } from '../hooks/useRename'
 import { RenameSheet } from '../components/RenameSheet'
@@ -71,6 +71,8 @@ function ThreadPage({ session }: { session: string }) {
   const [renaming, setRenaming] = useState(false)
   const [moving, setMoving] = useState(false)
   const [sharing, setSharing] = useState(false)
+  const [inserting, setInserting] = useState(false)
+  const composerRef = useRef<{ insert(text: string): void }>(null)
   const [menu, setMenu] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const rename = useRename()
@@ -250,6 +252,7 @@ function ThreadPage({ session }: { session: string }) {
     setMenu(false)
     if (a === 'rename') setRenaming(true)
     else if (a === 'share') setSharing(true)
+    else if (a === 'insert') setInserting(true)
     else if (a === 'move') setMoving(true)
     else if (a === 'auto-rename') {
       setStatus({ text: 'Thinking of a name…' })
@@ -311,7 +314,7 @@ function ThreadPage({ session }: { session: string }) {
             </button>
             {menu && (
               <Popover anchor={menuButton} label="Thread menu" onClose={() => setMenu(false)}>
-                {sessionMenuItems(sessionLive, archived).map((a) => (
+                {sessionMenuItems(sessionLive, archived, true).map((a) => (
                   <button key={a} role="menuitem" onClick={() => onAction(a)}>
                     {ACTION_LABEL[a]}
                   </button>
@@ -322,6 +325,20 @@ function ThreadPage({ session }: { session: string }) {
         </div>
       </header>
       <AgentsStrip session={session} counts={log.agents} />
+      {inserting && (
+        <ShareSheet
+          insert
+          title={title}
+          session={session}
+          onClose={() => setInserting(false)}
+          onPick={(to) => {
+            setInserting(false)
+            if (to === 'new') return
+            remember(to.title, to.session)
+            composerRef.current?.insert(chipOf(to.title))
+          }}
+        />
+      )}
       {sharing && (
         <ShareSheet
           title={title}
@@ -384,6 +401,7 @@ function ThreadPage({ session }: { session: string }) {
         onStop={onStop}
         actions={actions}
         draftKey={session}
+        composerRef={composerRef}
         empty={empty}
         older={log.older && !log.stale}
         onLoadEarlier={log.loadEarlier}
