@@ -115,6 +115,21 @@ if (!LEGACY) {
   await page.waitForSelector('.live-text .sentence.now', { timeout: 15000 })
   await page.waitForTimeout(4000)
   ok(inBand(await sample()), 'mock speaking fixture: bold on screen')
+
+  // ── F6: Settings → Follow along off: the view stays put, no pill ─────────
+  await page.evaluate(() => localStorage.setItem('sasonica.chat.followOff', '1'))
+  await fetch(BASE + '/mock/real/restart?in=1')
+  await page.goto(BASE + '/t/' + sid('Mock: real speech (no offsets)'))
+  await page.waitForSelector('.live-text .sentence.now', { timeout: 15000 })
+  await page.waitForTimeout(2500)
+  const o1 = await sample()
+  await page.waitForTimeout(9000)
+  const o2 = await sample()
+  // Following would have brought the bold (hundreds of px above) into view;
+  // off, only the text growing around the view moves it, by a line or two.
+  ok(o2.nowIdx > o1.nowIdx && !inBand(o2) && Math.abs(o2.top - o1.top) < 150 && !o2.follow,
+    `follow off: bold advances (${o1.nowIdx} → ${o2.nowIdx}) and stays off screen (${o2.nowTop}), view kept its place (${o1.top} → ${o2.top}), no pill`)
+  await page.evaluate(() => localStorage.removeItem('sasonica.chat.followOff'))
 }
 await b.close()
 console.log(fails ? `${fails} FAILED` : 'ALL PASS')

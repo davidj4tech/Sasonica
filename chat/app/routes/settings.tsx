@@ -18,6 +18,7 @@ import { LEAD_DEFAULT_S, LEAD_MAX_S, LEAD_MIN_S, LEAD_STEP_S, setFollowLead, use
 import { backgroundNotifyStatus, setBackgroundNotify, syncBackgroundNotify, speechStatus, setSpeechHere, type BackgroundNotifyStatus, type SpeechStatus } from '../lib/native'
 import { getShowAmbient, setShowAmbient } from '../lib/pictures'
 import { setAdvanced, useAdvanced } from '../lib/advanced'
+import { setFollowOn, useFollowOn } from '../lib/followOn'
 import { getTextSize, setTextSize, TEXT_SIZE_EVENT, TEXT_SIZES, type TextSizeId } from '../lib/textSize'
 
 function when(ms: number): string {
@@ -45,6 +46,7 @@ export default function Settings() {
   const [kind, setKind] = useState(() => credentialKind())
   const lead = useFollowLead()
   const advanced = useAdvanced()
+  const followOn = useFollowOn()
   // Background notifications: the Android shell only (null elsewhere).
   const [bg, setBg] = useState<BackgroundNotifyStatus | null>(null)
   // Speech played here: the Android shell only, and off until turned on.
@@ -160,6 +162,14 @@ export default function Settings() {
             ))}
           </div>
           <small>On this device only. Applies at once. Pinch anywhere to change it too.</small>
+        </fieldset>
+        <fieldset>
+          <legend>Follow along</legend>
+          <label className="check">
+            <input type="checkbox" checked={followOn} onChange={(e) => setFollowOn(e.target.checked)} />
+            Scroll with the voice
+          </label>
+          <small>While a reply is spoken, keep its sentence on screen. Off, the view stays where you put it; the sentence is still in bold. On this device only.</small>
         </fieldset>
         {advanced && (
           <fieldset>

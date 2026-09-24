@@ -397,6 +397,10 @@ It passed the mock and failed on the phone because real live lines differ:
 - Settings → Follow-along lead (default 0.5 s, 0–2 s) nudges the bold
   ahead or back, per device, for what no server number shows (the phone
   player's output latency, and taking a sentence in as it starts).
+- Settings → Follow along (on by default, per device): off, the view no
+  longer scrolls with the voice — every live line starts as if the reader
+  had taken over, with no pill; the bold still marks the sentence
+  (`lib/followOn.ts`, `test/follow.mjs` F6).
 - `sentence` can be null; with no offsets either, the sentence is estimated
   from the speaking rate so there is still one to follow.
 - Pictures: `[[visual:]]` figures as a thumbnail that opens on a tap;
