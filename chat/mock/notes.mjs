@@ -36,7 +36,7 @@ const CHATS = {}
 
 const STATES = ['TODO', 'NEXT', 'WAITING', 'SOMEDAY', 'DONE', 'CANCELLED']
 // What the real server says for a paragtd tree (§6.10 GET /notes).
-const KEYWORDS = { open: ['TODO', 'NEXT', 'WAITING', 'SOMEDAY'], done: ['DONE', 'CANCELLED', 'CANCELED'] }
+const KEYWORDS = { open: ['TODO', 'NEXT', 'WAITING'], done: ['DONE', 'CANCELLED'] }
 const REFILE_TARGETS = [
   { name: 'next', label: 'Next actions', path: 'next-actions.org' },
   { name: 'waiting', label: 'Waiting for', path: 'waiting-for.org' },
