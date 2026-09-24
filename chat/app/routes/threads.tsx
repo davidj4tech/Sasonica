@@ -82,7 +82,7 @@ function ThreadList() {
   const states = useSessionStates()
   usePrefetch(sessions, !stale && !loading && !error)
   const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
-  const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean } | null>(null)
+  const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean; priority: boolean } | null>(null)
   const [moving, setMoving] = useState<{ session: string; title: string; live: boolean } | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null)
@@ -162,6 +162,7 @@ function ThreadList() {
       setNote({ text: 'Thinking of a name…' })
       void autoRename(m.session).then((r) => setNote(r.ok ? null : { text: r.message, failed: true }))
     } else if (a === 'exit' || a === 'exit-archive') void (a === 'exit-archive' ? acts.exitAndArchive(m.session) : acts.exit(m.session)).then(say)
+    else if (a === 'always-speak' || a === 'normal-speak') void acts.priority(m.session, a === 'always-speak').then((r) => setNote({ text: r.message, failed: !r.ok }))
     else void acts.archive(m.session, a === 'archive').then(say)
   }
   const entryOf = (e: ListEntry, where: string) =>
@@ -185,7 +186,7 @@ function ThreadList() {
       state={states[row.session]}
       markArchived={filter.show === 'all' && isArchived(row)}
       hideProject={sort === 'project'}
-      onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived) })}
+      onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived), priority: !!row.priority })}
     />
   )
 
@@ -320,7 +321,7 @@ function ThreadList() {
         {showArchived && archivedList.map((e) => entryOf(e, 'archived'))}
       </ul>
 
-      {menu && <SessionMenuSheet title={menu.title} live={menu.live} archived={menu.archived} onPick={pick} onClose={() => setMenu(null)} />}
+      {menu && <SessionMenuSheet title={menu.title} live={menu.live} archived={menu.archived} priority={menu.priority} onPick={pick} onClose={() => setMenu(null)} />}
       {moving && (
         <ProjectPickerSheet
           title={moving.title}

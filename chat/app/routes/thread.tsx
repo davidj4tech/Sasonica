@@ -20,7 +20,7 @@ import { ApprovalCard } from '../components/parts'
 import { Thread } from '../components/Thread'
 import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
-import { knownArchived, knownLive, knownProject, knownProjects, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
+import { knownArchived, knownLive, knownPriority, knownProject, knownProjects, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { ACTION_LABEL, ProjectPickerSheet, sessionMenuItems, type SessionAction } from '../components/SessionSheets'
 import { archivedOf, clearArchivedOverride, clearEnded, endedHere, projectOverrideOf, useSessionFlags } from '../lib/sessionFlags'
@@ -77,6 +77,9 @@ function ThreadPage({ session }: { session: string }) {
   const navigate = useNavigate()
   useSessionFlags()
   const archived = archivedOf(session, knownArchived(session))
+  // Always speak (§6.4 /session/priority): what the server last said, per thread.
+  const [prioritySet, setPrioritySet] = useState<Record<string, boolean>>({})
+  const priority = prioritySet[session] ?? !!knownPriority(session)
 
   const log = useThread(session)
   const jumpTo = useSearchJump(log.loadAround)
@@ -255,6 +258,13 @@ function ThreadPage({ session }: { session: string }) {
         r.ok ? navigate('/threads', { replace: true }) : setStatus({ text: r.message, failed: true })
       )
     }
+    else if (a === 'always-speak' || a === 'normal-speak') {
+      setStatus(null)
+      void acts.priority(session, a === 'always-speak').then((r) => {
+        if (r.ok) setPrioritySet((m) => ({ ...m, [session]: a === 'always-speak' }))
+        setStatus({ text: r.message, failed: !r.ok })
+      })
+    }
     else {
       setStatus(null)
       void acts.archive(session, a === 'archive').then((r) => setStatus({ text: r.message, failed: !r.ok }))
@@ -295,13 +305,14 @@ function ThreadPage({ session }: { session: string }) {
           )}
           {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
           {archived && <span className="badge archived">Archived</span>}
+          {priority && <span className="badge always-speak">Always speaks</span>}
           <div className="menu-anchor">
             <button ref={menuButton} className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
               ⋮
             </button>
             {menu && (
               <Popover anchor={menuButton} label="Thread menu" onClose={() => setMenu(false)}>
-                {sessionMenuItems(sessionLive, archived).map((a) => (
+                {sessionMenuItems(sessionLive, archived, priority).map((a) => (
                   <button key={a} role="menuitem" onClick={() => onAction(a)}>
                     {ACTION_LABEL[a]}
                   </button>

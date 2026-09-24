@@ -45,6 +45,8 @@ export interface SessionRow {
   rested?: { at: number; reason: string } | null
   /** Kept open against the idle reaper (POST /session/pin). */
   pinned?: boolean
+  /** Always speak: its replies are never held or muted (POST /session/priority, 24 Sep 2026). */
+  priority?: boolean
   /** "Where this thread was" (§6.1 Recaps), or null. */
   recap?: Recap | null
   /** The project it runs in, for display (§6.1, 22 Sep 2026), or null. */
@@ -655,6 +657,12 @@ export interface CloseResponse extends Envelope {
 export interface ArchiveResponse extends Envelope {
   session: SessionId
   archived: boolean
+}
+
+/** POST /session/priority {session, priority} (§6.4): always speak this thread. */
+export interface PriorityResponse extends Envelope {
+  session: SessionId
+  priority: boolean
 }
 
 /** POST /session/move (§6.15) — the thread's new project, and what became of its session. */

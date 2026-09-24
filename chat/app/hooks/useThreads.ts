@@ -45,6 +45,10 @@ export function knownArchived(session: string): boolean | undefined {
   return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.archived
 }
 
+export function knownPriority(session: string): boolean | undefined {
+  return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.priority
+}
+
 /** An exit or archive the server accepted (or its rollback), for the rows seen in this page load. */
 export function noteRow(session: string, patch: Partial<SessionRow>) {
   const row = known.get(session)

@@ -16,6 +16,7 @@ import type {
   AgentsResponse,
   AnswerRequest,
   ArchiveResponse,
+  PriorityResponse,
   MoveResponse,
   CloseResponse,
   AnswerResponse,
@@ -340,6 +341,11 @@ export function autoRenameThread(session: SessionId) {
  */
 export function closeSession(session: SessionId) {
   return request<CloseResponse>('POST', '/session/close', { session })
+}
+
+/** POST /session/priority (§6.4): always speak this thread, or stop. */
+export function prioritySession(session: SessionId, priority: boolean) {
+  return request<PriorityResponse>('POST', '/session/priority', { session, priority })
 }
 
 /** POST /session/archive (§6.4): file the thread under Archived, or take it out. */

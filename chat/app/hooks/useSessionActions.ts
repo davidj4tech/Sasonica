@@ -11,7 +11,7 @@
  * row says waits for the server to say it happened.
  */
 import { useCallback } from 'react'
-import { archiveSession, closeSession, moveSession } from '../api'
+import { archiveSession, closeSession, moveSession, prioritySession } from '../api'
 import { clearArchivedOverride, clearEnded, setArchivedOverride, setEnded, setProjectOverride } from '../lib/sessionFlags'
 import { patchTargetRow } from '../lib/snapshots'
 import { noteRow } from './useThreads'
@@ -50,6 +50,18 @@ async function archive(session: string, archived: boolean): Promise<ActionOutcom
   }
 }
 
+/** Always speak (§6.4 /session/priority): not optimistic — the server's word is what the menu shows next. */
+async function priority(session: string, flag: boolean): Promise<ActionOutcome> {
+  try {
+    const res = await prioritySession(session, flag)
+    patchTargetRow(session, { priority: res.priority })
+    noteRow(session, { priority: res.priority })
+    return { ok: true, message: res.priority ? 'Its replies will always speak.' : 'Its replies speak as usual.' }
+  } catch (err) {
+    return { ok: false, message: `Not changed: ${why(err)}` }
+  }
+}
+
 async function move(session: string, project: string): Promise<ActionOutcome> {
   try {
     const res = await moveSession(session, { project })
@@ -85,6 +97,7 @@ export function useSessionActions() {
     exit: useCallback(exit, []),
     archive: useCallback(archive, []),
     move: useCallback(move, []),
+    priority: useCallback(priority, []),
     exitAndArchive: useCallback(exitAndArchive, [])
   }
 }
