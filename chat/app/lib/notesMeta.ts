@@ -11,7 +11,7 @@
  * lists, which is what that server was.
  */
 import { useEffect, useState } from 'react'
-import { getNoteViews, type NotesIndex, type NoteStates, type RefileTargetInfo } from '../api/notes'
+import { getNoteViews, type CaptureTemplate, type NotesIndex, type NoteStates, type RefileTargetInfo } from '../api/notes'
 
 export interface NotesMeta {
   profile: string | null
@@ -19,6 +19,8 @@ export interface NotesMeta {
   /** The keywords of a file that declares none. */
   states: NoteStates
   refileTargets: RefileTargetInfo[]
+  /** Capture templates beyond To-do and Note (paragtd's, a site's); none for plain Org. */
+  captureKinds: CaptureTemplate[]
   /** Path → that file's keywords, for the file views. */
   fileStates: Record<string, NoteStates>
   /** The files that take changes: the file views and the capture file. */
@@ -42,6 +44,7 @@ export const FALLBACK: NotesMeta = {
   captureFile: 'inbox.org',
   states: PARAGTD_STATES,
   refileTargets: PARAGTD_TARGETS,
+  captureKinds: [],
   fileStates: {},
   editable: new Set([...PARAGTD_TARGETS.map((t) => t.path), 'areas.org', 'routines.org'])
 }
@@ -67,6 +70,7 @@ export function metaOf(res: NotesIndex): NotesMeta {
     captureFile: res.capture_file || 'inbox.org',
     states: res.states,
     refileTargets: res.refile_targets || [],
+    captureKinds: res.capture_kinds || [],
     fileStates,
     editable
   }

@@ -7,6 +7,8 @@
 //   legacy  a server from before those fields: paragtd's keys and targets,
 //           the tickler on a date, as before
 //   sequence  closing a sequenced step says which step is next, and when
+//   templates  More… beside the capture box: the server's templates, their
+//           prompts drawn, Save waiting for them; plain Org has no More…
 import { chromium, SHOTS } from './lib.mjs'
 const BASE = process.env.BASE || 'http://127.0.0.1:8811'
 let fails = 0
@@ -73,6 +75,38 @@ ok(/Next: Fill in the form, on \d{4}-\d{2}-\d{2}/.test(await page.locator('.note
 ok((await mock()).files['next-actions.org'].includes('** NEXT Fill in the form'), 'which is NEXT now')
 ok((await page.locator('.note-toast button:has-text("Undo")').count()) === 0, 'no Undo: it could not take the next step back')
 await page.screenshot({ path: SHOTS + '/notes-layout-02-sequence.png' })
+await page.context().close()
+
+// 4. Capture templates
+page = await open('paragtd')
+await page.goto(BASE + '/organiser')
+await page.waitForSelector('.capture')
+await page.click('.capture-kind button:has-text("More…")')
+await page.waitForSelector('.capture-sheet')
+ok((await page.locator('.capture-sheet .move-targets button').allInnerTexts()).some((t) => t.startsWith('Tickler')), 'the sheet lists the templates')
+await page.click('.capture-sheet button:has-text("Tickler")')
+await page.fill('.capture textarea', 'Return the library book')
+ok(await page.locator('.capture button[type=submit]').isDisabled(), 'Save waits for the date')
+await page.fill('.capture-fields input[type=datetime-local]', '2026-10-01T10:00')
+await page.screenshot({ path: SHOTS + '/notes-layout-03-template.png' })
+await page.click('.capture button[type=submit]')
+await page.waitForSelector('.capture-note:has-text("Filed in tickler")')
+let cap = (await mock()).captures.at(-1)
+ok(cap.kind === 'k' && cap.fields.f0 === '2026-10-01T10:00' && cap.text === 'Return the library book', 'sent as the template, with its date')
+ok((await page.locator('.capture-kind button.on').innerText()) === 'To-do', 'and back to a plain to-do')
+// A template that needs no text: its prompts are enough.
+await page.click('.capture-kind button:has-text("More…")')
+await page.click('.capture-sheet button:has-text("New Partner")')
+await page.fill('.capture-fields input[type=text]', 'Sam')
+await page.click('.capture button[type=submit]')
+await page.waitForSelector('.capture-note:has-text("Filed in roleplay/inbox")')
+cap = (await mock()).captures.at(-1)
+ok(cap.kind === 'rp' && cap.fields.f0 === 'Sam' && cap.fields.f1 === 'Calm', 'the choice goes with its first option')
+await page.context().close()
+page = await open('plain')
+await page.goto(BASE + '/organiser')
+await page.waitForSelector('.capture')
+ok((await page.locator('.capture-kind button:has-text("More…")').count()) === 0, 'plain Org: no More…')
 await page.context().close()
 
 ok(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join('; ') : ''}`)
