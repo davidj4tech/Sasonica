@@ -4,7 +4,7 @@
  * Collapsed, it is one row: what is being said (the conversation's title —
  * tap to open it — over the current sentence), a progress sliver along its
  * top edge from `pos`/`dur`, and the keys wanted most: back a sentence,
- * pause/resume, on a sentence. The chevron (or a tap on the sentence) opens
+ * pause/resume, on a sentence, end of reply. The chevron (or a tap on the sentence) opens
  * the full set in a sheet: turns, paragraphs, end of reply, replay, speed,
  * volume and mute — every key the canvas takes from the app (§6.5).
  *
@@ -246,6 +246,11 @@ export function SpeechBar({ here }: { here?: SessionId }) {
         {live && (
           <button className="skey" aria-label="Next sentence" onClick={() => void speech.ctl('skip+')}>
             <IconFwdSentence />
+          </button>
+        )}
+        {live && (
+          <button className="skey" aria-label="End of reply" onClick={() => void speech.ctl('jump-end')}>
+            <IconNextTurn />
           </button>
         )}
         <button className="skey more" aria-label="All speech controls" aria-expanded={open} onClick={() => (open ? setOpen(false) : expand())}>
