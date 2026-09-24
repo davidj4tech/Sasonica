@@ -397,7 +397,7 @@ function Search() {
   return (
     <div className="note-list note-search">
       <div className="search-box">
-        <input ref={input} type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Search notes and memory" aria-label="Search" />
+        <input ref={input} type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Search Org and memory" aria-label="Search" />
         <label className="search-all">
           <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> agent notes too
         </label>
@@ -406,8 +406,8 @@ function Search() {
       {busy && !result && <p className="notice">Searching…</p>}
       {result && (
         <>
-          <h2 className="search-head">Notes</h2>
-          {result.notes.length === 0 && <p className="notice">No notes say that.</p>}
+          <h2 className="search-head">Org notes</h2>
+          {result.notes.length === 0 && <p className="notice">Nothing in Org says that.</p>}
           <ul className="notes">
             {result.notes.map((h) => (
               <li key={`${h.path}:${h.line}`}>
