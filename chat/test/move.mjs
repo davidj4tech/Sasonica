@@ -66,7 +66,7 @@ const overlaps = await page.evaluate(() => {
   const rows = [...document.querySelectorAll('.project-list button')]
   rows[0].textContent = 'p-agent-media--claude-worktrees-agent-a5b43898be9e83566-spike-headless-work'
   const r = rows.map((b) => b.getBoundingClientRect())
-  return { wrapped: rows[0].offsetHeight > 60, n: r.filter((a, i) => i && a.top < r[i - 1].bottom - 1).length + rows.filter((b) => b.scrollHeight > b.clientHeight + 1).length }
+  return { h: rows.slice(0, 2).map((b) => b.offsetHeight), wrapped: rows[0].offsetHeight > rows[1].offsetHeight + 10, n: r.filter((a, i) => i && a.top < r[i - 1].bottom - 1).length + rows.filter((b) => b.scrollHeight > b.clientHeight + 1).length }
 })
 ok(overlaps.wrapped && overlaps.n === 0, `a long name wraps in its own row, none overlapping (${JSON.stringify(overlaps)})`)
 await page.screenshot({ path: SHOTS + '/move-01b-long-name.png' })
