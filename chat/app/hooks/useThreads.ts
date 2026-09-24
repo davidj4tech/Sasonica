@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getSessionsState, getTargets } from '../api'
-import type { Place, SessionRow, SessionState, SessionsStateResponse, TargetsResponse } from '../api/types'
+import type { Place, SessionRow, SessionState, SpeechLevel, SessionsStateResponse, TargetsResponse } from '../api/types'
 import { loadStates, loadTargets, peekStates, peekTargets, saveStates, saveTargets } from '../lib/snapshots'
 import { confirmTitles } from '../lib/titles'
 import { confirmFlags } from '../lib/sessionFlags'
@@ -45,8 +45,9 @@ export function knownArchived(session: string): boolean | undefined {
   return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.archived
 }
 
-export function knownPriority(session: string): boolean | undefined {
-  return (known.get(session) || peekTargets()?.sessions.find((r) => r.session === session))?.priority
+export function knownSpeech(session: string): SpeechLevel {
+  const row = known.get(session) || peekTargets()?.sessions.find((r) => r.session === session)
+  return row?.speech || (row?.priority ? 'auto' : 'normal')
 }
 
 /** An exit or archive the server accepted (or its rollback), for the rows seen in this page load. */

@@ -10,26 +10,26 @@
  */
 import { Fragment, type ReactNode } from 'react'
 import type { ProjectOption } from '../lib/threadSort'
+import type { SpeechLevel } from '../api/types'
 import { useScrim } from '../lib/layers'
 import { createPortal } from 'react-dom'
 
-export type SessionAction = 'rename' | 'auto-rename' | 'move' | 'always-speak' | 'normal-speak' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
+export type SessionAction = 'rename' | 'auto-rename' | 'move' | 'speech' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
 
 export const ACTION_LABEL: Record<SessionAction, string> = {
   rename: 'Rename…',
   'auto-rename': 'Auto rename',
   move: 'Move to project…',
-  'always-speak': 'Always speak',
-  'normal-speak': 'Stop always speaking',
+  speech: 'Speech…',
   exit: 'Exit session',
   archive: 'Archive',
   unarchive: 'Unarchive',
   'exit-archive': 'Exit & archive'
 }
 
-/** What a thread offers: one always-speak toggle, exit only while it runs, one archive toggle, the pair when it runs and is not archived. */
-export function sessionMenuItems(live: boolean, archived: boolean, priority = false): SessionAction[] {
-  const items: SessionAction[] = ['rename', 'auto-rename', 'move', priority ? 'normal-speak' : 'always-speak']
+/** What a thread offers: its speech level, exit only while it runs, one archive toggle, the pair when it runs and is not archived. */
+export function sessionMenuItems(live: boolean, archived: boolean): SessionAction[] {
+  const items: SessionAction[] = ['rename', 'auto-rename', 'move', 'speech']
   if (live) items.push('exit')
   items.push(archived ? 'unarchive' : 'archive')
   if (live && !archived) items.push('exit-archive')
@@ -51,12 +51,12 @@ export function Sheet(props: { label: string; onClose: () => void; children: Rea
 }
 
 /** The list's long-press menu for one thread. */
-export function SessionMenuSheet(props: { title: string; live: boolean; archived: boolean; priority?: boolean; onPick: (a: SessionAction) => void; onClose: () => void }) {
+export function SessionMenuSheet(props: { title: string; live: boolean; archived: boolean; onPick: (a: SessionAction) => void; onClose: () => void }) {
   return (
     <Sheet label="Thread actions" onClose={props.onClose} className="action-sheet">
       <p className="action-title">{props.title}</p>
       <div role="menu" className="action-list">
-        {sessionMenuItems(props.live, props.archived, props.priority).map((a) => (
+        {sessionMenuItems(props.live, props.archived).map((a) => (
           <button key={a} role="menuitem" onClick={() => props.onPick(a)}>
             {ACTION_LABEL[a]}
           </button>
@@ -119,6 +119,35 @@ export function ProjectPickerSheet(props: {
           )
         )}
         {others.length === 0 && <p className="action-note">No other project on this server yet.</p>}
+      </div>
+      <div className="row">
+        <button type="button" className="quiet" onClick={props.onClose}>
+          Cancel
+        </button>
+      </div>
+    </Sheet>
+  )
+}
+
+/** The four speech levels (§6.4 /session/priority), with what each does to a reply. */
+export const SPEECH_LEVELS: { level: SpeechLevel; label: string; note: string; badge?: string }[] = [
+  { level: 'interrupt', label: 'Interrupt', note: 'Plays at once, cutting in on another chat at its next sentence', badge: 'Interrupts' },
+  { level: 'auto', label: 'Auto speak', note: 'Plays at once, even when muted or held at the desk', badge: 'Auto speak' },
+  { level: 'normal', label: 'Normal', note: 'The usual rules' },
+  { level: 'quiet', label: 'Quiet', note: 'Never plays by itself; waits here with a Play', badge: 'Quiet' }
+]
+
+export function SpeechSheet(props: { current: SpeechLevel; onPick: (level: SpeechLevel) => void; onClose: () => void }) {
+  return (
+    <Sheet label="Speech" onClose={props.onClose} className="action-sheet speech-sheet">
+      <p className="action-title">Speech — what its replies do</p>
+      <div role="menu" className="action-list">
+        {SPEECH_LEVELS.map((s) => (
+          <button key={s.level} role="menuitemradio" aria-checked={props.current === s.level} className={props.current === s.level ? 'on' : ''} onClick={() => props.onPick(s.level)}>
+            {s.label}
+            <small>{s.note}</small>
+          </button>
+        ))}
       </div>
       <div className="row">
         <button type="button" className="quiet" onClick={props.onClose}>

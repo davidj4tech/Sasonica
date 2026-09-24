@@ -13,12 +13,12 @@ import { hasDraft } from '../lib/drafts'
 import { useUnread } from '../lib/arrivals'
 import { SpeechBar } from '../components/SpeechBar'
 import { hasCredential } from '../api/auth'
-import type { SessionRow, SessionState } from '../api/types'
+import type { SessionRow, SessionState, SpeechLevel } from '../api/types'
 import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
 import { Mark } from '../components/Mark'
 import { HomeTabs, ThreadSearchLink } from '../components/Nav'
-import { ProjectPickerSheet, SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
+import { ProjectPickerSheet, SessionMenuSheet, SpeechSheet, type SessionAction } from '../components/SessionSheets'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { archivedOf, endedHere, projectOverrideOf, useSessionFlags } from '../lib/sessionFlags'
 import { Popover } from '../components/Popover'
@@ -83,7 +83,8 @@ function ThreadList() {
   const states = useSessionStates()
   usePrefetch(sessions, !stale && !loading && !error)
   const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
-  const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean; priority: boolean } | null>(null)
+  const [speechFor, setSpeechFor] = useState<{ session: string; speech: SpeechLevel } | null>(null)
+  const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean; speech: SpeechLevel } | null>(null)
   const [moving, setMoving] = useState<{ session: string; title: string; live: boolean } | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null)
@@ -163,7 +164,7 @@ function ThreadList() {
       setNote({ text: 'Thinking of a name…' })
       void autoRename(m.session).then((r) => setNote(r.ok ? null : { text: r.message, failed: true }))
     } else if (a === 'exit' || a === 'exit-archive') void (a === 'exit-archive' ? acts.exitAndArchive(m.session) : acts.exit(m.session)).then(say)
-    else if (a === 'always-speak' || a === 'normal-speak') void acts.priority(m.session, a === 'always-speak').then((r) => setNote({ text: r.message, failed: !r.ok }))
+    else if (a === 'speech') setSpeechFor(m)
     else void acts.archive(m.session, a === 'archive').then(say)
   }
   const entryOf = (e: ListEntry, where: string) =>
@@ -187,7 +188,7 @@ function ThreadList() {
       state={states[row.session]}
       markArchived={filter.show === 'all' && isArchived(row)}
       hideProject={sort === 'project'}
-      onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived), priority: !!row.priority })}
+      onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived), speech: row.speech || (row.priority ? 'auto' : 'normal') })}
     />
   )
 
@@ -322,7 +323,18 @@ function ThreadList() {
         {showArchived && archivedList.map((e) => entryOf(e, 'archived'))}
       </ul>
 
-      {menu && <SessionMenuSheet title={menu.title} live={menu.live} archived={menu.archived} priority={menu.priority} onPick={pick} onClose={() => setMenu(null)} />}
+      {speechFor && (
+        <SpeechSheet
+          current={speechFor.speech}
+          onClose={() => setSpeechFor(null)}
+          onPick={(level) => {
+            const m = speechFor
+            setSpeechFor(null)
+            void acts.speech(m.session, level).then((r) => setNote({ text: r.message, failed: !r.ok }))
+          }}
+        />
+      )}
+      {menu && <SessionMenuSheet title={menu.title} live={menu.live} archived={menu.archived} onPick={pick} onClose={() => setMenu(null)} />}
       {moving && (
         <ProjectPickerSheet
           title={moving.title}

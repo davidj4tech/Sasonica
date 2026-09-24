@@ -848,7 +848,7 @@ function liveLine(line) {
 }
 
 // §6.1 (22 Sep 2026): every row carries archived, rested (null while live) and pinned.
-const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, priority: !!s.priority, project: s.project ?? null, cwd: s.cwd ?? null, harness: s.harness || 'claude', ...(s.store ? { source: 'store' } : {}) })
+const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, priority: s.speech === 'interrupt' || s.speech === 'auto', speech: s.speech || 'normal', project: s.project ?? null, cwd: s.cwd ?? null, harness: s.harness || 'claude', ...(s.store ? { source: 'store' } : {}) })
 const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, recap: s.recap || null, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, recap: s.recap || null, ...flags(s) })
 
 // ── Search (§6.14) ────────────────────────────────────────────────────────
@@ -1965,10 +1965,15 @@ async function route(method, path, q, body, res) {
     if (!SESSION_RE.test(sid)) return err(400, 'not a session id')
     const s = S[sid]
     if (!s) return err(404, `no such session ${sid.slice(0, 8)}`)
-    const priority = body.priority === undefined ? true : body.priority
-    if (typeof priority !== 'boolean') return err(400, 'priority must be true or false')
-    s.priority = priority
-    return ok({ session: sid, priority })
+    let level = body.level
+    if (level === undefined) {
+      const flag = body.priority === undefined ? true : body.priority
+      if (typeof flag !== 'boolean') return err(400, 'priority must be true or false')
+      level = flag ? 'auto' : 'normal'
+    }
+    if (!['interrupt', 'auto', 'normal', 'quiet'].includes(level)) return err(400, 'level must be interrupt, auto, normal or quiet')
+    s.speech = level
+    return ok({ session: sid, level, priority: level === 'interrupt' || level === 'auto' })
   }
   if (method === 'POST' && path === '/session/archive') {
     const sid = String(body.session || '')

@@ -20,9 +20,9 @@ import { ApprovalCard } from '../components/parts'
 import { Thread } from '../components/Thread'
 import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
-import { knownArchived, knownLive, knownPriority, knownProject, knownProjects, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
+import { knownArchived, knownLive, knownSpeech, knownProject, knownProjects, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
 import { useSessionActions } from '../hooks/useSessionActions'
-import { ACTION_LABEL, ProjectPickerSheet, sessionMenuItems, type SessionAction } from '../components/SessionSheets'
+import { ACTION_LABEL, ProjectPickerSheet, sessionMenuItems, SPEECH_LEVELS, SpeechSheet, type SessionAction } from '../components/SessionSheets'
 import { archivedOf, clearArchivedOverride, clearEnded, endedHere, projectOverrideOf, useSessionFlags } from '../lib/sessionFlags'
 import { useAutoRename, useRename } from '../hooks/useRename'
 import { RenameSheet } from '../components/RenameSheet'
@@ -34,7 +34,7 @@ import { buildItems } from '../lib/convert'
 import { draftSent } from '../lib/drafts'
 import { markSeen, setOpenSession } from '../lib/arrivals'
 import { isThisTurn, playerClockOf, withPaused, withSkew, type LiveClock } from '../lib/followAlong'
-import type { SpeechNow } from '../api/types'
+import type { SpeechLevel, SpeechNow } from '../api/types'
 
 type Status = { text: string; failed?: boolean } | null
 
@@ -77,9 +77,11 @@ function ThreadPage({ session }: { session: string }) {
   const navigate = useNavigate()
   useSessionFlags()
   const archived = archivedOf(session, knownArchived(session))
-  // Always speak (§6.4 /session/priority): what the server last said, per thread.
-  const [prioritySet, setPrioritySet] = useState<Record<string, boolean>>({})
-  const priority = prioritySet[session] ?? !!knownPriority(session)
+  // The speech level (§6.4 /session/priority): what the server last said, per thread.
+  const [speechSet, setSpeechSet] = useState<Record<string, SpeechLevel>>({})
+  const speechLevel = speechSet[session] ?? knownSpeech(session)
+  const [pickingSpeech, setPickingSpeech] = useState(false)
+  const speechBadge = SPEECH_LEVELS.find((s) => s.level === speechLevel)?.badge
 
   const log = useThread(session)
   const jumpTo = useSearchJump(log.loadAround)
@@ -258,13 +260,7 @@ function ThreadPage({ session }: { session: string }) {
         r.ok ? navigate('/threads', { replace: true }) : setStatus({ text: r.message, failed: true })
       )
     }
-    else if (a === 'always-speak' || a === 'normal-speak') {
-      setStatus(null)
-      void acts.priority(session, a === 'always-speak').then((r) => {
-        if (r.ok) setPrioritySet((m) => ({ ...m, [session]: a === 'always-speak' }))
-        setStatus({ text: r.message, failed: !r.ok })
-      })
-    }
+    else if (a === 'speech') setPickingSpeech(true)
     else {
       setStatus(null)
       void acts.archive(session, a === 'archive').then((r) => setStatus({ text: r.message, failed: !r.ok }))
@@ -305,14 +301,14 @@ function ThreadPage({ session }: { session: string }) {
           )}
           {(state || sessionLive || closed) && <span className={`badge ${state || ''}`}>{state || (sessionLive ? 'live' : 'ended')}</span>}
           {archived && <span className="badge archived">Archived</span>}
-          {priority && <span className="badge always-speak">Always speaks</span>}
+          {speechBadge && <span className={`badge speech ${speechLevel}`}>{speechBadge}</span>}
           <div className="menu-anchor">
             <button ref={menuButton} className="icon" aria-label="Thread menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
               ⋮
             </button>
             {menu && (
               <Popover anchor={menuButton} label="Thread menu" onClose={() => setMenu(false)}>
-                {sessionMenuItems(sessionLive, archived, priority).map((a) => (
+                {sessionMenuItems(sessionLive, archived).map((a) => (
                   <button key={a} role="menuitem" onClick={() => onAction(a)}>
                     {ACTION_LABEL[a]}
                   </button>
@@ -323,6 +319,20 @@ function ThreadPage({ session }: { session: string }) {
         </div>
       </header>
       <AgentsStrip session={session} counts={log.agents} />
+      {pickingSpeech && (
+        <SpeechSheet
+          current={speechLevel}
+          onClose={() => setPickingSpeech(false)}
+          onPick={(level) => {
+            setPickingSpeech(false)
+            setStatus(null)
+            void acts.speech(session, level).then((r) => {
+              if (r.ok) setSpeechSet((m) => ({ ...m, [session]: level }))
+              setStatus({ text: r.message, failed: !r.ok })
+            })
+          }}
+        />
+      )}
       {moving && (
         <ProjectPickerSheet
           title={title}
