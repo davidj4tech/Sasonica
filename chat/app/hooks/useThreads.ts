@@ -3,7 +3,7 @@ import { getSessionsState, getTargets } from '../api'
 import type { Place, SessionRow, SessionState, SpeechLevel, SessionsStateResponse, TargetsResponse } from '../api/types'
 import { loadStates, loadTargets, peekStates, peekTargets, saveStates, saveTargets } from '../lib/snapshots'
 import { confirmTitles } from '../lib/titles'
-import { confirmFlags } from '../lib/sessionFlags'
+import { archivedOf, confirmFlags } from '../lib/sessionFlags'
 import { usePoll } from './usePoll'
 import { noteStates } from '../lib/arrivals'
 import { OTHER_PROJECT, projectOptions, type ProjectOption } from '../lib/threadSort'
@@ -37,7 +37,18 @@ export function knownProjects(): ProjectOption[] {
   const byId = new Map<string, SessionRow>()
   // The snapshot's rows first, so a row this page has since patched wins.
   for (const r of [...(peekTargets()?.sessions || []), ...known.values()]) byId.set(r.session, r)
-  return projectOptions([...byId.values()]).filter((o) => o.name !== OTHER_PROJECT)
+  return moveOptions([...byId.values()])
+}
+
+/**
+ * Where a move can go, given the rows: `projectOptions` without "Other", and
+ * without a project whose every thread is archived (David, 25 Sep 2026) — an
+ * old worktree, a test's directory and a renamed project's leftovers kept
+ * their names in the picker long after anyone worked there. Archiving the
+ * last of them is how a project leaves it; talking to one brings it back.
+ */
+export function moveOptions(rows: SessionRow[]): ProjectOption[] {
+  return projectOptions(rows.filter((r) => !archivedOf(r.session, r.archived))).filter((o) => o.name !== OTHER_PROJECT)
 }
 
 /** Archived per the last /targets seen (the server's flag, before any change made here). */

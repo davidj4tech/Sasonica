@@ -15,7 +15,7 @@ import { SpeechBar } from '../components/SpeechBar'
 import { hasCredential } from '../api/auth'
 import type { SessionRow, SessionState, SpeechLevel } from '../api/types'
 import { usePrefetch } from '../hooks/usePrefetch'
-import { useSessionStates, useTargets } from '../hooks/useThreads'
+import { moveOptions, useSessionStates, useTargets } from '../hooks/useThreads'
 import { Mark } from '../components/Mark'
 import { HomeTabs, ThreadSearchLink } from '../components/Nav'
 import { ProjectPickerSheet, SessionMenuSheet, ShareSheet, SpeechSheet, type SessionAction } from '../components/SessionSheets'
@@ -377,7 +377,7 @@ function ThreadList() {
         <ProjectPickerSheet
           title={moving.title}
           current={sessions.find((r) => r.session === moving.session)?.project || null}
-          projects={projectOptions(sessions).filter((p) => p.name !== OTHER_PROJECT)}
+          projects={moveOptions(sessions)}
           live={moving.live}
           onClose={() => setMoving(null)}
           onPick={(to) => {
