@@ -1,0 +1,66 @@
+// The Organiser offers what the server says (§6.10 GET /notes), not paragtd's
+// lists hard-coded (lib/notesMeta.ts):
+//
+//   plain   a server on plain Org: the state keys are its keywords (no
+//           WAITING), Move to… lists its files, none of them asks for a
+//           date, and ✓ Done writes its done keyword
+//   legacy  a server from before those fields: paragtd's keys and targets,
+//           the tickler on a date, as before
+import { chromium, SHOTS } from './lib.mjs'
+const BASE = process.env.BASE || 'http://127.0.0.1:8811'
+let fails = 0
+const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++ }
+const mock = async (qs = '') => (await fetch(BASE + '/mock/notes' + qs)).json()
+await fetch(BASE + '/mock/delay?ms=0')
+await fetch(BASE + '/mock/pair')
+const pr = await (await fetch(BASE + '/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: 'c0ffee42' }) })).json()
+const b = await chromium.launch()
+const errors = []
+
+// A fresh page per layout: the app keeps one copy of /notes' answer per load.
+async function open(layout) {
+  await mock('?reset=1')
+  await mock(`?layout=${layout}`)
+  const page = await (await b.newContext({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true })).newPage()
+  await page.route('**/input', (r) => r.abort())
+  page.on('pageerror', (e) => errors.push(e.message))
+  await page.goto(BASE + '/settings')
+  await page.evaluate(([base, res]) => { localStorage.setItem('sasonica.chat.baseUrl', base); localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() })); localStorage.setItem('sasonica.notes.view', 'inbox') }, [BASE, pr])
+  await page.goto(BASE + '/organiser')
+  await page.click('.note-row:has-text("Ring the plumber")')
+  await page.waitForSelector('.note-actions')
+  return page
+}
+const keys = (page) => page.locator('.note-actions .state-key:not(.move):not(.prio-set)').allInnerTexts()
+
+// 1. Plain Org
+let page = await open('plain')
+let got = await keys(page)
+ok(got.includes('TODO') && got.includes('NEXT') && got.includes('✓ Done'), `its keywords are the keys (${got.join(', ')})`)
+ok(!got.includes('WAITING') && !got.includes('SOMEDAY'), 'no GTD keywords it does not have')
+await page.click('.state-key.move')
+await page.waitForSelector('.move-sheet')
+let targets = await page.locator('.move-targets').innerText()
+ok(targets.includes('Next actions') && targets.includes('Tickler'), 'Move to… lists its files')
+ok(!targets.includes('on a date') && !targets.includes('Waiting for'), 'none asks for a date, and no paragtd-only targets')
+await page.screenshot({ path: SHOTS + '/notes-layout-01-plain.png' })
+await page.click('.move-targets button.quiet')
+await page.click('.state-key:has-text("✓ Done")')
+await page.waitForSelector('.notice:has-text("Done.")')
+ok(/\*\* DONE \[#A\] Ring the plumber/.test((await mock()).inbox), 'Done writes its done keyword')
+await page.context().close()
+
+// 2. An older server
+page = await open('legacy')
+got = await keys(page)
+ok(['TODO', 'NEXT', 'WAITING'].every((k) => got.includes(k)), `paragtd's keys (${got.join(', ')})`)
+await page.click('.state-key.move')
+await page.waitForSelector('.move-sheet')
+targets = await page.locator('.move-targets').innerText()
+ok(targets.includes('Tickler (on a date)') && targets.includes('Waiting for'), "paragtd's targets, the tickler on a date")
+await page.context().close()
+
+ok(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join('; ') : ''}`)
+await b.close()
+console.log(fails ? `${fails} failed` : 'all passed')
+process.exit(fails ? 1 : 0)

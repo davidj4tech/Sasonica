@@ -22,7 +22,6 @@ import {
   captureNote,
   getNoteView,
   getNoteViews,
-  isEditable,
   isHeading,
   searchNotes,
   type CaptureKind,
@@ -33,6 +32,7 @@ import {
 } from '../api/notes'
 import { noteHref, StateBadge } from '../lib/org'
 import { useMarkDone } from '../hooks/useMarkDone'
+import { canMarkDone, notesMeta, setNotesMeta, useNotesMeta } from '../lib/notesMeta'
 import {
   isDefaultShow,
   keepsSections,
@@ -119,7 +119,10 @@ function NotesPage() {
   useEffect(() => {
     const ac = new AbortController()
     getNoteViews(ac.signal)
-      .then((r) => setViews(r.views))
+      .then((r) => {
+        setNotesMeta(r)
+        setViews(r.views)
+      })
       .catch((err) => {
         if ((err as Error)?.name !== 'AbortError') setError(message(err))
       })
@@ -168,7 +171,9 @@ function NotesPage() {
   const shown = useMemo(() => (items ? showNotes(items, show) : null), [items, show])
   const quiet = isDefaultShow(show)
 
-  const unset = views !== null && !views.some((v) => v.name === 'inbox')
+  // Not set up: the server lists no capture file (an older one: no inbox view).
+  const meta = useNotesMeta()
+  const unset = views !== null && !views.some((v) => v.path === meta.captureFile || v.name === 'inbox')
 
   return (
     <div className="page notes-page">
@@ -284,7 +289,7 @@ function HeadingRow({ h, inAgenda, section, onDone }: { h: NoteHeading; inAgenda
     )
   }
   const when = h.deadline ? `due ${h.deadline.slice(5)}` : h.scheduled ? h.scheduled.slice(5) : ''
-  const doable = !!onDone && !!h.state && h.state !== 'DONE' && h.state !== 'CANCELLED' && isEditable(h.path)
+  const doable = !!onDone && canMarkDone(notesMeta(), h)
   return (
     <li className="note-item">
       {doable ? (

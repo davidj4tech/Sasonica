@@ -14,13 +14,13 @@
  */
 import { Fragment, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { knownStates } from './notesMeta'
 
 export interface OrgLink {
   label: string
   path: string
 }
 
-const STATES = new Set(['TODO', 'NEXT', 'WAITING', 'SOMEDAY', 'DONE', 'CANCELLED', 'CANCELED'])
 const HEADING = /^(\*+)\s+(.*)$/
 const LIST = /^(\s*)([-+]|\d+[.)])\s+(?:\[([ X-])\]\s+)?(.*)$/
 const INLINE = /\[\[([^\]]+)\](?:\[([^\]]*)\])?\]|(^|[\s(])([*/=~])(\S(?:.*?\S)?)\4(?=[\s.,;:!?)]|$)/g
@@ -64,12 +64,16 @@ function inline(text: string, links: OrgLink[], key: string): ReactNode[] {
   return out
 }
 
-/** Split a heading line's text into state, priority, title and tags. */
-export function parseHeading(rest: string): { state: string; priority: string; title: string; tags: string[] } {
+/**
+ * Split a heading line's text into state, priority, title and tags. `states`
+ * are the file's keywords; without them, every keyword the server has named
+ * (lib/notesMeta.ts) — a word that is none of them is part of the title.
+ */
+export function parseHeading(rest: string, states: Set<string> = knownStates()): { state: string; priority: string; title: string; tags: string[] } {
   let s = rest.trim()
   let state = ''
   const first = s.split(/\s+/, 1)[0]
-  if (STATES.has(first)) {
+  if (states.has(first)) {
     state = first
     s = s.slice(first.length).trim()
   }

@@ -15,6 +15,7 @@
  * changed move them, and the filters leave them alone.
  */
 import { isHeading, type NoteHeading, type NoteItem } from '../api/notes'
+import { doneWords, notesMeta } from './notesMeta'
 
 export type NoteSort = 'file' | 'date' | 'priority' | 'title' | 'changed'
 
@@ -85,8 +86,10 @@ export function saveNoteShow(show: NoteShow) {
   }
 }
 
-const DONE_STATES = new Set(['DONE', 'CANCELLED', 'CANCELED'])
+// "Later" is GTD's waiting and someday; a plain Org file has neither, and
+// its done keywords are whatever it declares (lib/notesMeta.ts).
 const LATER_STATES = new Set(['WAITING', 'SOMEDAY'])
+const isDone = (state: string) => doneWords(notesMeta()).has(state)
 
 /** True while nothing has been changed — the chip stays a plain "Show". */
 export function isDefaultShow(show: NoteShow): boolean {
@@ -102,7 +105,7 @@ export function shownCount(show: NoteShow): number {
 export function showNotes(items: NoteItem[], show: NoteShow): NoteItem[] {
   return items.filter((it) => {
     if (!isHeading(it)) return true
-    if (DONE_STATES.has(it.state)) return show.done
+    if (isDone(it.state)) return show.done
     if (LATER_STATES.has(it.state)) return show.waiting
     if (!it.state) return show.plain
     return true
@@ -111,7 +114,7 @@ export function showNotes(items: NoteItem[], show: NoteShow): NoteItem[] {
 
 const STATE_RANK: Record<string, number> = { NEXT: 0, TODO: 1, WAITING: 2, SOMEDAY: 3 }
 
-const stateRank = (h: NoteHeading) => (DONE_STATES.has(h.state) ? 5 : h.state in STATE_RANK ? STATE_RANK[h.state] : 4)
+const stateRank = (h: NoteHeading) => (isDone(h.state) ? 5 : h.state in STATE_RANK ? STATE_RANK[h.state] : 4)
 const dateOf = (h: NoteHeading) => h.deadline || h.scheduled || h.date || ''
 const priorityOf = (h: NoteHeading) => h.priority || 'Z'
 const titleOf = (it: NoteItem) => it.title.toLocaleLowerCase()

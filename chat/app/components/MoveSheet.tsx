@@ -1,20 +1,24 @@
 /**
- * "Move to…" for a heading in a GTD file: the paragtd destinations, and a
- * date for the tickler. Moving is the caller's business (POST /notes/refile);
- * the sheet only picks. Built like the rename sheet.
+ * "Move to…" for a heading: the places the server offers (GET /notes
+ * `refile_targets` — paragtd's GTD files, or plain Org's other files), and a
+ * date for one that needs it, as the tickler does. Moving is the caller's
+ * business (POST /notes/refile); the sheet only picks. Built like the rename
+ * sheet.
  */
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { REFILE_FILES, REFILE_LABELS, type RefileTarget } from '../api/notes'
+import type { RefileTargetInfo } from '../api/notes'
+import { useNotesMeta } from '../lib/notesMeta'
 
 function tomorrow(): string {
   const d = new Date(Date.now() + 86400e3)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function MoveSheet(props: { from: string; onMove: (to: RefileTarget, date?: string) => void; onClose: () => void }) {
+export function MoveSheet(props: { from: string; onMove: (to: RefileTargetInfo, date?: string) => void; onClose: () => void }) {
   const [date, setDate] = useState(tomorrow)
-  const [picking, setPicking] = useState(false)
+  const [picking, setPicking] = useState<RefileTargetInfo | null>(null)
+  const meta = useNotesMeta()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose()
@@ -22,7 +26,7 @@ export function MoveSheet(props: { from: string; onMove: (to: RefileTarget, date
     return () => window.removeEventListener('keydown', onKey)
   }, [props])
 
-  const targets = (Object.keys(REFILE_LABELS) as RefileTarget[]).filter((t) => REFILE_FILES[t] !== props.from)
+  const targets = meta.refileTargets.filter((t) => t.path !== props.from)
   if (typeof document === 'undefined') return null
   return createPortal(
     <div className="sheet-wrap" onClick={props.onClose}>
@@ -33,7 +37,7 @@ export function MoveSheet(props: { from: string; onMove: (to: RefileTarget, date
             className="move-date"
             onSubmit={(e) => {
               e.preventDefault()
-              if (date) props.onMove('tickler', date)
+              if (date) props.onMove(picking, date)
             }}
           >
             <label>
@@ -41,19 +45,20 @@ export function MoveSheet(props: { from: string; onMove: (to: RefileTarget, date
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
             </label>
             <div className="row">
-              <button type="button" className="quiet" onClick={() => setPicking(false)}>
+              <button type="button" className="quiet" onClick={() => setPicking(null)}>
                 Back
               </button>
               <button type="submit" className="primary" disabled={!date}>
-                Move to the tickler
+                Move to {picking.label}
               </button>
             </div>
           </form>
         ) : (
           <div className="move-targets">
             {targets.map((t) => (
-              <button key={t} onClick={() => (t === 'tickler' ? setPicking(true) : props.onMove(t))}>
-                {REFILE_LABELS[t]}
+              <button key={t.name} onClick={() => (t.needs_date ? setPicking(t) : props.onMove(t))}>
+                {t.label}
+                {t.needs_date ? ' (on a date)' : ''}
               </button>
             ))}
             <button className="quiet" onClick={props.onClose}>

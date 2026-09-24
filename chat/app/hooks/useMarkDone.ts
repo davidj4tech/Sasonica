@@ -7,7 +7,8 @@
  * caller's refetch; `hidden` clears when the caller's list is replaced.
  */
 import { useCallback, useState } from 'react'
-import { setNoteState, type NoteHeading, type NoteState } from '../api/notes'
+import { setNoteState, type NoteHeading } from '../api/notes'
+import { doneWordOf, notesMeta } from '../lib/notesMeta'
 
 export interface DoneToast {
   text: string
@@ -31,14 +32,14 @@ export function useMarkDone(onChanged: () => void) {
       setHidden((s) => new Set(s).add(key))
       setToast(null)
       try {
-        const r = await setNoteState(h.path, h.at, h.title, 'DONE')
+        const r = await setNoteState(h.path, h.at, h.title, doneWordOf(notesMeta(), h.path))
         if (r.repeated) setToast({ text: `${h.title} — next on ${r.next}` })
         else
           setToast({
             text: `Done: ${h.title}`,
             undo: () => {
               setToast(null)
-              void setNoteState(r.path, r.at, h.title, h.state as NoteState)
+              void setNoteState(r.path, r.at, h.title, h.state)
                 .then(onChanged)
                 .catch((err) => setToast({ text: message(err), failed: true }))
             }
