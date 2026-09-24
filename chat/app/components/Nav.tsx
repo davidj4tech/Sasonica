@@ -37,7 +37,7 @@ export function HomeTabs({ current }: { current: Tab }) {
     else if (fromHome) navigate(-1)
     else navigate('/', { replace: true })
   }
-  const tab = (id: Tab, label: string) => (
+  const tab = (id: Tab, label: ReactNode) => (
     <button type="button" role="tab" aria-selected={current === id} className={current === id ? 'tab on' : 'tab'} onClick={() => go(id)}>
       {label}
     </button>
@@ -46,7 +46,7 @@ export function HomeTabs({ current }: { current: Tab }) {
     <nav className="tabs" role="tablist" aria-label="Views">
       {tab('home', 'Home')}
       {tab('threads', 'Threads')}
-      {tab('organiser', 'Organiser')}
+      {tab('organiser', <><span className="tab-org">Org</span>aniser</>)}
     </nav>
   )
 }
