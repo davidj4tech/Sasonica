@@ -27,7 +27,7 @@ import {
   type ExternalThreadQueueAdapter,
   type ThreadSuggestion
 } from '@assistant-ui/react'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
 import { useDictation } from '../hooks/useDictation'
@@ -272,6 +272,8 @@ export interface ThreadProps {
   onSend: (text: string) => Promise<void | boolean>
   /** Keep the composer's text as a draft under this key (a session, or NEW_CHAT). */
   draftKey?: string
+  /** For the page: put text in the box at the caret (the ⋮ menu's Insert a thread…). */
+  composerRef?: React.Ref<{ insert(text: string): void }>
   onStop: (speech: 'auto' | 'silence') => void
   actions: ThreadActions
   /** Shown above the composer: send status, errors. */
@@ -458,6 +460,7 @@ export function Thread(props: ThreadProps) {
     toTop()
   }, [props.older, onLoadEarlier, toTop])
   const draftRef = useRef<DraftHandle>(null)
+  useImperativeHandle(props.composerRef, () => ({ insert: (t: string) => draftRef.current?.insert(t) }), [])
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const text = textOf(message)
