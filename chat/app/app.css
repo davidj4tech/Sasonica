@@ -107,6 +107,8 @@ a { color: var(--accent); }
 .action-list { display: flex; flex-direction: column; }
 .action-list button { width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 0 12px; }
 .action-list button:hover { background: var(--panel-2); }
+.action-list button.on { color: var(--accent); font-weight: 600; }
+.sheet-hint { margin: 6px 12px 0; color: var(--muted); font-size: .9rem; }
 /* The move picker's list of projects: it takes the room the sheet has and
    scrolls, like the filter menu (components/SessionSheets.tsx). */
 .project-list { max-height: min(50vh, 20rem); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }

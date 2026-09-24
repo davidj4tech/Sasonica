@@ -266,3 +266,18 @@ export interface DateChanged {
 export function setNoteDate(path: string, at: number, title: string, kind: DateKind, date: string, time?: string) {
   return request<DateChanged>('POST', '/notes/date', { path, at, title, kind, date, ...(time !== undefined ? { time } : {}) })
 }
+
+export interface PriorityChanged {
+  path: string
+  at: number
+  /** "A" | "B" | "C", or "" for none. */
+  priority: string
+}
+
+/**
+ * REAL on the server: writes or takes off the heading's [#A]/[#B]/[#C]
+ * cookie. An [#A] with a clock time is read aloud at that time. Test on the mock.
+ */
+export function setNotePriority(path: string, at: number, title: string, priority: string) {
+  return request<PriorityChanged>('POST', '/notes/priority', { path, at, title, priority })
+}
