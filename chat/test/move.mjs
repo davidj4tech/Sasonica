@@ -128,6 +128,27 @@ await page.waitForTimeout(400)
 ok((await page.locator('.thread-project').innerText()) === 'sasonica', 'the thread header follows the move')
 await page.screenshot({ path: SHOTS + '/move-05-thread.png' })
 
+// 6. A project whose every thread is archived is not offered (David, 25 Sep
+// 2026: an old worktree, a test's directory and a renamed project's
+// leftovers stayed in the picker); un-archiving one brings it back.
+const inRunlet = (await (await fetch(BASE + '/targets', { headers: H })).json()).sessions.filter((r) => r.project === 'runlet').map((r) => r.session)
+const archiveAll = (flag) => Promise.all(inRunlet.map((session) => fetch(BASE + '/session/archive', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ session, archived: flag }) })))
+const pickerOffers = async () => {
+  await page.goto(BASE + '/threads')
+  await page.waitForSelector('.thread-row')
+  await longPress(shelved)
+  await page.getByRole('menuitem', { name: 'Move to project…' }).click()
+  await page.waitForSelector('.action-sheet .action-note')
+  const names = await page.locator('.project-list [role=menuitem]').allInnerTexts()
+  await page.locator('.action-sheet .quiet').click()
+  return names
+}
+await archiveAll(true)
+const hidden = await pickerOffers()
+ok(inRunlet.length > 0 && !hidden.includes('runlet') && hidden.includes('agent-media'), `a project with only archived threads is not offered (${hidden.join(', ')})`)
+await archiveAll(false)
+ok((await pickerOffers()).includes('runlet'), 'un-archived, it is offered again')
+
 await b.close()
 console.log(fails ? `${fails} failed` : 'all pass')
 process.exit(fails ? 1 : 0)
