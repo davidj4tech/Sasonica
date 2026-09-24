@@ -291,6 +291,15 @@ a { color: var(--accent); }
 @media (hover: hover) and (pointer: fine) { .send-hint { display: block; } }
 .composer .send, .composer .stop { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); font-size: 1.2rem; cursor: pointer; flex: none; }
 .composer .send:disabled { opacity: .35; cursor: default; }
+/* `@` in the box (MentionPicker.tsx): threads to chip, just above it. */
+.composer { position: relative; }
+.mention-anchor { display: contents; }
+.mention-list { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 5; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 4px; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); max-height: 40dvh; overflow-y: auto; }
+.mention-list button { display: flex; align-items: baseline; gap: 8px; text-align: left; background: none; border: 0; border-radius: 10px; padding: 10px 12px; color: var(--text); font: inherit; cursor: pointer; }
+.mention-list button:hover, .mention-list button:focus-visible { background: var(--panel-2); }
+.mention-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-project, .share-project { color: var(--muted); font-size: .85em; }
+.share-find { margin-bottom: 6px; }
 .composer .stop { background: var(--panel-2); color: var(--text); font-size: 0.933rem; }
 /* Dictation (hooks/useDictation.ts): only in the Android shell. */
 .composer .mic { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 0; background: var(--panel-2); color: var(--text); font-size: 1.1rem; cursor: pointer; flex: none; }
@@ -745,3 +754,7 @@ a { color: var(--accent); }
 .badge.agent-done { color: var(--accent); }
 .badge.agent-failed { color: var(--on-accent); background: var(--bad); }
 .agent-page .agent-title { display: block; overflow: hidden; text-overflow: ellipsis; }
+
+/* A chip naming another thread (lib/refs.ts), in a message: a link to it. */
+.ref-chip { color: var(--accent); font-weight: 600; text-decoration: none; }
+a.ref-chip:hover { text-decoration: underline; }

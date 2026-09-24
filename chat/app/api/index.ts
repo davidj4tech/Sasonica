@@ -10,6 +10,7 @@
  */
 import { authHeaders, serverBase } from './auth'
 import { readSse } from '../lib/sse'
+import { refsIn } from '../lib/refs'
 import type {
   Agent,
   AgentLogResponse,
@@ -277,12 +278,17 @@ export function getAgentLog(session: SessionId, id: string, opts: { before?: str
  * no pane and no transcript is 404 "no such session".
  */
 export function reply(session: SessionId, text: string) {
-  return request<ReplyResponse>('POST', '/reply', { session, text } satisfies ReplyRequest)
+  const body: ReplyRequest = { session, text }
+  const refs = refsIn(text)
+  if (refs) body.refs = refs
+  return request<ReplyResponse>('POST', '/reply', body)
 }
 
 /** A fresh session: `POST /ask {text, target: "new", cwd?, agent?}`. */
 export function askNew(text: string, opts: { cwd?: string; agent?: AskRequest['agent'] } = {}) {
   const body: AskRequest = { text, target: 'new', parse: false }
+  const refs = refsIn(text)
+  if (refs) body.refs = refs
   if (opts.cwd) body.cwd = opts.cwd
   if (opts.agent) body.agent = opts.agent
   return request<AskResponse>('POST', '/ask', body)

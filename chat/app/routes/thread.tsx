@@ -22,7 +22,8 @@ import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
 import { knownArchived, knownLive, knownSpeech, knownProject, knownProjects, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
 import { useSessionActions } from '../hooks/useSessionActions'
-import { ACTION_LABEL, ProjectPickerSheet, sessionMenuItems, SPEECH_LEVELS, SpeechSheet, type SessionAction } from '../components/SessionSheets'
+import { ACTION_LABEL, ProjectPickerSheet, sessionMenuItems, ShareSheet, SPEECH_LEVELS, SpeechSheet, type SessionAction } from '../components/SessionSheets'
+import { chipIntoDraft } from '../lib/refs'
 import { archivedOf, clearArchivedOverride, clearEnded, endedHere, projectOverrideOf, useSessionFlags } from '../lib/sessionFlags'
 import { useAutoRename, useRename } from '../hooks/useRename'
 import { RenameSheet } from '../components/RenameSheet'
@@ -31,7 +32,7 @@ import { AgentsStrip } from '../components/AgentsStrip'
 import { useTitle } from '../lib/titles'
 import { loadTargets, patchTargetRow } from '../lib/snapshots'
 import { buildItems } from '../lib/convert'
-import { draftSent } from '../lib/drafts'
+import { draftSent, NEW_CHAT } from '../lib/drafts'
 import { markSeen, setOpenSession } from '../lib/arrivals'
 import { isThisTurn, playerClockOf, withPaused, withSkew, type LiveClock } from '../lib/followAlong'
 import type { SpeechLevel, SpeechNow } from '../api/types'
@@ -69,6 +70,7 @@ function ThreadPage({ session }: { session: string }) {
   const title = useTitle(session, serverTitle) || session.slice(0, 8)
   const [renaming, setRenaming] = useState(false)
   const [moving, setMoving] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const [menu, setMenu] = useState(false)
   const menuButton = useRef<HTMLButtonElement>(null)
   const rename = useRename()
@@ -247,6 +249,7 @@ function ThreadPage({ session }: { session: string }) {
   const onAction = (a: SessionAction) => {
     setMenu(false)
     if (a === 'rename') setRenaming(true)
+    else if (a === 'share') setSharing(true)
     else if (a === 'move') setMoving(true)
     else if (a === 'auto-rename') {
       setStatus({ text: 'Thinking of a name…' })
@@ -319,6 +322,18 @@ function ThreadPage({ session }: { session: string }) {
         </div>
       </header>
       <AgentsStrip session={session} counts={log.agents} />
+      {sharing && (
+        <ShareSheet
+          title={title}
+          session={session}
+          onClose={() => setSharing(false)}
+          onPick={(to) => {
+            setSharing(false)
+            chipIntoDraft(to === 'new' ? NEW_CHAT : to.session, title, session)
+            navigate(to === 'new' ? '/new' : `/t/${encodeURIComponent(to.session)}`, to === 'new' ? undefined : { state: { title: to.title } })
+          }}
+        />
+      )}
       {pickingSpeech && (
         <SpeechSheet
           current={speechLevel}

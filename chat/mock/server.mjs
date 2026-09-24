@@ -1408,6 +1408,20 @@ function serveStatic(req, res, path) {
 /** The projects /session/move will accept, as the canvas's layout knows them. */
 const KNOWN_PROJECTS = new Set(['agent-media', 'sasonica', 'runlet'])
 
+// §6.3 `refs`: a line at the foot per chip that names a session, as refs.py writes it.
+let LAST_SEND = null
+function withRefs(text, refs) {
+  if (!refs || typeof refs !== 'object') return text
+  const lines = []
+  for (const m of text.matchAll(/@\[([^[\]\n]{1,200})\]/g)) {
+    const label = m[1].trim()
+    const sid = refs[label]
+    const line = `@[${label}] is conversation ${sid} (claude, transcript /mock/${sid}.jsonl)`
+    if (sid && SESSION_RE.test(sid) && !lines.includes(line)) lines.push(line)
+  }
+  return lines.length ? `${text}\n\n${lines.join('\n')}` : text
+}
+
 const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/priority', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/harnesses/logout', '/harnesses/updates', '/search'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
@@ -1474,6 +1488,11 @@ createServer(async (req, res) => {
     realSnap.t = 0
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end(String(realJump))
+  }
+  if (path === '/mock/last-send') {
+    // Tests: the body of the last /reply or /ask (refs.mjs reads its `refs`).
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify(LAST_SEND))
   }
   if (path === '/mock/reply') {
     const q = url.searchParams
@@ -1805,7 +1824,8 @@ async function route(method, path, q, body, res) {
   }
 
   if (method === 'POST' && path === '/reply') {
-    const text = String(body.text || '').trim()
+    LAST_SEND = body
+    const text = withRefs(String(body.text || '').trim(), body.refs)
     if (!text) return err(400, 'empty reply')
     let s
     if (body.session !== undefined) {
@@ -1832,7 +1852,8 @@ async function route(method, path, q, body, res) {
   }
 
   if (method === 'POST' && path === '/ask') {
-    const text = String(body.text || '').trim()
+    LAST_SEND = body
+    const text = withRefs(String(body.text || '').trim(), body.refs)
     if (!text) return err(400, 'empty message')
     if (body.agent && !['claude', 'codex', 'pi', 'hermes'].includes(body.agent)) return err(400, `unknown agent ${body.agent}`)
     if (body.cwd && !['/home/you/projects/demo', '/home/you/projects/agent-media'].includes(body.cwd)) return err(404, `not a known place: ${body.cwd}`)

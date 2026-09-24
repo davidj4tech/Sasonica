@@ -532,6 +532,8 @@ export interface ReplyRequest {
   text: string
   quote?: string
   mode?: 'continue' | 'branch'
+  /** `{title: session}` for the `@[title]` chips in `text` (§6.3, 24 Sep 2026). */
+  refs?: Record<string, SessionId>
 }
 
 export interface ReplyResponse extends Envelope {
@@ -607,6 +609,8 @@ export interface AskRequest {
   text: string
   /** A session id, or "new" to force a fresh session. */
   target?: SessionId | 'new'
+  /** As on ReplyRequest: the chips' sessions. */
+  refs?: Record<string, SessionId>
   /** §10: the session the player is on; routes as `how: "player"`. */
   player_session?: SessionId
   sticky?: SessionId
