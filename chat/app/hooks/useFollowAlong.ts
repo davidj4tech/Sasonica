@@ -39,6 +39,10 @@
  *   kept, and assistant-ui's pending scroll-to-bottom (if any) is cancelled
  *   the way its own code cancels it on a pointer press.
  *
+ * - Settings → Follow along off (lib/followOn.ts): every live line starts
+ *   as if the reader had taken over — the guard still keeps their place,
+ *   nothing follows, and no pill is offered.
+ *
  * Sits beside hooks/useBottomFirst.ts: that pin (scrollTop writes, not
  * scrollTo) owns the first moments of a thread (FOLLOW_START_MS).
  */
@@ -60,9 +64,10 @@ const PAGING_KEYS = new Set(['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'Home
  * @param liveKey  the live message's identity (its `id`), or null when this
  *                 thread has none
  * @param playing  the live line is not paused
+ * @param enabled  Settings → Follow along
  */
-export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveKey: string | null, playing: boolean) {
-  const [detached, setDetached] = useState(false)
+export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveKey: string | null, playing: boolean, enabled = true) {
+  const [detached, setDetached] = useState(!enabled)
   const [ready, setReady] = useState(false)
   const movingUntilRef = useRef(0)
   const followedRef = useRef(false)
@@ -116,10 +121,12 @@ export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveK
     return () => window.clearTimeout(t)
   }, [])
 
-  // A new live line: follow it, whatever happened to the last one.
+  // A new live line: follow it, whatever happened to the last one — unless
+  // following is switched off, which also stops one under way.
   useEffect(() => {
-    setDetached(false)
-  }, [liveKey])
+    setDetached(!enabled)
+    if (!enabled) followedRef.current = false
+  }, [liveKey, enabled])
 
   /** Move only if the bold sentence is leaving the band. `force` re-centres it. */
   const place = useCallback(
@@ -239,7 +246,7 @@ export function useFollowAlong(viewportRef: RefObject<HTMLElement | null>, liveK
   return {
     following,
     /** The reader took over from a live line: offer "Follow along". */
-    detached: detached && hasLive,
+    detached: detached && hasLive && enabled,
     /** A live line exists: assistant-ui's own scrolling is held off. */
     guarded: hasLive,
     resume,

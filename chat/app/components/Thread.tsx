@@ -32,6 +32,7 @@ import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
 import { useDraft, type DraftHandle } from '../hooks/useDraft'
 import { useFollowAlong } from '../hooks/useFollowAlong'
+import { useFollowOn } from '../lib/followOn'
 import { ReadFromHere } from './ReadFromHere'
 import { lightTerms } from '../lib/highlight'
 import { APPROVAL_TOOL, ASK_TOOL, convertItem, groupParts, type ChatItem } from '../lib/convert'
@@ -429,7 +430,8 @@ export function Thread(props: ThreadProps) {
   const liveItem = liveIndex >= 0 ? props.items[liveIndex] : undefined
   const liveClock = liveItem?.kind === 'message' ? liveItem.live : null
   const liveKey = liveItem?.kind === 'message' && liveClock ? liveItem.message.id : null
-  const follow = useFollowAlong(viewportRef, liveKey, !!liveClock && !liveClock.paused)
+  const followOn = useFollowOn()
+  const follow = useFollowAlong(viewportRef, liveKey, !!liveClock && !liveClock.paused, followOn)
   const newBelow = useNewBelow(props.items, liveIndex, liveKey)
   const away = useAwayFromEnds(viewportRef)
   useJump(viewportRef, props.jumpTo)
