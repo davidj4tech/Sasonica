@@ -9,7 +9,8 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { hasCredential } from '../api/auth'
 import { ApiError } from '../api'
-import { isEditable, readNote, refileNote, REFILE_LABELS, sayNote, setNoteDate, setNotePriority, setNoteState, type DateKind, type NoteState, type NoteText, type RefileTarget } from '../api/notes'
+import { readNote, refileNote, sayNote, setNoteDate, setNotePriority, setNoteState, type DateKind, type NoteState, type NoteText, type RefileTargetInfo } from '../api/notes'
+import { doneWordOf, statesOf, useNotesMeta } from '../lib/notesMeta'
 import { DateSheet } from '../components/DateSheet'
 import { MoveSheet } from '../components/MoveSheet'
 import { PrioritySheet } from '../components/PrioritySheet'
@@ -37,6 +38,10 @@ function NotePage() {
   const [prioritising, setPrioritising] = useState(false)
   const [dating, setDating] = useState<{ kind: DateKind; date: string; time: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  // This file's keywords: what the state keys offer, and which one is "done".
+  const meta = useNotesMeta()
+  const fileStates = note?.states || statesOf(meta, path)
+  const doneWord = fileStates.done.includes('DONE') ? 'DONE' : fileStates.done[0] || doneWordOf(meta, path)
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
@@ -69,7 +74,7 @@ function NotePage() {
     setSaid(null)
     try {
       const r = await setNoteState(path, at, note.title, state)
-      setSaid({ text: r.repeated ? `Repeats — next on ${r.next}.` : state === 'DONE' ? 'Done.' : `Now ${state || 'a plain heading'}.` })
+      setSaid({ text: r.repeated ? `Repeats — next on ${r.next}.` : state === doneWord ? 'Done.' : `Now ${state || 'a plain heading'}.` })
       if (r.at !== at) navigate(noteHrefOf(r.path, r.at), { replace: true })
       else setReload((n) => n + 1)
     } catch (err) {
@@ -79,15 +84,15 @@ function NotePage() {
     }
   }
 
-  const move = async (to: RefileTarget, date?: string) => {
+  const move = async (to: RefileTargetInfo, date?: string) => {
     if (!note) return
     setMoving(false)
     setBusy(true)
     setSaid(null)
     try {
-      const r = await refileNote(path, at, note.title, to, date)
+      const r = await refileNote(path, at, note.title, to.name, date)
       navigate(noteHrefOf(r.path, r.at), { replace: true })
-      setSaid({ text: `Moved to ${REFILE_LABELS[to].replace(/ \(.*\)$/, '')}${date ? ` for ${date}` : ''}.` })
+      setSaid({ text: `Moved to ${to.label}${date ? ` for ${date}` : ''}.` })
     } catch (err) {
       setSaid({ text: err instanceof Error ? err.message : String(err), failed: true })
     } finally {
@@ -133,9 +138,10 @@ function NotePage() {
   }
 
   // A heading's own line carries its state; the page title shows it once.
-  const head = note && at ? parseHeading(note.text.split('\n', 1)[0].replace(/^\*+\s+/, '')) : null
+  const head = note && at ? parseHeading(note.text.split('\n', 1)[0].replace(/^\*+\s+/, ''), new Set([...fileStates.open, ...fileStates.done])) : null
   const where = path.replace(/^roam\//, '').replace(/\.org$/, '')
-  const datable = !!note && !!head && isEditable(path)
+  const editable = meta.editable.has(path)
+  const datable = !!note && !!head && editable
   const stamps = note && at ? planStamps(ownPlanning(note.text)) : []
 
   return (
@@ -169,11 +175,11 @@ function NotePage() {
         </p>
       )}
       {said && <p className={said.failed ? 'notice error' : 'notice'}>{said.text}</p>}
-      {note && head && isEditable(path) && (
+      {note && head && editable && (
         <div className="note-actions">
-          {(['TODO', 'NEXT', 'WAITING', 'DONE'] as const).map((st) => (
+          {[...fileStates.open, doneWord].map((st) => (
             <button key={st} className={head.state === st ? 'state-key on' : 'state-key'} disabled={busy || head.state === st} onClick={() => void changeState(st)}>
-              {st === 'DONE' ? '✓ Done' : st}
+              {st === doneWord ? '✓ Done' : st}
             </button>
           ))}
           {!stamps.some((st) => st.kind === 'SCHEDULED') && (

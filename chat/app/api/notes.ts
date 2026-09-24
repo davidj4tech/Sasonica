@@ -16,6 +16,32 @@ export interface NoteView {
   /** Open TODO-like headings (file) or notes (folder); none for the agenda. */
   count?: number
   path?: string
+  /** A file's TODO keywords. An older server leaves it out. */
+  states?: NoteStates
+}
+
+/** A file's TODO keywords, as Org splits them. */
+export interface NoteStates {
+  open: string[]
+  done: string[]
+}
+
+/** Somewhere a heading can be moved to. `needs_date`: it is SCHEDULED on a date (the tickler). */
+export interface RefileTargetInfo {
+  name: string
+  label: string
+  path: string
+  needs_date?: boolean
+}
+
+/** GET /notes. Everything after `views` is new; an older server leaves it out (lib/notesMeta.ts falls back). */
+export interface NotesIndex {
+  root: string
+  views: NoteView[]
+  profile?: string | null
+  capture_file?: string
+  states?: NoteStates
+  refile_targets?: RefileTargetInfo[]
 }
 
 /** A heading in a GTD file, or an agenda entry (which adds `date`, `overdue`). */
@@ -57,6 +83,9 @@ export interface NoteText {
   links: { label: string; path: string }[]
   /** Chats started about it (POST /notes/ask), newest first; an older server leaves it out. */
   chats?: NoteChat[]
+  /** The heading's keyword, and the file's keywords. An older server leaves them out. */
+  state?: string
+  states?: NoteStates
 }
 
 /** A chat about a note: the session, and the words that started it. */
@@ -134,7 +163,7 @@ export interface SetupScreen {
 const q = encodeURIComponent
 
 export function getNoteViews(signal?: AbortSignal) {
-  return request<{ root: string; views: NoteView[] }>('GET', '/notes', undefined, signal)
+  return request<NotesIndex>('GET', '/notes', undefined, signal)
 }
 
 /** `done` keeps the DONE and cancelled headings the server otherwise drops. */
@@ -192,8 +221,8 @@ export function closeSetupWindow(pane: string) {
 
 // ── Changing a heading (§6.10: /notes/state, /notes/refile, /notes/date) ──
 
-/** The states the app offers; `''` takes the keyword off. */
-export type NoteState = '' | 'TODO' | 'NEXT' | 'WAITING' | 'SOMEDAY' | 'DONE' | 'CANCELLED'
+/** A keyword of the heading's file (lib/notesMeta.ts); `''` takes the keyword off. */
+export type NoteState = string
 
 export interface StateChanged {
   path: string
@@ -205,33 +234,8 @@ export interface StateChanged {
   next?: string
 }
 
-export type RefileTarget = 'next' | 'waiting' | 'tickler' | 'someday' | 'projects' | 'inbox'
-
-export const REFILE_LABELS: Record<RefileTarget, string> = {
-  next: 'Next actions',
-  waiting: 'Waiting for',
-  tickler: 'Tickler (on a date)',
-  someday: 'Someday',
-  projects: 'Projects',
-  inbox: 'Inbox'
-}
-
-/** The file each target is; a heading already there is not offered it. */
-export const REFILE_FILES: Record<RefileTarget, string> = {
-  next: 'next-actions.org',
-  waiting: 'waiting-for.org',
-  tickler: 'tickler.org',
-  someday: 'someday.org',
-  projects: 'projects.org',
-  inbox: 'inbox.org'
-}
-
-/** The GTD files at the top of the tree: the only ones that take changes (the server holds the same line). */
-const EDITABLE = new Set([...Object.values(REFILE_FILES), 'areas.org', 'routines.org'])
-
-export function isEditable(path: string): boolean {
-  return EDITABLE.has(path)
-}
+/** A refile target's name, from GET /notes `refile_targets`. */
+export type RefileTarget = string
 
 /**
  * REAL on the server: rewrites the heading in the file. `at` + `title` find

@@ -8,7 +8,8 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { getNoteView, isEditable, type NoteHeading } from '../api/notes'
+import { getNoteView, type NoteHeading } from '../api/notes'
+import { canMarkDone, useNotesMeta } from '../lib/notesMeta'
 import { useMarkDone } from '../hooks/useMarkDone'
 import { noteHref, StateBadge } from '../lib/org'
 import '../notes.css'
@@ -28,6 +29,7 @@ export function HomeAgenda() {
   const [tick, setTick] = useState(0)
   const refetch = useCallback(() => setTick((n) => n + 1), [])
   const { markDone, isHidden, resetHidden, toast, dismiss } = useMarkDone(refetch)
+  const meta = useNotesMeta()
 
   useEffect(() => {
     const ac = new AbortController()
@@ -63,7 +65,7 @@ export function HomeAgenda() {
       {due.length > 0 && (
         <ul className="notes">
           {due.slice(0, SHOWN).map((h) => {
-            const doable = !!h.state && h.state !== 'DONE' && h.state !== 'CANCELLED' && isEditable(h.path)
+            const doable = canMarkDone(meta, h)
             return (
               <li key={`${h.path}:${h.at}`} className="note-item">
                 {doable ? (

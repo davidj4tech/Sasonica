@@ -4,7 +4,9 @@
  * actions are recorded, never run. `GET /mock/notes` shows what was
  * written; `?reset=1` puts the tree back; `?unset=1` empties it, so the
  * app sees a server with no notes (the setup path); `?drop=<title>` takes a
- * heading out, as an edit at the desk would.
+ * heading out, as an edit at the desk would. `?layout=plain` answers as a
+ * server on plain Org does (no profile, TODO NEXT | DONE, every file a
+ * refile target), `?layout=legacy` as one from before those fields.
  */
 
 // Local dates, not UTC: the app's "Today" is the browser's day, so a UTC
@@ -25,12 +27,23 @@ function fixtures() {
 }
 
 let FILES = fixtures()
-const SETUP = { unset: false, synced: true, paragtd: false }
+const SETUP = { unset: false, synced: true, paragtd: false, layout: 'paragtd' }
+const PLAIN_KEYWORDS = { open: ['TODO', 'NEXT'], done: ['DONE'] }
 export const NOTES_LOG = { captures: [], said: [], setup: [], edits: [], asked: [] }
 /** Chats started about an item (POST /notes/ask), by `path\ttitle`, newest first. */
 const CHATS = {}
 
 const STATES = ['TODO', 'NEXT', 'WAITING', 'SOMEDAY', 'DONE', 'CANCELLED']
+// What the real server says for a paragtd tree (§6.10 GET /notes).
+const KEYWORDS = { open: ['TODO', 'NEXT', 'WAITING', 'SOMEDAY'], done: ['DONE', 'CANCELLED', 'CANCELED'] }
+const REFILE_TARGETS = [
+  { name: 'next', label: 'Next actions', path: 'next-actions.org' },
+  { name: 'waiting', label: 'Waiting for', path: 'waiting-for.org' },
+  { name: 'tickler', label: 'Tickler', path: 'tickler.org', needs_date: true },
+  { name: 'someday', label: 'Someday', path: 'someday.org' },
+  { name: 'projects', label: 'Projects', path: 'projects.org' },
+  { name: 'inbox', label: 'Inbox', path: 'inbox.org' }
+]
 const HEAD = new RegExp(`^(\\*+)\\s+(?:(${STATES.join('|')})\\s+)?(?:\\[#([A-C])\\]\\s+)?(.*?)(?:\\s+(:[\\w@:]+:))?\\s*$`)
 
 function headings(path, done = false) {
@@ -58,6 +71,22 @@ const FOLDERS = [
   { name: 'roam-sessions', label: 'Agent sessions', dir: 'roam/sessions/' }
 ]
 
+const fileKeywords = () => (SETUP.layout === 'plain' ? PLAIN_KEYWORDS : KEYWORDS)
+
+/** GET /notes' fields past `views`, as the layout has them. */
+function layoutFields() {
+  if (SETUP.layout === 'legacy') return {}
+  if (SETUP.layout === 'plain') {
+    return {
+      profile: null,
+      capture_file: 'inbox.org',
+      states: PLAIN_KEYWORDS,
+      refile_targets: VIEWS.map((v) => ({ name: v.name, label: v.label, path: v.file }))
+    }
+  }
+  return { profile: 'paragtd', capture_file: 'inbox.org', states: KEYWORDS, refile_targets: REFILE_TARGETS }
+}
+
 export async function notesRoute(method, path, q, body, ok, err) {
   if (!path.startsWith('/notes')) return 0
   if (method === 'GET' && path === '/notes') {
@@ -66,9 +95,10 @@ export async function notesRoute(method, path, q, body, ok, err) {
       root: '/home/you/org',
       views: [
         { name: 'agenda', label: 'Agenda', kind: 'agenda' },
-        ...VIEWS.map((v) => ({ name: v.name, label: v.label, kind: 'file', path: v.file, count: headings(v.file).filter((h) => h.state).length })),
+        ...VIEWS.map((v) => ({ name: v.name, label: v.label, kind: 'file', path: v.file, count: headings(v.file).filter((h) => h.state).length, ...(SETUP.layout === 'legacy' ? {} : { states: fileKeywords() }) })),
         ...FOLDERS.map((f) => ({ name: f.name, label: f.label, kind: 'folder', count: Object.keys(FILES).filter((p) => p.startsWith(f.dir)).length }))
-      ]
+      ],
+      ...layoutFields()
     })
   }
   if (method === 'GET' && path === '/notes/view') {
@@ -94,6 +124,7 @@ export async function notesRoute(method, path, q, body, ok, err) {
     if (!(p in FILES)) return err(404, 'no such note')
     let text = FILES[p]
     let title = titleOf(p)
+    let state = ''
     if (at) {
       const lines = text.split('\n')
       const m = HEAD.exec(lines[at - 1] || '')
@@ -106,10 +137,11 @@ export async function notesRoute(method, path, q, body, ok, err) {
       }
       text = lines.slice(at - 1, end).join('\n') + '\n'
       title = m[4]
+      state = m[2] || ''
     }
     const ids = { 'seeds-id': 'roam/projects/seeds.org', 'garden-id': 'roam/projects/garden.org' }
     const links = [...text.matchAll(/\[\[id:([^\]]+)\](?:\[([^\]]*)\])?\]/g)].filter((m) => ids[m[1]]).map((m) => ({ label: m[2] || m[1], path: ids[m[1]] }))
-    return ok({ path: p, at, title, text, links, chats: CHATS[`${p}\t${title}`] || [] })
+    return ok({ path: p, at, title, text, links, chats: CHATS[`${p}\t${title}`] || [], ...(SETUP.layout === 'legacy' ? {} : { state, states: fileKeywords() }) })
   }
   if (method === 'GET' && path === '/notes/search') {
     const needle = (q.get('q') || '').toLowerCase()
@@ -316,6 +348,7 @@ export function mockNotesControl(q) {
     FILES = fixtures()
     SETUP.unset = false
     SETUP.paragtd = false
+    SETUP.layout = 'paragtd'
     for (const k of Object.keys(CHATS)) delete CHATS[k]
     screenPolls = 0
     NOTES_LOG.asked.length = NOTES_LOG.captures.length = NOTES_LOG.said.length = NOTES_LOG.setup.length = NOTES_LOG.edits.length = KEYS_LOG.length = 0
@@ -324,6 +357,7 @@ export function mockNotesControl(q) {
     FILES = {}
     SETUP.unset = true
   }
+  if (q.get('layout')) SETUP.layout = q.get('layout')
   if (q.get('drop')) {
     // A heading taken away behind the app's back (an edit at the desk).
     for (const p of Object.keys(FILES)) FILES[p] = FILES[p].split('\n').filter((ln) => HEAD.exec(ln)?.[4] !== q.get('drop')).join('\n')
