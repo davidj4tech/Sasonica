@@ -232,6 +232,16 @@ export interface StateChanged {
   /** A repeating item: not closed, moved on to `next`. */
   repeated: boolean
   next?: string
+  /** A sequenced step's trigger: `ran` (the next step is `triggered`), `skipped` (a trigger only Emacs runs), or `no next step`. */
+  trigger?: string
+  triggered?: { title: string; state: string; scheduled?: string; at: number }
+}
+
+/** What closing a step set going, in a sentence ('' for nothing). */
+export function triggeredText(r: StateChanged): string {
+  if (r.triggered) return `Next: ${r.triggered.title}${r.triggered.scheduled ? `, on ${r.triggered.scheduled}` : ''}.`
+  if (r.trigger === 'skipped') return 'Its trigger runs in Emacs, not here.'
+  return ''
 }
 
 /** A refile target's name, from GET /notes `refile_targets`. */
