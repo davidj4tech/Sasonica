@@ -1,6 +1,6 @@
 /**
  * The thread's actions as sheets: the list's long-press menu (Share into…, Rename,
- * Auto rename, Move to project…, Exit session, Archive / Unarchive, Exit & archive); an exit
+ * Auto rename, Move to project…, Exit session, Exit & archive, Archive / Unarchive); an exit
  * asks no confirmation (a send resumes it). The thread header's ⋮ menu offers the
  * same items (sessionMenuItems), so both places say the same thing.
  *
@@ -29,12 +29,18 @@ export const ACTION_LABEL: Record<SessionAction, string> = {
   'exit-archive': 'Exit & archive'
 }
 
-/** What a thread offers: its speech level, exit only while it runs, one archive toggle, the pair when it runs and is not archived. */
+/**
+ * What a thread offers: its speech level, exit only while it runs, the pair when
+ * it runs and is not archived, and Unarchive last. A running thread has no plain
+ * Archive (David, 24 Sep 2026): archiving ends nothing, so it only hid a session
+ * that went on working; Exit & archive is the way to file one that runs.
+ */
 export function sessionMenuItems(live: boolean, archived: boolean): SessionAction[] {
   const items: SessionAction[] = ['share', 'rename', 'auto-rename', 'move', 'speech']
   if (live) items.push('exit')
-  items.push(archived ? 'unarchive' : 'archive')
   if (live && !archived) items.push('exit-archive')
+  if (archived) items.push('unarchive')
+  else if (!live) items.push('archive')
   return items
 }
 
