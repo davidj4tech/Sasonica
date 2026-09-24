@@ -118,6 +118,11 @@ a { color: var(--accent); }
 /* The move picker's list of projects: it takes the room the sheet has and
    scrolls, like the filter menu (components/SessionSheets.tsx). */
 .project-list { max-height: min(50vh, 20rem); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+/* The scrolling column squeezed its rows to their min-height, and a long
+   name (a worktree's) ran over the next rows (David's screenshot, 25 Sep
+   2026) — the Share sheet's fix: rows keep their height, the name wraps. */
+.project-list > * { flex: none; }
+.project-list button { padding: 8px 12px; overflow-wrap: anywhere; }
 .notice { margin: 12px 16px; color: var(--muted); }
 .error, .notice.error { color: var(--bad); }
 /* A snapshot is on screen and the server has not confirmed it yet. Quiet on
