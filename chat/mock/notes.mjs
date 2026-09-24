@@ -72,6 +72,13 @@ const FOLDERS = [
   { name: 'roam-sessions', label: 'Agent sessions', dir: 'roam/sessions/' }
 ]
 
+// What a paragtd server offers beyond To-do and Note (§6.10 capture_kinds).
+const CAPTURE_KINDS = [
+  { name: 'n', label: 'Next action', path: 'next-actions.org', fields: [], needs_text: true },
+  { name: 'k', label: 'Tickler / defer until', path: 'tickler.org', fields: [{ id: 'f0', label: 'Date and time', type: 'datetime', active: true }], needs_text: true },
+  { name: 'rp', label: 'New Partner', path: 'roleplay/inbox.org', fields: [{ id: 'f0', label: 'Name', type: 'text' }, { id: 'f1', label: 'Tone', type: 'choice', options: ['Calm', 'Playful'] }], needs_text: false }
+]
+
 const fileKeywords = () => (SETUP.layout === 'plain' ? PLAIN_KEYWORDS : KEYWORDS)
 
 /** GET /notes' fields past `views`, as the layout has them. */
@@ -82,10 +89,11 @@ function layoutFields() {
       profile: null,
       capture_file: 'inbox.org',
       states: PLAIN_KEYWORDS,
-      refile_targets: VIEWS.map((v) => ({ name: v.name, label: v.label, path: v.file }))
+      refile_targets: VIEWS.map((v) => ({ name: v.name, label: v.label, path: v.file })),
+      capture_kinds: []
     }
   }
-  return { profile: 'paragtd', capture_file: 'inbox.org', states: KEYWORDS, refile_targets: REFILE_TARGETS }
+  return { profile: 'paragtd', capture_file: 'inbox.org', states: KEYWORDS, refile_targets: REFILE_TARGETS, capture_kinds: CAPTURE_KINDS }
 }
 
 export async function notesRoute(method, path, q, body, ok, err) {
@@ -160,6 +168,16 @@ export async function notesRoute(method, path, q, body, ok, err) {
   }
   if (method === 'POST' && path === '/notes/capture') {
     const text = String(body.text || '').trim()
+    const tpl = CAPTURE_KINDS.find((k) => k.name === body.kind)
+    if (tpl) {
+      // A template, filled roughly: what matters here is what the app sent.
+      if (tpl.needs_text && !text) return err(400, 'nothing to capture')
+      for (const f of tpl.fields) if (!String(body.fields?.[f.id] || '').trim()) return err(400, `${f.label}: nothing given`)
+      NOTES_LOG.captures.push({ text, kind: tpl.name, fields: body.fields || {} })
+      const before = FILES[tpl.path] || ''
+      FILES[tpl.path] = before + `* ${text || Object.values(body.fields || {}).join(' ')}\n`
+      return ok({ path: tpl.path, at: before.split('\n').length, kind: tpl.name, remembered: !!text })
+    }
     if (!text) return err(400, 'nothing to capture')
     const kind = body.kind === 'note' ? 'note' : 'todo'
     const [first, ...rest] = text.split('\n')

@@ -90,6 +90,8 @@ export function saveNoteShow(show: NoteShow) {
 // its done keywords are whatever it declares (lib/notesMeta.ts).
 const LATER_STATES = new Set(['WAITING', 'SOMEDAY'])
 const isDone = (state: string) => doneWords(notesMeta()).has(state)
+// paragtd keeps someday as a place, not a keyword: its someday.org.
+const SOMEDAY_FILE = /(^|\/)someday\.org$/
 
 /** True while nothing has been changed — the chip stays a plain "Show". */
 export function isDefaultShow(show: NoteShow): boolean {
@@ -103,10 +105,12 @@ export function shownCount(show: NoteShow): number {
 
 /** The items the Show menu leaves in. A folder's notes always stay. */
 export function showNotes(items: NoteItem[], show: NoteShow): NoteItem[] {
+  // In the Someday list itself everything is someday: the switch would empty it.
+  const mixed = items.some((it) => isHeading(it) && !SOMEDAY_FILE.test(it.path))
   return items.filter((it) => {
     if (!isHeading(it)) return true
     if (isDone(it.state)) return show.done
-    if (LATER_STATES.has(it.state)) return show.waiting
+    if (LATER_STATES.has(it.state) || (mixed && SOMEDAY_FILE.test(it.path))) return show.waiting
     if (!it.state) return show.plain
     return true
   })

@@ -42,6 +42,7 @@ export interface NotesIndex {
   capture_file?: string
   states?: NoteStates
   refile_targets?: RefileTargetInfo[]
+  capture_kinds?: CaptureTemplate[]
 }
 
 /** A heading in a GTD file, or an agenda entry (which adds `date`, `overdue`). */
@@ -115,7 +116,26 @@ export interface SearchResult {
   memories: MemoryHit[]
 }
 
-export type CaptureKind = 'todo' | 'note'
+/** The two plain kinds, or a capture template's key (`NotesIndex.capture_kinds`). */
+export type CaptureKind = string
+
+/** A prompt in a capture template (§6.10): a date value is YYYY-MM-DD or YYYY-MM-DDTHH:MM. */
+export interface CaptureField {
+  id: string
+  label: string
+  type: 'text' | 'choice' | 'date' | 'datetime'
+  options?: string[]
+  active?: boolean
+}
+
+/** A capture template the server can fill. `needs_text` false: the text may be empty. */
+export interface CaptureTemplate {
+  name: string
+  label: string
+  path: string
+  fields: CaptureField[]
+  needs_text: boolean
+}
 
 export interface Captured {
   path: string
@@ -149,6 +169,11 @@ export interface SetupRun {
   created?: string[]
   pane?: string
   cmd?: string
+  /** astro: the years just generated. */
+  added?: number[]
+  /** agenda import: how many agenda files, and the keywords, came from Emacs. */
+  files?: number
+  keywords?: string[]
 }
 
 /** A setup window, as /harnesses/screen shows it (§6.6). */
@@ -180,8 +205,8 @@ export function searchNotes(text: string, opts: { all?: boolean; signal?: AbortS
 }
 
 /** REAL on the server: appends to inbox.org and writes a memory. Test on the mock. */
-export function captureNote(text: string, kind: CaptureKind = 'todo') {
-  return request<Captured>('POST', '/notes/capture', { text, kind })
+export function captureNote(text: string, kind: CaptureKind = 'todo', fields?: Record<string, string>) {
+  return request<Captured>('POST', '/notes/capture', { text, kind, ...(fields ? { fields } : {}) })
 }
 
 /** REAL on the server: the voice reads it out. Test on the mock. */

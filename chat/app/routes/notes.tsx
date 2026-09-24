@@ -25,6 +25,7 @@ import {
   isHeading,
   searchNotes,
   type CaptureKind,
+  type CaptureTemplate,
   type NoteHeading,
   type NoteItem,
   type NoteView,
@@ -32,6 +33,7 @@ import {
 } from '../api/notes'
 import { noteHref, StateBadge } from '../lib/org'
 import { useMarkDone } from '../hooks/useMarkDone'
+import { CaptureSheet } from '../components/CaptureSheet'
 import { canMarkDone, notesMeta, setNotesMeta, useNotesMeta } from '../lib/notesMeta'
 import {
   isDefaultShow,
@@ -442,18 +444,38 @@ function Search() {
 function Capture({ onSaved }: { onSaved: () => void }) {
   const [text, setText] = useState('')
   const [kind, setKind] = useState<CaptureKind>('todo')
+  // A capture template (More…): its prompts are drawn above the box.
+  const [template, setTemplate] = useState<CaptureTemplate | null>(null)
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null)
+  const meta = useNotesMeta()
+
+  const choose = (k: CaptureKind) => {
+    setKind(k)
+    setTemplate(null)
+  }
+  const pick = (t: CaptureTemplate) => {
+    setPicking(false)
+    setKind(t.name)
+    setTemplate(t)
+    setValues(Object.fromEntries(t.fields.filter((f) => f.type === 'choice').map((f) => [f.id, f.options?.[0] || ''])))
+  }
+  const ready = (template ? !template.needs_text || !!text.trim() : !!text.trim()) && (template?.fields || []).every((f) => !!values[f.id]?.trim())
 
   const save = async () => {
     const t = text.trim()
-    if (!t || busy) return
+    if (!ready || busy) return
     setBusy(true)
     setNote(null)
     try {
-      await captureNote(t, kind)
+      const r = await captureNote(t, kind, template ? values : undefined)
       setText('')
-      setNote({ text: kind === 'todo' ? 'Added to the inbox.' : 'Noted in the inbox.' })
+      setNote({ text: template ? `Filed in ${r.path.replace(/\.org$/, '')}.` : kind === 'todo' ? 'Added to the inbox.' : 'Noted in the inbox.' })
+      // Back to a plain to-do, so the next quick capture is not filed by the last template.
+      choose('todo')
+      setValues({})
       onSaved()
     } catch (err) {
       setNote({ text: err instanceof ApiError ? err.message : message(err), failed: true })
@@ -471,13 +493,41 @@ function Capture({ onSaved }: { onSaved: () => void }) {
       }}
     >
       {note && <p className={note.failed ? 'capture-note error' : 'capture-note'}>{note.text}</p>}
+      {template && template.fields.length > 0 && (
+        <div className="capture-fields">
+          {template.fields.map((f) => (
+            <label key={f.id}>
+              <span>{f.label}</span>
+              {f.type === 'choice' ? (
+                <select value={values[f.id] || ''} onChange={(e) => setValues({ ...values, [f.id]: e.target.value })}>
+                  {(f.options || []).map((o) => (
+                    <option key={o}>{o}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={f.type === 'date' ? 'date' : f.type === 'datetime' ? 'datetime-local' : 'text'}
+                  value={values[f.id] || ''}
+                  onChange={(e) => setValues({ ...values, [f.id]: e.target.value })}
+                  required
+                />
+              )}
+            </label>
+          ))}
+        </div>
+      )}
       <div className="capture-row">
         <div className="capture-kind" role="radiogroup" aria-label="Kind">
           {(['todo', 'note'] as const).map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={kind === k} className={kind === k ? 'on' : undefined} onClick={() => setKind(k)}>
+            <button key={k} type="button" role="radio" aria-checked={kind === k} className={kind === k ? 'on' : undefined} onClick={() => choose(k)}>
               {k === 'todo' ? 'To-do' : 'Note'}
             </button>
           ))}
+          {meta.captureKinds.length > 0 && (
+            <button type="button" role="radio" aria-checked={!!template} className={template ? 'on' : undefined} onClick={() => setPicking(true)} title={template ? template.label : 'More kinds'}>
+              {template ? template.label.split(/[ (/]/, 1)[0] : 'More…'}
+            </button>
+          )}
         </div>
         <textarea
           value={text}
@@ -490,13 +540,14 @@ function Capture({ onSaved }: { onSaved: () => void }) {
               void save()
             }
           }}
-          placeholder={kind === 'todo' ? 'Something to do…' : 'A thought to keep…'}
+          placeholder={template ? `${template.label}${template.needs_text ? '…' : ' (anything else)'}` : kind === 'todo' ? 'Something to do…' : 'A thought to keep…'}
           aria-label="Capture"
         />
-        <button className="notes-button primary" type="submit" disabled={!text.trim() || busy}>
+        <button className="notes-button primary" type="submit" disabled={!ready || busy}>
           {busy ? '…' : 'Save'}
         </button>
       </div>
+      {picking && <CaptureSheet kinds={meta.captureKinds} onPick={pick} onClose={() => setPicking(false)} />}
     </form>
   )
 }

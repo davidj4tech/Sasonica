@@ -11,16 +11,30 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router'
 import { hasCredential } from '../api/auth'
-import { getNotesSetup, runNotesSetup, type SetupComponent, type SetupStatus } from '../api/notes'
+import { getNotesSetup, runNotesSetup, type SetupComponent, type SetupRun, type SetupStatus } from '../api/notes'
 import { SetupWindow } from '../components/SetupWindow'
 import '../notes.css'
+
+const labelOf = (component: string, action: string) => ACTION_LABEL[`${component}:${action}`] || ACTION_LABEL[action] || action
+
+/** What a quick action says it did. */
+function doneText(r: SetupRun): string {
+  if (r.created?.length) return `Created ${r.created.join(', ')}.`
+  if (r.added) return r.added.length ? `Added ${r.added.join(' and ')}.` : 'Nothing was missing.'
+  if (typeof r.files === 'number') return `Copied ${r.files} agenda file${r.files === 1 ? '' : 's'}${r.keywords?.length ? ' and your TODO keywords' : ''} from Emacs.`
+  return 'Done.'
+}
 
 const ACTION_LABEL: Record<string, string> = {
   create: 'Start fresh notes',
   clone: 'Clone my notes',
   enable: 'Turn on sync',
   install: 'Install',
-  update: 'Update'
+  update: 'Update',
+  // Per component, where one action word means different things.
+  'agenda:import': 'Copy from Emacs',
+  'astro:enable': 'Keep a year ahead',
+  'astro:run': 'Add missing years now'
 }
 
 const STATE_LABEL: Record<string, string> = {
@@ -68,8 +82,8 @@ function SetupPage() {
     setNote(null)
     try {
       const r = await runNotesSetup(c.name, action)
-      if (r.pane) setPane({ pane: r.pane, label: `${c.label}: ${ACTION_LABEL[action] || action}` })
-      else setNote({ text: r.created?.length ? `Created ${r.created.join(', ')}.` : 'Done.' })
+      if (r.pane) setPane({ pane: r.pane, label: `${c.label}: ${labelOf(c.name, action)}` })
+      else setNote({ text: doneText(r) })
       load()
     } catch (err) {
       setNote({ text: message(err), failed: true })
@@ -111,7 +125,7 @@ function SetupPage() {
                   <div className="setup-actions">
                     {c.actions.map((a) => (
                       <button key={a} className={c.state === 'ok' ? 'notes-button' : 'notes-button primary'} disabled={!!busy || !!pane} onClick={() => void run(c, a)}>
-                        {busy === `${c.name}:${a}` ? '…' : ACTION_LABEL[a] || a}
+                        {busy === `${c.name}:${a}` ? '…' : labelOf(c.name, a)}
                       </button>
                     ))}
                   </div>

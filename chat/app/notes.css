@@ -46,6 +46,10 @@
 .capture-kind { display: flex; flex-direction: column; gap: 2px; flex: none; }
 .capture-kind button { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; font-size: .733rem; color: var(--muted); cursor: pointer; }
 .capture-kind button.on { color: var(--text); border-color: var(--accent); }
+.capture-fields { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 8px; }
+.capture-fields label { display: flex; flex-direction: column; gap: 2px; font-size: .733rem; color: var(--muted); flex: 1 1 9rem; min-width: 0; }
+.capture-fields input, .capture-fields select { font-size: .933rem; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0; }
+.capture-sheet .capture-where { display: block; font-size: .733rem; color: var(--muted); }
 .capture-note { margin: 0 0 6px; color: var(--muted); font-size: .8rem; }
 .capture-note.error { color: var(--bad); }
 
