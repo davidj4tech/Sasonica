@@ -495,10 +495,13 @@ a { color: var(--accent); }
 .msg-key { flex: none; width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; border-radius: 50%; color: var(--muted); opacity: .75; cursor: pointer; padding: 0; }
 .msg-key .ico { width: 1.6rem; height: 1.6rem; }
 .msg-key.on { color: var(--accent); opacity: 1; }
-/* An unheard reply (held for the listener): a big filled key, not the faint one. */
-.msg-key.unheard { width: 56px; height: 56px; margin-left: .25rem; background: var(--accent); color: var(--bg); opacity: 1; box-shadow: 0 0 0 0 var(--accent); animation: unheard-ring 2.4s ease-out infinite; }
-.msg-key.unheard .ico { width: 1.7rem; height: 1.7rem; }
-@keyframes unheard-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); } 70%, 100% { box-shadow: 0 0 0 12px transparent; } }
+/* An unheard reply (held for the listener): a tinted key at the top of the
+   reply, not a big green disc at its foot, where it read as Send (David, 25 Sep
+   2026). A tall reply shows it once, at the top. */
+.msg-keys:has(.unheard) { justify-content: flex-start; }
+.msg-keys > .msg-key.unheard:not(:first-child) { display: none; }
+.msg-key.unheard { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); opacity: 1; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+.msg-key.unheard .ico { width: 1.4rem; height: 1.4rem; }
 
 /* The full set, as a sheet over the page. */
 .speech-sheet-wrap { position: fixed; inset: 0; z-index: 20; background: #0009; display: flex; align-items: flex-end; justify-content: center; }
@@ -681,7 +684,7 @@ a { color: var(--accent); }
 .output-options .option.on { border-color: var(--accent); }
 
 @media (prefers-reduced-motion: reduce) {
-  .live-pulse, .svc-dot.up, .online-dot.up, .speak-dot.on, .dot.working, .updating, .playing-mark.speaking i, .msg-key.unheard { animation: none; }
+  .live-pulse, .svc-dot.up, .online-dot.up, .speak-dot.on, .dot.working, .updating, .playing-mark.speaking i { animation: none; }
   .mem-ring .arc { transition: none; }
 }
 

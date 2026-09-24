@@ -1,4 +1,4 @@
-// A held reply's play key is the big one; the list and home mark the
+// A held reply's play key is tinted and sits at the reply's top; the list and home mark the
 // conversation the voice is on. Run against a mock with MOCK_UNHEARD=1.
 import { chromium, SHOTS } from './lib.mjs'
 const BASE = process.env.BASE || 'http://127.0.0.1:8816'
@@ -21,16 +21,17 @@ await page.evaluate(([base, res]) => {
   localStorage.setItem('sasonica.chat.device', JSON.stringify({ token: res.token, device_id: res.device_id, name: 't', server: res.server, pairedAt: Date.now() }))
 }, [BASE, pr])
 
-// The big key on the held reply, the faint one on the reply before it.
+// The tinted key on the held reply, the faint one on the reply before it.
 await page.goto(BASE + '/t/' + sid('Mock: shelved conversation'))
 await page.waitForSelector('.msg.agent .msg-key')
-const keys = await page.evaluate(() => [...document.querySelectorAll('.msg.agent')].map((m) => { const k = m.querySelector('.msg-keys .msg-key:last-child'); const r = k.getBoundingClientRect(); return { unheard: k.classList.contains('unheard'), w: Math.round(r.width) } }))
+const keys = await page.evaluate(() => [...document.querySelectorAll('.msg.agent')].map((m) => { const k = m.querySelector('.msg-keys .msg-key:last-child'); const r = k.getBoundingClientRect(); const b = m.querySelector('.bubble').getBoundingClientRect(); return { unheard: k.classList.contains('unheard'), w: Math.round(r.width), top: Math.round(r.top - b.top), bg: getComputedStyle(k).backgroundColor } }))
 ok(keys.length >= 2 && keys.at(-1).unheard && !keys[0].unheard, `only the held reply is unheard (${JSON.stringify(keys)})`)
-ok(keys.at(-1).w >= 54 && keys[0].w <= 44, `its key is big (${keys.at(-1).w}px vs ${keys[0].w}px)`)
+ok(keys.at(-1).w <= 44 && Math.abs(keys.at(-1).top) <= 4, `its key is no bigger and sits at the reply's top, away from Send (${JSON.stringify(keys.at(-1))})`)
+ok(keys.at(-1).bg !== 'rgba(0, 0, 0, 0)' && keys[0].bg === 'rgba(0, 0, 0, 0)', 'only the held reply\'s key is tinted')
 await page.screenshot({ path: `${SHOTS}/unheard-thread.png` })
 await page.locator('.msg-key.unheard').last().click()
 await page.waitForTimeout(300)
-ok(posts.some((p) => p.p === '/speech/ctl' && JSON.parse(p.body).action === 'replay-id'), 'the big key replays that row (replay-id)')
+ok(posts.some((p) => p.p === '/speech/ctl' && JSON.parse(p.body).action === 'replay-id'), 'the tinted key replays that row (replay-id)')
 
 // The list: bars on the conversation being said.
 await page.goto(BASE + '/threads')

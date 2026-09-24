@@ -36,7 +36,7 @@
 //           vanished heading
 //   draft   the composer's text per thread: switch, reload, hidden, a newer
 //           copy from another device, send clears it, new chat
-//   unheard  a held reply's big play key; the list and home mark the
+//   unheard  a held reply's tinted play key at its top; the list and home mark the
 //           conversation the voice is on
 //   stream  the thread is its §11 stream: a new message renders < 1 s after
 //           the transcript append with no polling; reasoning collapsed;
