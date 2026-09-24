@@ -15,6 +15,7 @@
  * server, as the Nuxt reply box does. Nothing is held client-side.
  */
 import { AutoGrowTextarea } from './AutoGrow'
+import { MentionPicker } from './MentionPicker'
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
@@ -562,6 +563,7 @@ export function Thread(props: ThreadProps) {
               {!props.readOnly && (
               <>
               <ComposerPrimitive.Root className="composer">
+                <MentionPicker />
                 {/*
                   Enter is a new line, everywhere: a message to an agent is
                   often several lines, and a stray Enter must not send half

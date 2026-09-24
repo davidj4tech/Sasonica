@@ -5,7 +5,7 @@
  * threads are warmed in the background (hooks/usePrefetch.ts).
  */
 import { useRef, useState } from 'react'
-import { Link, Navigate } from 'react-router'
+import { Link, Navigate, useNavigate } from 'react-router'
 import { RenameSheet } from '../components/RenameSheet'
 import { useAutoRename, useRename } from '../hooks/useRename'
 import { useTitle } from '../lib/titles'
@@ -18,7 +18,9 @@ import { usePrefetch } from '../hooks/usePrefetch'
 import { useSessionStates, useTargets } from '../hooks/useThreads'
 import { Mark } from '../components/Mark'
 import { HomeTabs, ThreadSearchLink } from '../components/Nav'
-import { ProjectPickerSheet, SessionMenuSheet, type SessionAction } from '../components/SessionSheets'
+import { ProjectPickerSheet, SessionMenuSheet, ShareSheet, type SessionAction } from '../components/SessionSheets'
+import { chipIntoDraft } from '../lib/refs'
+import { NEW_CHAT } from '../lib/drafts'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { archivedOf, endedHere, projectOverrideOf, useSessionFlags } from '../lib/sessionFlags'
 import { Popover } from '../components/Popover'
@@ -84,6 +86,8 @@ function ThreadList() {
   const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
   const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean; priority: boolean } | null>(null)
   const [moving, setMoving] = useState<{ session: string; title: string; live: boolean } | null>(null)
+  const [sharing, setSharing] = useState<{ session: string; title: string } | null>(null)
+  const navigate = useNavigate()
   const [showArchived, setShowArchived] = useState(false)
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null)
   const [sort, setSortState] = useState<ThreadSort>(() => loadThreadSort())
@@ -157,6 +161,7 @@ function ThreadList() {
     setMenu(null)
     if (!m) return
     if (a === 'rename') setRenaming({ session: m.session, title: m.title })
+    else if (a === 'share') setSharing(m)
     else if (a === 'move') setMoving(m)
     else if (a === 'auto-rename') {
       setNote({ text: 'Thinking of a name…' })
@@ -321,6 +326,18 @@ function ThreadList() {
         {showArchived && archivedList.map((e) => entryOf(e, 'archived'))}
       </ul>
 
+      {sharing && (
+        <ShareSheet
+          title={sharing.title}
+          session={sharing.session}
+          onClose={() => setSharing(null)}
+          onPick={(to) => {
+            setSharing(null)
+            chipIntoDraft(to === 'new' ? NEW_CHAT : to.session, sharing.title, sharing.session)
+            navigate(to === 'new' ? '/new' : `/t/${encodeURIComponent(to.session)}`, to === 'new' ? undefined : { state: { title: to.title } })
+          }}
+        />
+      )}
       {menu && <SessionMenuSheet title={menu.title} live={menu.live} archived={menu.archived} priority={menu.priority} onPick={pick} onClose={() => setMenu(null)} />}
       {moving && (
         <ProjectPickerSheet

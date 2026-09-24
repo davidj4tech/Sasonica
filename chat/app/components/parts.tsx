@@ -12,13 +12,15 @@ import {
   type TextMessagePartComponent,
   type ToolCallMessagePartComponent
 } from '@assistant-ui/react'
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PropsWithChildren } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PropsWithChildren, type ReactNode } from 'react'
 import type { Approval, ApprovalQuestion, QuestionAnswer, Working } from '../api/types'
 import { useSpeechActions } from '../hooks/useSpeech'
 import { IconPause, IconPlay } from './SpeechBar'
 import type { ApprovalArgs, AskArgs, LineCustom, StepArgs } from '../lib/convert'
 import { useShowAmbient } from '../lib/pictures'
 import { duration, liveParts, sentenceAt, type LiveClock } from '../lib/followAlong'
+import { Link } from 'react-router'
+import { REF_LINE, refsIn } from '../lib/refs'
 
 /** What the tool UIs need from the thread page. */
 export interface ThreadActions {
@@ -135,7 +137,44 @@ export const LineText: TextMessagePartComponent = ({ text }) => {
   // A spoken reply that is not playing: its history row, for "Read from
   // here" on a selection (components/ReadFromHere.tsx).
   if (custom.id && text === custom.liveText) return <p className="line-text" data-rid={custom.id}>{text}</p>
+  if (text.includes('@[')) return <p className="line-text">{chipped(text)}</p>
   return <p className="line-text">{text}</p>
+}
+
+const CHIP = /@\[([^[\]\n]{1,200})\]/g
+
+/**
+ * A message that names other threads by chip (lib/refs.ts): the server's
+ * lines at its foot go, and each chip becomes a link to its thread — the
+ * session from those lines, else the one this device remembers.
+ */
+function chipped(text: string): ReactNode[] {
+  const known: Record<string, string> = { ...refsIn(text) }
+  const body = text.replace(REF_LINE, (_all, label: string, session: string) => {
+    known[label.trim()] = session
+    return ''
+  })
+  const out: ReactNode[] = []
+  let last = 0
+  for (const m of body.matchAll(CHIP)) {
+    const label = m[1].trim()
+    out.push(body.slice(last, m.index))
+    const session = known[label]
+    out.push(
+      session ? (
+        <Link key={m.index} className="ref-chip" to={`/t/${encodeURIComponent(session)}`} state={{ title: label }}>
+          @{label}
+        </Link>
+      ) : (
+        <span key={m.index} className="ref-chip">
+          @{label}
+        </span>
+      )
+    )
+    last = m.index + m[0].length
+  }
+  out.push(body.slice(last))
+  return out
 }
 
 // ── Reasoning and tool steps ──────────────────────────────────────────────

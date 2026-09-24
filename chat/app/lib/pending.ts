@@ -19,6 +19,7 @@
  */
 import type { Line, Message } from '../api/types'
 import { userText } from './messages'
+import { withoutRefLines } from './refs'
 
 /** What the matcher reads of a line or a message: who said it, when, the words, the chip. */
 export type Said = Pick<Line, 'who' | 'at' | 'text' | 'command'>
@@ -60,6 +61,8 @@ function sameWords(line: Said, sent: string): boolean {
   if (!want) return false
   const got = normaliseWords(line.text || '')
   if (got === want) return true
+  // A send with chips comes back with the server's line per chip at its foot.
+  if (normaliseWords(withoutRefLines(line.text || '')) === want) return true
   if (normaliseWords((line.text || '').replace(QUOTE_PREFIX, '')) === want) return true
   const chip = line.command && typeof line.command.text === 'string' ? normaliseWords(line.command.text) : ''
   if (chip && (chip === want || `${chip} ${got}`.trim() === want)) return true

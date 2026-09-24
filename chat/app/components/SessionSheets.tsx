@@ -1,6 +1,6 @@
 /**
- * The thread's actions as sheets: the list's long-press menu (Rename, Auto rename,
- * Move to project…, Exit session, Archive / Unarchive, Exit & archive); an exit
+ * The thread's actions as sheets: the list's long-press menu (Share into…, Rename,
+ * Auto rename, Move to project…, Exit session, Archive / Unarchive, Exit & archive); an exit
  * asks no confirmation (a send resumes it). The thread header's ⋮ menu offers the
  * same items (sessionMenuItems), so both places say the same thing.
  *
@@ -8,14 +8,16 @@
  * restarts (§6.15: the agent cannot change directory mid-session), because that
  * is the one thing about it nobody would guess.
  */
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { candidates, matching, type RefCandidate } from '../lib/refs'
 import type { ProjectOption } from '../lib/threadSort'
 import { useScrim } from '../lib/layers'
 import { createPortal } from 'react-dom'
 
-export type SessionAction = 'rename' | 'auto-rename' | 'move' | 'always-speak' | 'normal-speak' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
+export type SessionAction = 'share' | 'rename' | 'auto-rename' | 'move' | 'always-speak' | 'normal-speak' | 'exit' | 'archive' | 'unarchive' | 'exit-archive'
 
 export const ACTION_LABEL: Record<SessionAction, string> = {
+  share: 'Share into…',
   rename: 'Rename…',
   'auto-rename': 'Auto rename',
   move: 'Move to project…',
@@ -29,7 +31,7 @@ export const ACTION_LABEL: Record<SessionAction, string> = {
 
 /** What a thread offers: one always-speak toggle, exit only while it runs, one archive toggle, the pair when it runs and is not archived. */
 export function sessionMenuItems(live: boolean, archived: boolean, priority = false): SessionAction[] {
-  const items: SessionAction[] = ['rename', 'auto-rename', 'move', priority ? 'normal-speak' : 'always-speak']
+  const items: SessionAction[] = ['share', 'rename', 'auto-rename', 'move', priority ? 'normal-speak' : 'always-speak']
   if (live) items.push('exit')
   items.push(archived ? 'unarchive' : 'archive')
   if (live && !archived) items.push('exit-archive')
@@ -119,6 +121,55 @@ export function ProjectPickerSheet(props: {
           )
         )}
         {others.length === 0 && <p className="action-note">No other project on this server yet.</p>}
+      </div>
+      <div className="row">
+        <button type="button" className="quiet" onClick={props.onClose}>
+          Cancel
+        </button>
+      </div>
+    </Sheet>
+  )
+}
+
+/**
+ * Share into…: where a chip for this thread goes (lib/refs.ts) — a new chat,
+ * or another thread, found by typing a few letters of its title. The chip
+ * lands at the end of that thread's draft and the thread opens, so the words
+ * around it are the reader's to write.
+ */
+export function ShareSheet(props: { title: string; session: string; onPick: (to: RefCandidate | 'new') => void; onClose: () => void }) {
+  const [rows, setRows] = useState<RefCandidate[]>([])
+  const [query, setQuery] = useState('')
+  useEffect(() => {
+    let live = true
+    void candidates().then((all) => live && setRows(all.filter((r) => r.session !== props.session)))
+    return () => {
+      live = false
+    }
+  }, [props.session])
+  const hits = matching(rows, query, 40)
+  return (
+    <Sheet label="Share into" onClose={props.onClose} className="action-sheet share-sheet">
+      <p className="action-title">Share “{props.title}” into…</p>
+      <input
+        className="share-find"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Find a thread"
+        aria-label="Find a thread"
+        enterKeyHint="search"
+      />
+      <div role="menu" className="action-list project-list">
+        <button role="menuitem" onClick={() => props.onPick('new')}>
+          New chat
+        </button>
+        {hits.map((r) => (
+          <button key={r.session} role="menuitem" onClick={() => props.onPick(r)}>
+            {r.title}
+            {r.project && <span className="share-project"> · {r.project}</span>}
+          </button>
+        ))}
+        {rows.length > 0 && hits.length === 0 && <p className="action-note">No thread by that name.</p>}
       </div>
       <div className="row">
         <button type="button" className="quiet" onClick={props.onClose}>
