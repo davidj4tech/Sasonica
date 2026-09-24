@@ -6,6 +6,7 @@
 //           date, and ✓ Done writes its done keyword
 //   legacy  a server from before those fields: paragtd's keys and targets,
 //           the tickler on a date, as before
+//   sequence  closing a sequenced step says which step is next, and when
 import { chromium, SHOTS } from './lib.mjs'
 const BASE = process.env.BASE || 'http://127.0.0.1:8811'
 let fails = 0
@@ -58,6 +59,20 @@ await page.click('.state-key.move')
 await page.waitForSelector('.move-sheet')
 targets = await page.locator('.move-targets').innerText()
 ok(targets.includes('Tickler (on a date)') && targets.includes('Waiting for'), "paragtd's targets, the tickler on a date")
+await page.context().close()
+
+// 3. A sequenced project: ○ on a step names the next one
+page = await open('paragtd')
+await mock('?sequence=1')
+await page.goto(BASE + '/organiser')
+await page.click('.note-view:has-text("Next actions")')
+await page.waitForSelector('.note-row:has-text("Get photos taken")')
+await page.click('button[aria-label="Mark done: Get photos taken"]')
+await page.waitForSelector('.note-toast:has-text("Next: Fill in the form")')
+ok(/Next: Fill in the form, on \d{4}-\d{2}-\d{2}/.test(await page.locator('.note-toast').innerText()), 'the toast names the next step and its date')
+ok((await mock()).files['next-actions.org'].includes('** NEXT Fill in the form'), 'which is NEXT now')
+ok((await page.locator('.note-toast button:has-text("Undo")').count()) === 0, 'no Undo: it could not take the next step back')
+await page.screenshot({ path: SHOTS + '/notes-layout-02-sequence.png' })
 await page.context().close()
 
 ok(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join('; ') : ''}`)

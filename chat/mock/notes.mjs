@@ -6,7 +6,8 @@
  * app sees a server with no notes (the setup path); `?drop=<title>` takes a
  * heading out, as an edit at the desk would. `?layout=plain` answers as a
  * server on plain Org does (no profile, TODO NEXT | DONE, every file a
- * refile target), `?layout=legacy` as one from before those fields.
+ * refile target), `?layout=legacy` as one from before those fields;
+ * `?sequence=1` adds a sequenced project to Next actions.
  */
 
 // Local dates, not UTC: the app's "Today" is the browser's day, so a UTC
@@ -227,11 +228,21 @@ export async function notesRoute(method, path, q, body, ok, err) {
         FILES[p] = lines.join('\n') + '\n'
         return ok({ path: p, at: i + 1, state: m[2] || '', repeated: true, next })
       }
+      // paragtd's trigger, as the server runs it: the next sibling becomes
+      // NEXT, scheduled N days on. Only the form paragtd writes.
+      let triggered = null
+      const end = lines.findIndex((ln, j) => j > i && /^\*+\s/.test(ln) && HEAD.exec(ln)[1].length <= level)
+      const own = lines.slice(i + 1, end < 0 ? lines.length : end).join('\n')
+      const trig = /:TRIGGER: next-sibling todo!\((\w+)\) scheduled!\("\+\+(\d+)d"\)/.exec(own)
+      if (trig && st === 'DONE' && m[2] !== 'DONE' && end >= 0 && HEAD.exec(lines[end])[1].length === level) {
+        lines[end] = setState(lines[end], trig[1])
+        triggered = { title: HEAD.exec(lines[end])[4], state: trig[1], scheduled: iso(new Date(Date.now() + Number(trig[2]) * 86400e3)), at: end + 2 }
+      }
       lines[i] = setState(lines[i], st)
       if (st === 'DONE' && m[2] !== 'DONE') lines.splice(i + 1, 0, ' '.repeat(level + 1) + `CLOSED: [${today()}]`)
       else if (st !== 'DONE' && m[2] === 'DONE' && /^\s*CLOSED:/.test(lines[i + 1] || '')) lines.splice(i + 1, 1)
       FILES[p] = lines.join('\n') + '\n'
-      return ok({ path: p, at: i + 1, state: st, repeated: false })
+      return ok({ path: p, at: i + 1, state: st, repeated: false, ...(triggered ? { trigger: 'ran', triggered } : {}) })
     }
     const targets = { next: ['next-actions.org', 'Inbox', 'NEXT'], waiting: ['waiting-for.org', 'Waiting', 'WAITING'], tickler: ['tickler.org', 'Tickler', null], someday: ['someday.org', null, null], projects: ['projects.org', null, null], inbox: ['inbox.org', null, null] }
     const t = targets[body.to]
@@ -358,6 +369,10 @@ export function mockNotesControl(q) {
     SETUP.unset = true
   }
   if (q.get('layout')) SETUP.layout = q.get('layout')
+  if (q.get('sequence')) {
+    // A project `paragtd-sequence-subtree` has sequenced, in Next actions.
+    FILES['next-actions.org'] += '* TODO Renew the passport\n:PROPERTIES:\n:ORDERED: t\n:END:\n** NEXT Get photos taken\n:PROPERTIES:\n:TRIGGER: next-sibling todo!(NEXT) scheduled!("++2d")\n:END:\n** TODO Fill in the form\n'
+  }
   if (q.get('drop')) {
     // A heading taken away behind the app's back (an edit at the desk).
     for (const p of Object.keys(FILES)) FILES[p] = FILES[p].split('\n').filter((ln) => HEAD.exec(ln)?.[4] !== q.get('drop')).join('\n')

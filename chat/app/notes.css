@@ -102,7 +102,7 @@
 .done-key { flex: none; width: 2.6rem; display: grid; place-items: center; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: 0; }
 button.done-key:hover, button.done-key:focus-visible { color: var(--accent); }
 .note-toast { position: relative; display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 6px 6px 6px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 2px 12px #0004; flex: none; }
-.note-toast .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-toast .grow { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
 .note-toast.error { border-color: var(--bad); color: var(--bad); }
 
 /* The reader's state keys and Move to… */

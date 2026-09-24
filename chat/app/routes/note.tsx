@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { hasCredential } from '../api/auth'
 import { ApiError } from '../api'
-import { readNote, refileNote, sayNote, setNoteDate, setNotePriority, setNoteState, type DateKind, type NoteState, type NoteText, type RefileTargetInfo } from '../api/notes'
+import { readNote, refileNote, sayNote, triggeredText, setNoteDate, setNotePriority, setNoteState, type DateKind, type NoteState, type NoteText, type RefileTargetInfo } from '../api/notes'
 import { doneWordOf, statesOf, useNotesMeta } from '../lib/notesMeta'
 import { DateSheet } from '../components/DateSheet'
 import { MoveSheet } from '../components/MoveSheet'
@@ -72,7 +72,8 @@ function NotePage() {
     setSaid(null)
     try {
       const r = await setNoteState(path, at, note.title, state)
-      setSaid({ text: r.repeated ? `Repeats — next on ${r.next}.` : state === doneWord ? 'Done.' : `Now ${state || 'a plain heading'}.` })
+      const said = r.repeated ? `Repeats — next on ${r.next}.` : state === doneWord ? 'Done.' : `Now ${state || 'a plain heading'}.`
+      setSaid({ text: [said, triggeredText(r)].filter(Boolean).join(' ') })
       if (r.at !== at) navigate(noteHrefOf(r.path, r.at), { replace: true })
       else setReload((n) => n + 1)
     } catch (err) {
