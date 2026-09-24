@@ -41,6 +41,32 @@ await longPress(shared)
 await page.getByRole('menuitem', { name: 'Share into…' }).click()
 await page.waitForSelector('.share-sheet')
 ok(!(await page.locator('.share-sheet').getByRole('menuitem', { name: 'Mock: shelved conversation' }).count()), 'the sheet does not offer the thread itself')
+// Rows never overlap, however long a title wraps (David's screenshot, 24 Sep 2026):
+// the largest text on a narrow screen, so the titles wrap.
+await page.evaluate(() => localStorage.setItem('sasonica.chat.textSize2', 'largest'))
+await page.setViewportSize({ width: 300, height: 780 })
+await page.reload()
+await page.getByRole('menuitem', { name: 'Share into…' }).waitFor().catch(() => {})
+if (!(await page.locator('.share-sheet').count())) {
+  await longPress(shared)
+  await page.getByRole('menuitem', { name: 'Share into…' }).click()
+  await page.waitForSelector('.share-sheet')
+}
+const wrapped = await page.evaluate(() => [...document.querySelectorAll('.share-sheet .share-title')].some((t) => t.getClientRects().length > 1 || t.offsetHeight > 40))
+ok(wrapped, 'some titles wrap at this size (the case being tested)')
+await page.screenshot({ path: SHOTS + '/refs-00-share-largest.png' })
+const overlaps = await page.evaluate(() => {
+  const r = [...document.querySelectorAll('.share-sheet .action-list button')].map((b) => b.getBoundingClientRect())
+  return r.filter((a, i) => i && a.top < r[i - 1].bottom - 1).length + [...document.querySelectorAll('.share-sheet .action-list button')].filter((b) => b.scrollHeight > b.clientHeight + 1).length
+})
+ok(overlaps === 0, `share rows hold their text, none overlapping (${overlaps})`)
+await page.evaluate(() => localStorage.setItem('sasonica.chat.textSize2', 'default'))
+await page.setViewportSize({ width: 390, height: 780 })
+await page.reload()
+await page.waitForSelector('.thread-row')
+await longPress(shared)
+await page.getByRole('menuitem', { name: 'Share into…' }).click()
+await page.waitForSelector('.share-sheet')
 await page.locator('.share-find').fill('not on the')
 await page.screenshot({ path: SHOTS + '/refs-01-share-sheet.png' })
 await page.locator('.share-sheet').getByRole('menuitem', { name: /not on the shelf yet/ }).click()

@@ -165,8 +165,8 @@ export function ShareSheet(props: { title: string; session: string; onPick: (to:
         </button>
         {hits.map((r) => (
           <button key={r.session} role="menuitem" onClick={() => props.onPick(r)}>
-            {r.title}
-            {r.project && <span className="share-project"> · {r.project}</span>}
+            <span className="share-title">{r.title}</span>
+            {r.project && <span className="share-project">{r.project}</span>}
           </button>
         ))}
         {rows.length > 0 && hits.length === 0 && <p className="action-note">No thread by that name.</p>}

@@ -300,6 +300,12 @@ a { color: var(--accent); }
 .mention-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mention-project, .share-project { color: var(--muted); font-size: .85em; }
 .share-find { margin-bottom: 6px; }
+/* A scrolling column squeezes its rows to their min-height, and a wrapped
+   title then ran over the next one: rows keep their height, the title wraps,
+   the project sits under it. */
+.share-sheet .action-list button { flex: none; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 12px; }
+.share-sheet .share-title { overflow-wrap: anywhere; }
+.share-sheet .share-project { font-size: .8em; }
 .composer .stop { background: var(--panel-2); color: var(--text); font-size: 0.933rem; }
 /* Dictation (hooks/useDictation.ts): only in the Android shell. */
 .composer .mic { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 0; background: var(--panel-2); color: var(--text); font-size: 1.1rem; cursor: pointer; flex: none; }
