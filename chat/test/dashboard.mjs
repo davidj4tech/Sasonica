@@ -7,6 +7,8 @@
 //             surviving a poll, the card leaves at once and stays gone; a
 //             title tap opens the thread; back → Home
 //   working   the current step and a ticking elapsed time
+//   digests   held read-outs: ▶ posts replay-id with the row, the unheard dot
+//             goes at once; one still rendering has its ▶ disabled
 //   listening a queued reply shows as "1 waiting"; Output → /audio/target
 //   recaps    clamped text that expands; live / resting badges
 //   quick     "agent-media · Claude" opens New chat preset (place + agent)
@@ -56,9 +58,9 @@ await login(page)
 // ── home: every section ──────────────────────────────────────────────────
 await page.goto(BASE + '/')
 await page.waitForSelector('.home-page .dash-section', { timeout: 8000 })
-for (const s of ['needs', 'working', 'listening', 'recaps', 'start', 'machines']) ok((await page.locator(`.dash-${s}`).count()) === 1, `home: the ${s} section renders`)
+for (const s of ['needs', 'working', 'digests', 'listening', 'recaps', 'start', 'machines']) ok((await page.locator(`.dash-${s}`).count()) === 1, `home: the ${s} section renders`)
 const order = await page.evaluate(() => [...document.querySelectorAll('.dash-section')].map((e) => [...e.classList].find((c) => c.startsWith('dash-') && c !== 'dash-section')))
-ok(JSON.stringify(order) === JSON.stringify(['dash-needs', 'dash-working', 'dash-agenda', 'dash-listening', 'dash-recaps', 'dash-start', 'dash-machines']), `home: sections top to bottom (${order.join(', ')})`)
+ok(JSON.stringify(order) === JSON.stringify(['dash-needs', 'dash-working', 'dash-digests', 'dash-agenda', 'dash-listening', 'dash-recaps', 'dash-start', 'dash-machines']), `home: sections top to bottom (${order.join(', ')})`)
 ok((await page.locator('.tabs .tab[aria-selected=true]').innerText()) === 'Home', 'home: the Home tab is selected')
 const needCount = await page.locator('.need-card').count()
 ok(needCount === dash.needs_you.length && needCount >= 4, `needs: one card per session stopped on a question (${needCount})`)
@@ -66,6 +68,18 @@ await page.screenshot({ path: SHOTS + '/home-01-top.png', fullPage: false })
 const g0 = dashGets
 await page.waitForTimeout(5600)
 ok(dashGets > g0, `home: /dashboard polled again within ~5 s (${dashGets - g0})`)
+
+// ── digests: held read-outs behind a Play ───────────────────────────────
+const agendaRow = page.locator('.digest-row[data-digest="digest.org-agenda"]')
+ok((await agendaRow.locator('.digest-new').count()) === 1, 'digests: an unheard read-out carries the dot')
+ok((await page.locator('.dash-digests .dash-count').innerText()) === '1', 'digests: the count is the unheard ones')
+ok(await page.locator('.digest-row[data-digest="digest.describe"] .digest-play').isDisabled(), 'digests: one still rendering has its ▶ disabled')
+const p0 = posts.length
+await agendaRow.locator('.digest-play').click()
+await page.waitForTimeout(300)
+const played = posts.slice(p0).find((x) => x.p === '/speech/ctl')
+ok(played && played.body.action === 'replay-id' && played.body.arg === 9001, `digests: ▶ posts replay-id 9001 (${JSON.stringify(played?.body)})`)
+ok((await agendaRow.locator('.digest-new').count()) === 0, 'digests: the dot goes at once')
 
 // ── needs: answer the multi-select in place ─────────────────────────────
 const multi = sid('Mock: multi-select question')
