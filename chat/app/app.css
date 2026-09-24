@@ -225,7 +225,8 @@ a { color: var(--accent); }
 .tool-card.approval { border-color: var(--warn); }
 .tool-title { margin: 0 0 6px; font-weight: 600; }
 .tool-card ul { margin: 0; padding-left: 18px; }
-.tool-card li small, .option small { display: block; color: var(--muted); font-size: 0.833rem; }
+/* An option's description: one step under the label and near the body colour — the muted grey at .833rem was hard to read (David, 24 Sep 2026). */
+.tool-card li small, .option small { display: block; margin-top: 2px; color: color-mix(in srgb, var(--text) 82%, var(--muted)); font-size: 0.933rem; line-height: 1.35; }
 .tool-card li.chosen { color: var(--accent); font-weight: 600; }
 .approval-options { display: flex; flex-direction: column; gap: 6px; }
 .option { display: flex; gap: 10px; align-items: flex-start; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .533rem .667rem; cursor: pointer; }
