@@ -938,4 +938,16 @@ export interface DashboardResponse extends Envelope {
   places: Place[]
   agents: { name: Agent; present: boolean }[]
   hosts: DashHost[]
+  /** Spoken digests of the last 36 h (§6.11, §6.17): each waits behind a Play. Absent on an older server. */
+  digests?: DashDigest[]
+}
+
+/** A morning digest whose read-out is held, not spoken (§6.17 `spoken`). */
+export interface DashDigest {
+  id: string
+  title: string
+  level: 'ok' | 'info' | 'warn' | 'needs'
+  changed_at: number
+  /** `id` is the history row `replay-id` plays; null while it renders. */
+  speech: { id: number | null; heard: boolean } | null
 }

@@ -640,6 +640,11 @@ a { color: var(--accent); }
 .output-chip { flex: none; min-height: 36px; color: var(--muted); }
 
 /* Recaps */
+.digest-row { display: flex; align-items: center; gap: .6rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: .35rem .8rem .35rem .4rem; }
+.digest-row .digest-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.digest-row .digest-new { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.digest-row .digest-when { flex: none; font-size: .8rem; color: var(--muted); }
+.digest-row .digest-play:disabled { opacity: .4; }
 .recap-row { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .8rem; }
 .recap-head { display: flex; align-items: center; gap: 8px; min-height: 32px; }
 .recap-head .dash-title { flex: 1; }

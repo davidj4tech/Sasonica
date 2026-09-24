@@ -13,17 +13,17 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate } from 'react-router'
 import { answer } from '../api'
 import { hasCredential } from '../api/auth'
-import type { Approval, DashNeed, DashRecent, DashWorking, QuestionAnswer } from '../api/types'
+import type { Approval, DashDigest, DashNeed, DashRecent, DashWorking, QuestionAnswer } from '../api/types'
 import { Mark } from '../components/Mark'
 import { Machines } from '../components/Machines'
 import { HomeAgenda } from '../components/HomeAgenda'
 import { HomeTabs } from '../components/Nav'
 import { OutputSheet } from '../components/OutputSheet'
 import { ApprovalCard, ThreadActionsContext, type ThreadActions } from '../components/parts'
-import { SpeechBar } from '../components/SpeechBar'
+import { IconPlay, SpeechBar } from '../components/SpeechBar'
 import { PlayingMark } from '../components/PlayingMark'
 import { useDashboard } from '../hooks/useDashboard'
-import { useSpeech } from '../hooks/useSpeech'
+import { useSpeech, useSpeechActions } from '../hooks/useSpeech'
 import { useTitle } from '../lib/titles'
 
 /** §6.9's usual names, said the way /audio/targets labels them. */
@@ -121,6 +121,16 @@ function HomeScreen() {
               </Section>
             )}
 
+            {data.digests && data.digests.length > 0 && (
+              <Section id="digests" title="Digests" count={data.digests.filter((d) => d.speech?.id != null && !d.speech.heard).length}>
+                <ul className="dash-list">
+                  {data.digests.map((d) => (
+                    <DigestRow key={d.id} d={d} skew={skew} />
+                  ))}
+                </ul>
+              </Section>
+            )}
+
             <HomeAgenda />
 
             <Section id="listening" title="Listening">
@@ -165,6 +175,38 @@ function HomeScreen() {
         <SpeechBar />
       </div>
     </div>
+  )
+}
+
+/**
+ * A morning digest (the agenda, …): never read out on its own — its read-out
+ * is rendered held on the server, and ▶ plays it (`replay-id`), which marks
+ * it heard. The dot is "not heard yet"; a press clears it at once rather than
+ * at the next poll.
+ */
+function DigestRow({ d, skew }: { d: DashDigest; skew: number }) {
+  const { replayId } = useSpeechActions()
+  const [pressed, setPressed] = useState(false)
+  const rid = d.speech?.id ?? null
+  const unheard = rid !== null && !d.speech?.heard && !pressed
+  return (
+    <li className="digest-row" data-digest={d.id}>
+      <button
+        className="msg-key digest-play"
+        disabled={rid === null}
+        aria-label={rid === null ? `${d.title}: still being prepared` : `Play ${d.title}`}
+        onClick={() => {
+          if (rid === null) return
+          setPressed(true)
+          replayId(rid)
+        }}
+      >
+        <IconPlay />
+      </button>
+      <span className="digest-title">{d.title}</span>
+      {unheard && <span className="digest-new" aria-label="not heard yet" />}
+      <span className="digest-when">{ago(d.changed_at, skew)}</span>
+    </li>
   )
 }
 

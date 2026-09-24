@@ -1758,7 +1758,12 @@ async function route(method, path, q, body, res) {
       recent: all.filter((x) => !x.archived).sort((a, b) => lastAt(b) - lastAt(a)).slice(0, 12).map((x) => ({ session: x.session, title: x.title, recap: x.recap || null, at: r3(lastAt(x)) || null, live: !!x.live, rested: x.live ? null : x.rested || null, project: x.project ?? null, cwd: x.cwd ?? null })),
       places: PLACES(),
       agents: [{ name: 'claude', present: true }, { name: 'codex', present: true }, { name: 'pi', present: false }, { name: 'hermes', present: false }],
-      hosts: dashHosts()
+      hosts: dashHosts(),
+      // §6.11 digests: one waiting to be heard, one still rendering.
+      digests: [
+        { id: 'digest.org-agenda', title: 'Org agenda: 14 items due today', level: 'info', changed_at: r3(now() - 3600), speech: { id: 9001, heard: false } },
+        { id: 'digest.describe', title: 'Describe 24h: 2 calls', level: 'info', changed_at: r3(now() - 7200), speech: { id: null, heard: false } }
+      ]
     })
   }
 
