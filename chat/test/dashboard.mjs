@@ -81,36 +81,6 @@ const played = posts.slice(p0).find((x) => x.p === '/speech/ctl')
 ok(played && played.body.action === 'replay-id' && played.body.arg === 9001, `digests: ▶ posts replay-id 9001 (${JSON.stringify(played?.body)})`)
 ok((await agendaRow.locator('.digest-new').count()) === 0, 'digests: the dot goes at once')
 
-// A digest's title opens it to read. The agenda digest names its view: its
-// lines are the Organiser's live rows (tickable, opening the heading), one
-// nothing matches struck through; ← Earlier steps to the one before.
-await agendaRow.locator('a.digest-title').click()
-await page.waitForSelector('.digest-page .digest-items .note-item', { timeout: 5000 })
-ok(new URL(page.url()).pathname === '/digests/3', `digest: the title opens /digests/3 (${page.url()})`)
-const itemTitles = await page.locator('.digest-items .title').allInnerTexts()
-ok(JSON.stringify(itemTitles) === JSON.stringify(['Ring the plumber', 'Renew the passport', 'An old thing since refiled']), `digest: the agenda's lines as its rows, in order (${itemTitles.join(' | ')})`)
-ok((await page.locator('.digest-items .note-row[href]').count()) === 2 && (await page.locator('.digest-items .done-key[aria-label^="Mark done"]').count()) === 2, 'digest: matched rows open their heading and can be ticked')
-ok((await page.locator('.digest-items .digest-gone').count()) === 1, 'digest: a line nothing matches is struck through')
-ok((await page.locator('.digest-notes p').allInnerTexts()).join('|') === 'Sacred Brain alerts.|memory store healthy', 'digest: lines that are not agenda items are shown as sent, under the rows')
-await page.locator('.digest-prev').click()
-await page.waitForFunction(() => location.pathname === '/digests/1')
-await page.waitForSelector('.digest-page h1:has-text("9 items")', { timeout: 5000 })
-ok(true, 'digest: ← Earlier opens the one before')
-// A markdown digest is drawn as a document.
-await page.goto(BASE + '/digests/4')
-await page.waitForSelector('.digest-page .md-doc', { timeout: 5000 })
-ok((await page.locator('.md-doc h2').innerText()) === 'Landscape' && (await page.locator('.md-doc h3').innerText()) === 'Worth stealing', 'digest: headings are headings')
-ok((await page.locator('.md-doc li').count()) === 2 && (await page.locator('.md-doc li').first().innerText()).includes('forgets'), 'digest: a list item runs on over its indented line')
-ok((await page.locator('.md-doc .msg-link').innerText()) === 'happy', 'digest: a link shows its words')
-ok((await page.locator('.md-doc table').count()) === 1, 'digest: a table is a table')
-await page.goto(BASE + '/digests')
-await page.waitForSelector('.digests-page .digest-row', { timeout: 5000 })
-ok((await page.locator('.digests-page .digest-row').count()) === 4, 'digests: the list has every digest')
-await page.goto(BASE + '/digests?id=digest.org-agenda')
-await page.waitForSelector('.digest-filter', { timeout: 5000 })
-ok((await page.locator('.digests-page .digest-row').count()) === 2, 'digests: ?id= narrows to one kind')
-await page.goto(BASE + '/')
-await page.waitForSelector('.home-page .dash-digests', { timeout: 8000 })
 
 // ── needs: answer the multi-select in place ─────────────────────────────
 const multi = sid('Mock: multi-select question')
@@ -352,6 +322,38 @@ await fabCheck('larger-bar', {}, { size: 'largest' })
   await p.screenshot({ path: SHOTS + '/composer-02-keyboard.png' })
   await ctx.close()
 }
+
+// ── digests: open to read (last: they take seconds the mock's questions and
+// working rows are timed against) ──────────────────────────────────────
+// A digest's title opens it to read. The agenda digest names its view: its
+// lines are the Organiser's live rows (tickable, opening the heading), one
+// nothing matches struck through; ← Earlier steps to the one before.
+await page.goto(BASE + '/')
+await page.locator('.digest-row[data-digest="digest.org-agenda"] a.digest-title').click()
+await page.waitForSelector('.digest-page .digest-items .note-item', { timeout: 5000 })
+ok(new URL(page.url()).pathname === '/digests/3', `digest: the title opens /digests/3 (${page.url()})`)
+const itemTitles = await page.locator('.digest-items .title').allInnerTexts()
+ok(JSON.stringify(itemTitles) === JSON.stringify(['Ring the plumber', 'Renew the passport', 'An old thing since refiled']), `digest: the agenda's lines as its rows, in order (${itemTitles.join(' | ')})`)
+ok((await page.locator('.digest-items .note-row[href]').count()) === 2 && (await page.locator('.digest-items .done-key[aria-label^="Mark done"]').count()) === 2, 'digest: matched rows open their heading and can be ticked')
+ok((await page.locator('.digest-items .digest-gone').count()) === 1, 'digest: a line nothing matches is struck through')
+ok((await page.locator('.digest-notes p').allInnerTexts()).join('|') === 'Sacred Brain alerts.|memory store healthy', 'digest: lines that are not agenda items are shown as sent, under the rows')
+await page.locator('.digest-prev').click()
+await page.waitForFunction(() => location.pathname === '/digests/1')
+await page.waitForSelector('.digest-page h1:has-text("9 items")', { timeout: 5000 })
+ok(true, 'digest: ← Earlier opens the one before')
+// A markdown digest is drawn as a document.
+await page.goto(BASE + '/digests/4')
+await page.waitForSelector('.digest-page .md-doc', { timeout: 5000 })
+ok((await page.locator('.md-doc h2').innerText()) === 'Landscape' && (await page.locator('.md-doc h3').innerText()) === 'Worth stealing', 'digest: headings are headings')
+ok((await page.locator('.md-doc li').count()) === 2 && (await page.locator('.md-doc li').first().innerText()).includes('forgets'), 'digest: a list item runs on over its indented line')
+ok((await page.locator('.md-doc .msg-link').innerText()) === 'happy', 'digest: a link shows its words')
+ok((await page.locator('.md-doc table').count()) === 1, 'digest: a table is a table')
+await page.goto(BASE + '/digests')
+await page.waitForSelector('.digests-page .digest-row', { timeout: 5000 })
+ok((await page.locator('.digests-page .digest-row').count()) === 4, 'digests: the list has every digest')
+await page.goto(BASE + '/digests?id=digest.org-agenda')
+await page.waitForSelector('.digest-filter', { timeout: 5000 })
+ok((await page.locator('.digests-page .digest-row').count()) === 2, 'digests: ?id= narrows to one kind')
 
 ok(!errors.length, `no page errors ${errors.join('; ')}`)
 await b.close()
