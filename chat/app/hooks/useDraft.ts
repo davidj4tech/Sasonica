@@ -28,6 +28,8 @@ export interface DraftHandle {
   restore(text: string): void
   /** Put `text` in the box where the caret was (the end when it never had one), spaced from its neighbours. */
   insert(text: string): void
+  /** Empty the box and hand back what was in it (the words are moving to a new chat). */
+  take(): string
 }
 
 export function useDraft(key: string | undefined, ref: Ref<DraftHandle>) {
@@ -59,6 +61,16 @@ export function useDraft(key: string | undefined, ref: Ref<DraftHandle>) {
         writeDraft(key, t)
         apply(t)
         void pushDraft(key)
+      },
+      take() {
+        const t = aui.composer().getState().text
+        if (!t) return ''
+        apply('')
+        if (key) {
+          writeDraft(key, '')
+          void pushDraft(key, true)
+        }
+        return t
       },
       insert(t) {
         // A textarea keeps its selection after it loses focus, so the caret
