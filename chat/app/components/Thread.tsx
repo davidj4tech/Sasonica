@@ -319,6 +319,8 @@ export interface ThreadProps {
   carry?: Carry
   /** After the assistant button: a "New chat instead" chip, which takes the words there. */
   onNewChatInstead?: (text: string) => void
+  /** The other assistants' chips all the time, not only after the button (a new chat). */
+  handOffAlways?: boolean
 }
 
 /** How long a jump waits for its message to be drawn before giving up. */
@@ -522,14 +524,15 @@ export function Thread(props: ThreadProps) {
   })
   const dictation = useDictation(runtime, props.listenNow, props.placeholder || 'Say something back', props.carry)
   const [targets, setTargets] = useState<HandOffTarget[]>([])
+  const offering = dictation.offer || !!props.handOffAlways
   useEffect(() => {
-    if (!dictation.offer) return
+    if (!offering) return
     let live = true
     void handOffTargets().then((t) => live && setTargets(t))
     return () => {
       live = false
     }
-  }, [dictation.offer])
+  }, [offering])
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -638,10 +641,10 @@ export function Thread(props: ThreadProps) {
                 )}
                 <ComposerPrimitive.Send className="send">↑</ComposerPrimitive.Send>
               </ComposerPrimitive.Root>
-              {dictation.offer && (props.onNewChatInstead || targets.length > 0) && (
+              {offering && ((dictation.offer && props.onNewChatInstead) || targets.length > 0) && (
                 // The assistant button's words, taken somewhere else instead.
                 <div className="chips handoff">
-                  {props.onNewChatInstead && (
+                  {dictation.offer && props.onNewChatInstead && (
                     <button type="button" className="chip" onClick={() => props.onNewChatInstead?.(dictation.take())}>
                       New chat instead
                     </button>

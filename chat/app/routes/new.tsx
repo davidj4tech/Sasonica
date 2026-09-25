@@ -110,6 +110,7 @@ export default function NewThread() {
         draftKey={NEW_CHAT}
         listenNow={assist}
         carry={carry}
+        handOffAlways
         speechBar={<SpeechBar />}
         empty={
           <div className="new-pickers">
