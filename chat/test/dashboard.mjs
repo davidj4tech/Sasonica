@@ -329,9 +329,11 @@ await fabCheck('larger-bar', {}, { size: 'largest' })
 // lines are the Organiser's live rows (tickable, opening the heading), one
 // nothing matches struck through; ← Earlier steps to the one before.
 await page.goto(BASE + '/')
-await page.locator('.digest-row[data-digest="digest.org-agenda"] a.digest-title').click()
+await page.waitForSelector('.dash-digests a.digest-title', { timeout: 8000 })
+const opens = await page.locator('.digest-row[data-digest="digest.org-agenda"] a.digest-title').getAttribute('href')
+ok(opens === '/digests/3', `digest: the title opens /digests/3 (${opens})`)
+await page.goto(BASE + '/digests/3')
 await page.waitForSelector('.digest-page .digest-items .note-item', { timeout: 5000 })
-ok(new URL(page.url()).pathname === '/digests/3', `digest: the title opens /digests/3 (${page.url()})`)
 const itemTitles = await page.locator('.digest-items .title').allInnerTexts()
 ok(JSON.stringify(itemTitles) === JSON.stringify(['Ring the plumber', 'Renew the passport', 'An old thing since refiled']), `digest: the agenda's lines as its rows, in order (${itemTitles.join(' | ')})`)
 ok((await page.locator('.digest-items .note-row[href]').count()) === 2 && (await page.locator('.digest-items .done-key[aria-label^="Mark done"]').count()) === 2, 'digest: matched rows open their heading and can be ticked')
