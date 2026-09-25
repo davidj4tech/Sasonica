@@ -67,10 +67,16 @@ export interface Speech {
   /** Which turn the turn keys are on, as the popup's hist_idx (1 = latest). */
   histIdx: number
   ctl: (action: SpeechAction, arg?: number) => Promise<SpeechCtlResponse | null>
-  toggle: () => void
+  /** Pause/resume; with nothing playing, `replayLatest(session)`. */
+  toggle: (session?: SessionId) => void
   prevTurn: () => void
   nextTurn: () => void
-  replayLatest: () => void
+  /**
+   * Replay the newest reply — of `session` when given (the thread the bar
+   * names, or the one on screen), else of all. Unscoped, a reply held in
+   * another thread was read out from inside this one (25 Sep 2026).
+   */
+  replayLatest: (session?: SessionId) => void
   replayId: (id: number) => void
   /**
    * "Read from here" in the message being said: jump the voice to sentence
@@ -198,16 +204,16 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
     [kick, showError]
   )
 
-  const replayLatest = useCallback(() => {
+  const replayLatest = useCallback((session?: SessionId) => {
     setHistIdx(1)
-    void ctl('replay', 1)
+    void ctl('replay', 1, undefined, session ? { session } : undefined)
   }, [ctl])
 
-  const toggle = useCallback(() => {
+  const toggle = useCallback((session?: SessionId) => {
     const cur = serverRef.current
     const o = overrideRef.current?.o
     // Nothing playing: the button means the popup's r, not a pause.
-    if (!cur?.live) return replayLatest()
+    if (!cur?.live) return replayLatest(session)
     const paused = !(o?.paused ?? cur.paused)
     void ctl('toggle', undefined, { paused, speaking: !paused })
   }, [ctl, replayLatest])

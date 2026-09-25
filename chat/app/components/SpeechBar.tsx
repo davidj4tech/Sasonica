@@ -151,6 +151,10 @@ export function SpeechBar({ here }: { here?: SessionId }) {
 
   const paused = live ? !!now?.paused : true
   const inHere = !!here && session === here
+  // What Replay plays: the thread the bar names, else the one on screen —
+  // never "the newest of all", which can be a reply held somewhere else.
+  const replayOf = session || here
+  const toggle = () => speech.toggle(replayOf)
   const progress = live ? progressOf(now?.pos, now?.dur) : null
   const times = live && now?.pos != null ? `${clock(now.pos)}${now.dur ? ` / ${clock(now.dur)}` : ''}` : ''
 
@@ -178,7 +182,7 @@ export function SpeechBar({ here }: { here?: SessionId }) {
     return (
       <>
         <div className="speech-bar slim" role="region" aria-label="Speech">
-          <button className="slim-replay" aria-label="Replay" title={`Replay: ${title}`} onClick={speech.toggle}>
+          <button className="slim-replay" aria-label="Replay" title={`Replay: ${title}`} onClick={toggle}>
             <IconPlay />
             <span className="slim-word">Replay</span>
             <span className="slim-title">{title}</span>
@@ -187,7 +191,7 @@ export function SpeechBar({ here }: { here?: SessionId }) {
             <IconExpand open={open} />
           </button>
         </div>
-        {open && typeof document !== 'undefined' && createPortal(<SpeechSheet title={title} session={session || null} inHere={inHere} onOpen={openThread} onClose={() => setOpen(false)} />, document.body)}
+        {open && typeof document !== 'undefined' && createPortal(<SpeechSheet title={title} session={session || null} inHere={inHere} replayOf={replayOf} onOpen={openThread} onClose={() => setOpen(false)} />, document.body)}
       </>
     )
   }
@@ -233,7 +237,7 @@ export function SpeechBar({ here }: { here?: SessionId }) {
             <IconBackSentence />
           </button>
         )}
-        <button className="skey main" aria-label={toggleLabel} aria-pressed={live ? !paused : undefined} onClick={speech.toggle}>
+        <button className="skey main" aria-label={toggleLabel} aria-pressed={live ? !paused : undefined} onClick={toggle}>
           {!live ? <IconReplay /> : paused ? <IconPlay /> : <IconPause />}
         </button>
         {live && (
@@ -250,15 +254,17 @@ export function SpeechBar({ here }: { here?: SessionId }) {
           <IconExpand open={open} />
         </button>
       </div>
-      {open && typeof document !== 'undefined' && createPortal(<SpeechSheet title={title} session={session || null} inHere={inHere} onOpen={openThread} onClose={() => setOpen(false)} />, document.body)}
+      {open && typeof document !== 'undefined' && createPortal(<SpeechSheet title={title} session={session || null} inHere={inHere} replayOf={replayOf} onOpen={openThread} onClose={() => setOpen(false)} />, document.body)}
     </>
   )
 }
 
 // ── The full set ──────────────────────────────────────────────────────────
 
-function SpeechSheet(props: { title: string; session: SessionId | null; inHere: boolean; onOpen: () => void; onClose: () => void }) {
+function SpeechSheet(props: { title: string; session: SessionId | null; inHere: boolean; replayOf?: SessionId; onOpen: () => void; onClose: () => void }) {
   const speech = useSpeech()
+  const { replayOf } = props
+  const toggle = () => speech.toggle(replayOf)
   const { now, error } = speech
   const live = !!now?.live
   const paused = live ? !!now?.paused : true
@@ -305,7 +311,7 @@ function SpeechSheet(props: { title: string; session: SessionId | null; inHere: 
               <button className="skey" aria-label="Back a sentence" disabled={!live} onClick={() => void speech.ctl('skip-')}>
                 <IconBackSentence />
               </button>
-              <button className="skey main big" aria-label={!live ? 'Replay' : paused ? 'Resume' : 'Pause'} onClick={speech.toggle}>
+              <button className="skey main big" aria-label={!live ? 'Replay' : paused ? 'Resume' : 'Pause'} onClick={toggle}>
                 {paused ? <IconPlay /> : <IconPause />}
               </button>
               <button className="skey" aria-label="Next sentence" disabled={!live} onClick={() => void speech.ctl('skip+')}>
@@ -322,7 +328,7 @@ function SpeechSheet(props: { title: string; session: SessionId | null; inHere: 
 
           <div className="sheet-col">
             <div className="pills">
-              <button className="pill" onClick={speech.replayLatest}>
+              <button className="pill" onClick={() => speech.replayLatest(replayOf)}>
                 <IconReplay /> Replay latest
               </button>
               <button className="pill" disabled={!live} onClick={() => void speech.ctl('jump-end')}>

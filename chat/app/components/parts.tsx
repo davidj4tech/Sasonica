@@ -335,7 +335,7 @@ export function MessageSpeechKey() {
   const { toggle, replayId } = useSpeechActions()
   if (live) {
     return (
-      <button className="msg-key on" aria-label={live.paused ? 'Resume' : 'Pause'} onClick={toggle}>
+      <button className="msg-key on" aria-label={live.paused ? 'Resume' : 'Pause'} onClick={() => toggle()}>
         {live.paused ? <IconPlay /> : <IconPause />}
       </button>
     )
