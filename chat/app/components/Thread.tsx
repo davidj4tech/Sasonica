@@ -14,6 +14,7 @@
  * takes typed input mid-turn, so a message sent then goes straight to the
  * server, as the Nuxt reply box does. Nothing is held client-side.
  */
+import { useNavigate } from 'react-router'
 import { AutoGrowTextarea } from './AutoGrow'
 import { MentionPicker } from './MentionPicker'
 import {
@@ -31,6 +32,7 @@ import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,
 import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
 import { useDraft, type DraftHandle } from '../hooks/useDraft'
+import { NEW_CHAT, readDraft, writeDraft } from '../lib/drafts'
 import { useFollowAlong } from '../hooks/useFollowAlong'
 import { useFollowOn } from '../lib/followOn'
 import { lightTerms } from '../lib/highlight'
@@ -287,6 +289,11 @@ export interface ThreadProps {
   /** On the reply box, just above it: what this send will do (the Stops/Keep reading chip). */
   composerChip?: ReactNode
   /**
+   * A small New chat button above the send button: where it goes (a thread's
+   * page passes '/new'). What is typed goes along, into the new chat's draft.
+   */
+  newChatTo?: string
+  /**
    * The dialog the session is stopped on (David, 23 Sep 2026): docked above
    * the speech bar, where it stays in view until it is answered rather than
    * sitting at the foot of a reply taller than the screen. It scrolls when
@@ -461,6 +468,16 @@ export function Thread(props: ThreadProps) {
   }, [props.older, onLoadEarlier, toTop])
   const draftRef = useRef<DraftHandle>(null)
   useImperativeHandle(props.composerRef, () => ({ insert: (t: string) => draftRef.current?.insert(t) }), [])
+  const navigate = useNavigate()
+  const newChat = () => {
+    const t = draftRef.current?.take().trim()
+    if (t) {
+      // Added to whatever the new chat already holds, never over it.
+      const prev = readDraft(NEW_CHAT).text.replace(/\s+$/, '')
+      writeDraft(NEW_CHAT, prev ? `${prev}\n\n${t}` : t)
+    }
+    if (props.newChatTo) navigate(props.newChatTo)
+  }
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const text = textOf(message)
@@ -567,7 +584,18 @@ export function Thread(props: ThreadProps) {
               {props.status}
               {!props.readOnly && (
               <>
-              {props.composerChip}
+              {(props.composerChip || props.newChatTo) && (
+                <div className="composer-over">
+                  {props.composerChip}
+                  {props.newChatTo && (
+                    <button type="button" className="new-chat-mini" title="New chat (takes what is typed)" aria-label="New chat" onClick={newChat}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
               <ComposerPrimitive.Root className="composer">
                 <MentionPicker />
                 {/*

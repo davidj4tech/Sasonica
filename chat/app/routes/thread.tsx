@@ -91,6 +91,21 @@ function ThreadPage({ session }: { session: string }) {
   const jumpTo = useSearchJump(log.loadAround)
   // The project line under the title (§6.1): the stream's, else the list's.
   const project = projectOverrideOf(session, log.project || knownProject(session))
+  // The + over the send button starts the new chat in this thread's place:
+  // the place named like its project, else the one at its cwd (the saved
+  // list is enough — places seldom change). Unknown: the picker, unpicked.
+  const [newChatTo, setNewChatTo] = useState('/new')
+  useEffect(() => {
+    let cancelled = false
+    void loadTargets().then((res) => {
+      const cwd = res?.sessions.find((r) => r.session === session)?.cwd
+      const place = res?.places.find((p) => p.name === project) || res?.places.find((p) => !!cwd && p.path === cwd)
+      if (!cancelled) setNewChatTo(place ? `/new?cwd=${encodeURIComponent(place.path)}` : '/new')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [session, project])
   useSeen(session, log.messages.length)
   const states = useSessionStates()
   const [status, setStatus] = useState<Status>(null)
@@ -424,6 +439,7 @@ function ThreadPage({ session }: { session: string }) {
         placeholder={closed ? 'Session closed. Sending resumes it' : undefined}
         dock={log.approval ? <ApprovalCard approval={log.approval} /> : null}
         speechBar={<SpeechBar here={session} />}
+        newChatTo={newChatTo}
         composerChip={
           readingHere && (
             <button
