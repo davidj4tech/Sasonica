@@ -33,7 +33,6 @@ import { useBottomFirst } from '../hooks/useBottomFirst'
 import { useDraft, type DraftHandle } from '../hooks/useDraft'
 import { useFollowAlong } from '../hooks/useFollowAlong'
 import { useFollowOn } from '../lib/followOn'
-import { ReadFromHere } from './ReadFromHere'
 import { lightTerms } from '../lib/highlight'
 import { APPROVAL_TOOL, ASK_TOOL, convertItem, groupParts, type ChatItem } from '../lib/convert'
 import {
@@ -508,7 +507,6 @@ export function Thread(props: ThreadProps) {
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadActionsContext.Provider value={props.actions}>
         <DraftKeeper draftKey={props.draftKey} handle={draftRef} />
-        <ReadFromHere />
         <ThreadPrimitive.Root className="thread">
           <ThreadPrimitive.Viewport className="viewport" ref={viewportRef} autoScroll={!follow.guarded} scrollToBottomOnRunStart={!follow.guarded}>
             {items.length === 0 && props.empty}

@@ -21,6 +21,8 @@ import { useShowAmbient } from '../lib/pictures'
 import { duration, liveParts, sentenceAt, type LiveClock } from '../lib/followAlong'
 import { Link } from 'react-router'
 import { REF_LINE, refsIn } from '../lib/refs'
+import { BLOCK_CLOSE, BLOCK_OPEN } from '../lib/messages'
+import { rich } from '../lib/rich'
 
 /** What the tool UIs need from the thread page. */
 export interface ThreadActions {
@@ -94,7 +96,7 @@ function LiveText({ text, clock, session }: { text: string; clock: LiveClock; se
   const current = tap ? tap.idx : real
   const { parts, tail } = liveParts(text, clock.sentences)
 
-  const onClick = (e: ReactMouseEvent<HTMLParagraphElement>) => {
+  const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (!session || e.button !== 0 || e.detail > 1) return
     const target = e.target as HTMLElement
     if (target.closest(NOT_A_SENTENCE_TAP)) return
@@ -112,18 +114,27 @@ function LiveText({ text, clock, session }: { text: string; clock: LiveClock; se
   }
 
   return (
-    <p className="line-text live-text" onClick={onClick}>
-      {parts.map((p, i) => (
-        <span key={i}>
-          {p.lead}
-          <span data-i={i} className={i === current ? 'sentence now' : i < current ? 'sentence said' : 'sentence'}>
-            {p.text}
+    <div className="line-text live-text" onClick={onClick}>
+      {parts.map((p, n) => {
+        // A described table or code block is `span` sentences at once.
+        const last = p.i + p.span - 1
+        const cls = current >= p.i && current <= last ? 'sentence now' : last < current ? 'sentence said' : 'sentence'
+        // A block brings its own margin, so the line breaks beside it go.
+        const block = p.text.startsWith(BLOCK_OPEN)
+        const beside = block || parts[n - 1]?.text.startsWith(BLOCK_OPEN) || p.lead.includes(BLOCK_CLOSE)
+        const lead = beside ? p.lead.replace(/^\n+|\n+$/g, '') : p.lead
+        return (
+          <span key={n}>
+            {rich(lead, `l${n}`)}
+            <span data-i={p.i} className={p.span > 1 || p.text.startsWith(BLOCK_OPEN) ? `${cls} block` : cls}>
+              {rich(p.text, `s${n}`)}
+            </span>
           </span>
-        </span>
-      ))}
+        )
+      })}
       {/* Not rendered to speech yet: shown, never bold (the sentences grow into it). */}
-      {tail && <span className="sentence pending">{tail}</span>}
-    </p>
+      {tail && <span className="sentence pending">{rich(tail, 't')}</span>}
+    </div>
   )
 }
 
@@ -134,11 +145,10 @@ function LiveText({ text, clock, session }: { text: string; clock: LiveClock; se
 export const LineText: TextMessagePartComponent = ({ text }) => {
   const custom = useCustom()
   if (custom.live && text === custom.liveText) return <LiveText text={text} clock={custom.live} session={custom.session} />
-  // A spoken reply that is not playing: its history row, for "Read from
-  // here" on a selection (components/ReadFromHere.tsx).
-  if (custom.id && text === custom.liveText) return <p className="line-text" data-rid={custom.id}>{text}</p>
-  if (text.includes('@[')) return <p className="line-text">{chipped(text)}</p>
-  return <p className="line-text">{text}</p>
+  // A spoken reply that is not playing: its history row, which its ▶ plays.
+  if (custom.id && text === custom.liveText) return <div className="line-text" data-rid={custom.id}>{rich(text)}</div>
+  if (text.includes('@[')) return <div className="line-text">{chipped(text)}</div>
+  return <div className="line-text">{rich(text)}</div>
 }
 
 const CHIP = /@\[([^[\]\n]{1,200})\]/g
@@ -158,7 +168,7 @@ function chipped(text: string): ReactNode[] {
   let last = 0
   for (const m of body.matchAll(CHIP)) {
     const label = m[1].trim()
-    out.push(body.slice(last, m.index))
+    out.push(...rich(body.slice(last, m.index), `c${m.index}`))
     const session = known[label]
     out.push(
       session ? (
@@ -173,7 +183,7 @@ function chipped(text: string): ReactNode[] {
     )
     last = m.index + m[0].length
   }
-  out.push(body.slice(last))
+  out.push(...rich(body.slice(last), 'end'))
   return out
 }
 

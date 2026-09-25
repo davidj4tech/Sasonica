@@ -176,10 +176,19 @@ a { color: var(--accent); }
 .live-text .sentence.said { color: var(--text); }
 .live-text .sentence.now { color: var(--text); font-weight: 700; }
 /* Read from here: a sentence of the message being said is a tap target
-   (parts.tsx LiveText); the chip under a selection in an older one
-   (ReadFromHere.tsx). */
+   (parts.tsx LiveText). An older reply plays from its ▶ (the selection chip
+   went 25 Sep 2026). */
 .live-text .sentence[data-i] { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.read-from-here { position: fixed; z-index: 6; min-height: 44px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--accent); background: var(--panel); color: var(--accent); font: inherit; font-weight: 600; box-shadow: 0 4px 14px #0006; cursor: pointer; white-space: nowrap; user-select: none; -webkit-user-select: none; }
+/* A reply's links, tables and code (lib/rich.tsx). */
+.msg-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.msg-path { font-family: var(--mono, ui-monospace, monospace); font-size: .92em; }
+.msg-table { display: block; overflow-x: auto; margin: .5rem 0; white-space: normal; -webkit-overflow-scrolling: touch; }
+.msg-table table { border-collapse: collapse; font-size: .9em; font-weight: 400; }
+.msg-table th, .msg-table td { border: 1px solid var(--line); padding: .3rem .5rem; vertical-align: top; text-align: left; }
+.msg-table th { background: var(--panel-2); font-weight: 600; }
+.msg-code { display: block; margin: .5rem 0; padding: .6rem .7rem; background: var(--panel-2); border-radius: 6px; overflow-x: auto; white-space: pre; font-size: .85em; font-weight: 400; }
+.live-text .sentence.block { display: block; }
+.live-text .sentence.block.now .msg-table, .live-text .sentence.block.now .msg-code { outline: 2px solid var(--accent); outline-offset: 2px; }
 .picture { display: inline-block; margin: 8px 6px 0 0; }
 .picture img { display: block; border-radius: 8px; background: #fff; }
 .picture.figure { display: block; }

@@ -79,7 +79,6 @@ export interface Speech {
    */
   gotoSentence: (session: SessionId, index: number) => Promise<boolean>
   /** "Read from here" on an older reply: replay history row `id` from sentence `index` (one call). */
-  replayFrom: (id: number, index: number) => Promise<boolean>
   resetTurns: () => void
   dismissFinished: () => void
   /** Called after every press settles (ok or not). Returns the unsubscribe. */
@@ -94,7 +93,7 @@ export interface Speech {
 
 /** The keys alone: stable for the life of the app, so a message that only
  *  replays does not re-render on every 1.5 s poll. */
-export type SpeechActions = Pick<Speech, 'ctl' | 'toggle' | 'replayLatest' | 'replayId' | 'gotoSentence' | 'replayFrom' | 'onSettled'>
+export type SpeechActions = Pick<Speech, 'ctl' | 'toggle' | 'replayLatest' | 'replayId' | 'gotoSentence' | 'onSettled'>
 
 const SpeechContext = createContext<Speech | null>(null)
 const SpeechActionsContext = createContext<SpeechActions | null>(null)
@@ -245,16 +244,6 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
     [ctl, showError]
   )
 
-  const replayFrom = useCallback(
-    async (id: number, index: number) => {
-      setHistIdx(1)
-      const res = await ctl('replay-id', id, undefined, { sentence: index })
-      if (res?.error) showError(res.error)
-      return !!res && !res.error
-    },
-    [ctl, showError]
-  )
-
   const publicCtl = useCallback(
     (action: SpeechAction, arg?: number) => {
       const cur = serverRef.current
@@ -294,18 +283,17 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
       replayLatest,
       replayId,
       gotoSentence,
-      replayFrom,
       resetTurns: () => setHistIdx(1),
       dismissFinished: () => setFinished(null),
       onSettled,
       refresh: kick
     }),
-    [now, serverAskedAt, finishedShown, error, override, histIdx, publicCtl, toggle, prevTurn, nextTurn, replayLatest, replayId, gotoSentence, replayFrom, onSettled, kick]
+    [now, serverAskedAt, finishedShown, error, override, histIdx, publicCtl, toggle, prevTurn, nextTurn, replayLatest, replayId, gotoSentence, onSettled, kick]
   )
 
   const actions = useMemo<SpeechActions>(
-    () => ({ ctl: publicCtl, toggle, replayLatest, replayId, gotoSentence, replayFrom, onSettled }),
-    [publicCtl, toggle, replayLatest, replayId, gotoSentence, replayFrom, onSettled]
+    () => ({ ctl: publicCtl, toggle, replayLatest, replayId, gotoSentence, onSettled }),
+    [publicCtl, toggle, replayLatest, replayId, gotoSentence, onSettled]
   )
 
   return (

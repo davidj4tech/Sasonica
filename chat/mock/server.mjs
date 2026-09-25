@@ -142,6 +142,39 @@ add(
   })
 )
 
+// A reply with a table, links and code (lib/rich.tsx): drawn as themselves;
+// the voice describes the table and skips the code, and the bold follows.
+const RICH_TEXT = [
+  'Here are the three options.',
+  '',
+  '| Option | Cost | Notes |',
+  '|---|--:|---|',
+  '| **Keep** | 0 | as it is |',
+  '| Move | 12 | see [the plan](https://example.com/plan) |',
+  '| Drop | 3 | `rm -rf` |',
+  '',
+  'Pick the second one; the [docs](https://example.com/docs) are linked, and so is https://example.com/raw.',
+  '',
+  '```sh',
+  'media say --hold "hi"',
+  '```',
+  '',
+  'Done.'
+].join('\n')
+const RICH_SPOKEN = [
+  'Here are the three options.',
+  'A table of three options with their cost.',
+  'Keep is free and Drop is cheapest.',
+  'Pick the second one; the docs are linked, and so is example.com link.',
+  'Done.'
+]
+add(
+  session(randomUUID(), 'Mock: a table and links', {
+    live: false, state: null, pane: null,
+    lines: [youLine('Compare the options.', T0 - 86400 * 5), agentLine(RICH_TEXT, T0 - 86400 * 5 + 10, { spoken: RICH_SPOKEN })]
+  })
+)
+
 // §6.16: conversations known only from their harness's own store — never
 // spoken, not running. The old one is outside the server's 30-day window,
 // so it is listed only when the app asks for `history=all`.
@@ -596,7 +629,9 @@ function speedNext(cur, dir) {
 /** A reply's sentences and their offsets (the fixture's, or ~0.36 s a word). */
 function speechOf(line) {
   if (line.text === SPOKEN_TEXT) return { sentences: SPOKEN, offsets: SPOKEN_OFFSETS, len: SPOKEN_LEN }
-  const sentences = line.text.split(/(?<=[.!?])\s+/).filter(Boolean)
+  // `spoken`: what the server really said, where it differs from the text —
+  // a table described in words, a link's url dropped (the rich-text fixture).
+  const sentences = line.spoken || line.text.split(/(?<=[.!?])\s+/).filter(Boolean)
   const offsets = []
   let t = 0
   for (const x of sentences) {
