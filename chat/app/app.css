@@ -187,7 +187,10 @@ a { color: var(--accent); }
 .msg-table th, .msg-table td { border: 1px solid var(--line); padding: .3rem .5rem; vertical-align: top; text-align: left; }
 .msg-table th { background: var(--panel-2); font-weight: 600; }
 .msg-code { display: block; margin: .5rem 0; padding: .6rem .7rem; background: var(--panel-2); border-radius: 6px; overflow-x: auto; white-space: pre; font-size: .85em; font-weight: 400; }
-.live-text .sentence.block { display: block; }
+.live-text .sentence.block, .resumable .sentence.block { display: block; }
+/* A reply stopped part way (parts.tsx ResumeText): what was not heard is
+   faded, so the eye sees how much was missed; the heard part reads as usual. */
+.resumable .missed { opacity: .5; }
 .live-text .sentence.block.now .msg-table, .live-text .sentence.block.now .msg-code { outline: 2px solid var(--accent); outline-offset: 2px; }
 .picture { display: inline-block; margin: 8px 6px 0 0; }
 .picture img { display: block; border-radius: 8px; background: #fff; }
@@ -530,6 +533,17 @@ a { color: var(--accent); }
 .msg-keys > .msg-key.unheard:not(:first-child) { display: none; }
 .msg-key.unheard { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); opacity: 1; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
 .msg-key.unheard .ico { width: 1.4rem; height: 1.4rem; }
+/* A reply stopped part way: "Resume" with where it picks up, and a small
+   restart under it. A tall reply shows it once, at the top, as unheard. */
+.msg-keys:has(.msg-resume) { justify-content: flex-start; }
+.msg-keys > .msg-resume:not(:first-child) { display: none; }
+.msg-resume { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 52px; }
+.msg-key.resume { height: auto; min-height: 44px; border-radius: 12px; padding: 4px 0 2px; gap: 1px; color: var(--accent); opacity: 1; }
+.msg-key.resume .ico { width: 1.4rem; height: 1.4rem; }
+.msg-resume-label { font-size: .7rem; font-weight: 600; line-height: 1; }
+.msg-resume-at { font-size: .64rem; line-height: 1.15; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.msg-key.restart { width: 36px; height: 36px; }
+.msg-key.restart .ico { width: 1.1rem; height: 1.1rem; }
 
 /* The full set, as a sheet over the page. */
 .speech-sheet-wrap { position: fixed; inset: 0; z-index: 20; background: #0009; display: flex; align-items: flex-end; justify-content: center; }

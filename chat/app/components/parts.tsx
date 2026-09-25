@@ -13,9 +13,10 @@ import {
   type ToolCallMessagePartComponent
 } from '@assistant-ui/react'
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PropsWithChildren, type ReactNode } from 'react'
+import { getSpeechSentences } from '../api'
 import type { Approval, ApprovalQuestion, QuestionAnswer, Working } from '../api/types'
 import { useSpeechActions } from '../hooks/useSpeech'
-import { IconPause, IconPlay } from './SpeechBar'
+import { clock, IconPause, IconPlay, IconReplay } from './SpeechBar'
 import type { ApprovalArgs, AskArgs, LineCustom, StepArgs } from '../lib/convert'
 import { useShowAmbient } from '../lib/pictures'
 import { duration, liveParts, sentenceAt, type LiveClock } from '../lib/followAlong'
@@ -146,9 +147,76 @@ export const LineText: TextMessagePartComponent = ({ text }) => {
   const custom = useCustom()
   if (custom.live && text === custom.liveText) return <LiveText text={text} clock={custom.live} session={custom.session} />
   // A spoken reply that is not playing: its history row, which its ▶ plays.
-  if (custom.id && text === custom.liveText) return <div className="line-text" data-rid={custom.id}>{rich(text)}</div>
+  if (custom.id && text === custom.liveText) {
+    if (custom.resume) return <ResumeText text={text} id={custom.id} from={custom.resume.sentence} known={custom.sentences} />
+    return <div className="line-text" data-rid={custom.id}>{rich(text)}</div>
+  }
   if (text.includes('@[')) return <div className="line-text">{chipped(text)}</div>
   return <div className="line-text">{rich(text)}</div>
+}
+
+/** GET /speech/sentences answers, by history row: a reply's words do not change once spoken. */
+const SENTENCES = new Map<number, Promise<string[]>>()
+
+function sentencesOf(id: number): Promise<string[]> {
+  let p = SENTENCES.get(id)
+  if (!p) {
+    p = getSpeechSentences(id).then(
+      (r) => r.sentences || [],
+      () => {
+        SENTENCES.delete(id) // a failed fetch is asked again on the next mount
+        return []
+      }
+    )
+    SENTENCES.set(id, p)
+  }
+  return p
+}
+
+/**
+ * A reply the listener stopped part way (`spoken.resume`): from its first
+ * unheard sentence on, the words are dimmed, so it shows how much was missed.
+ * The sentences are the server's, cut from the text the way the follow-along
+ * cuts them (liveParts): the newest turn's `timeline` when it has one, else
+ * GET /speech/sentences — asked only for a reply with `resume`, once per row.
+ * With no list (`[]`: a row with no sentence map) the text is plain; its key
+ * still resumes.
+ */
+function ResumeText({ text, id, from, known }: { text: string; id: number; from: number; known?: string[] }) {
+  const [fetched, setFetched] = useState<string[] | null>(null)
+  useEffect(() => {
+    if (known?.length) return
+    let live = true
+    void sentencesOf(id).then((s) => live && setFetched(s))
+    return () => {
+      live = false
+    }
+  }, [id, known])
+  const sentences = known?.length ? known : fetched
+  const cut = useMemo(() => (sentences?.length ? liveParts(text, sentences) : null), [text, sentences])
+  if (!cut) return <div className="line-text" data-rid={id}>{rich(text)}</div>
+  return (
+    <div className="line-text resumable" data-rid={id}>
+      {cut.parts.map((p, n) => {
+        // A described block is missed if any sentence saying it was.
+        const missed = p.i + p.span - 1 >= from
+        const block = p.text.startsWith(BLOCK_OPEN)
+        const beside = block || cut.parts[n - 1]?.text.startsWith(BLOCK_OPEN) || p.lead.includes(BLOCK_CLOSE)
+        const lead = beside ? p.lead.replace(/^\n+|\n+$/g, '') : p.lead
+        const cls = `sentence${missed ? ' missed' : ''}${p.span > 1 || block ? ' block' : ''}`
+        return (
+          <span key={n}>
+            {/* A block the voice skipped, after the stop, was not heard either. */}
+            {missed && lead.trim() ? <span className="missed">{rich(lead, `l${n}`)}</span> : rich(lead, `l${n}`)}
+            <span data-i={p.i} className={cls}>
+              {rich(p.text, `s${n}`)}
+            </span>
+          </span>
+        )
+      })}
+      {cut.tail && <span className="sentence missed">{rich(cut.tail, 't')}</span>}
+    </div>
+  )
 }
 
 const CHIP = /@\[([^[\]\n]{1,200})\]/g
@@ -328,10 +396,13 @@ export const PictureData: DataMessagePartComponent<{ src: string }> = ({ data })
  * resume — its state is the follow-along's, so the key and the bold agree);
  * any other with a speech-history row (`spoken.id`) gets ▶, which replays it
  * (`replay-id`, as ConversationLog.vue did on a tap). Messages never spoken
- * (or whose speech was not recognised, §6.2.2) have no id and no key.
+ * (or whose speech was not recognised, §6.2.2) have no id and no key. One
+ * stopped part way (`spoken.resume`) gets "Resume" — `replay-id` from its
+ * first unheard sentence — with where that is, and a smaller key that plays
+ * it from the start.
  */
 export function MessageSpeechKey() {
-  const { id, live, unheard } = useCustom()
+  const { id, live, unheard, resume } = useCustom()
   const { toggle, replayId } = useSpeechActions()
   if (live) {
     return (
@@ -347,6 +418,22 @@ export function MessageSpeechKey() {
       <button className="msg-key unheard" aria-label="Play this reply — not heard yet" onClick={() => replayId(id)}>
         <IconPlay />
       </button>
+    )
+  }
+  if (resume) {
+    return (
+      <div className="msg-resume">
+        <button className="msg-key resume" aria-label={`Resume this reply at ${clock(resume.at_s)}`} onClick={() => replayId(id, resume.sentence)}>
+          <IconPlay />
+          <span className="msg-resume-label">Resume</span>
+        </button>
+        <span className="msg-resume-at">
+          {clock(resume.at_s)} / {clock(resume.dur_s)}
+        </span>
+        <button className="msg-key restart" aria-label="Play this reply from the start" onClick={() => replayId(id)}>
+          <IconReplay />
+        </button>
+      </div>
     )
   }
   return (

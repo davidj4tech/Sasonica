@@ -61,6 +61,9 @@ streamed reply whose sentences grow while it plays, starts `paused`, has
 offsets and a null `sentence`. `GET /mock/real/restart?in=N` starts them
 (`&ended=1` holds them finished); `GET /mock/voice?loop=0` stops the
 speaking fixture coming back after it ends (`loop=1` restores it);
+`GET /mock/resume[?sentence=N&title=]` marks a reply as stopped part way
+(`spoken.resume`, default the table-and-links one from sentence 3; replaying
+it clears it, `?clear=1` too);
 `POST /rename` renames any fixture (a title containing FAIL gets a 500);
 `/draft` keeps drafts in memory (`GET /mock/drafts` lists them);
 `GET /mock/arrive?mode=speak|state|queue[&urgent=1][&title=]` lands a reply

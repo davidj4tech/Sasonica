@@ -307,6 +307,14 @@ export interface Spoken {
   figure?: boolean
   /** Held for the listener and never played (the desk toast); gone once it plays. */
   unheard?: boolean
+  /**
+   * The listener stopped it part way (a Stop, or a reply that ended the
+   * reading) and has not heard it again: `sentence` is the first not heard
+   * (the clip index `replay-id` + `sentence` and GET /speech/sentences
+   * count), `at_s` the seconds into the reply it starts at, `dur_s` the
+   * reply's length. Gone once the reply is played again (§6.2.2, 25 Sep 2026).
+   */
+  resume?: { sentence: number; at_s: number; dur_s: number }
   /** Only while it plays. */
   live?: LiveFields
   /**
