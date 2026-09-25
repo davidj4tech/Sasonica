@@ -109,6 +109,64 @@ export async function handOff(t: HandOffTarget, text: string): Promise<void> {
   await Assist.handOff({ id: t.id, share: t.share, text })
 }
 
+// ── Shared to the app ─────────────────────────────────────────────────────
+
+/** A file another app shared, copied into the app's cache (ShareInPlugin.java). */
+export interface SharedFile {
+  path: string
+  name: string
+  mime: string
+  size: number
+}
+
+/** What arrived from the share sheet. `failed`: files that could not be read. */
+export interface SharedIn {
+  at: number
+  text: string
+  subject: string
+  files: SharedFile[]
+  failed: number
+}
+
+interface ShareInPlugin {
+  addListener(event: 'share', fn: (e: SharedIn) => void): Promise<{ remove: () => Promise<void> }>
+  upload(o: { path: string; url: string; headers: Record<string, string> }): Promise<{ status: number; body: string }>
+  clear(): Promise<void>
+}
+const ShareIn = registerPlugin<ShareInPlugin>('ShareIn')
+
+/** Something was shared to the app (retained across a cold start). Returns the unsubscribe. */
+export function onShare(fn: (s: SharedIn) => void): () => void {
+  if (!isNative()) return () => {}
+  let remove: (() => void) | null = null
+  let gone = false
+  ShareIn.addListener('share', (e) => fn({ ...e, files: e.files || [], failed: e.failed || 0 }))
+    .then((h) => {
+      if (gone) void h.remove()
+      else remove = () => void h.remove()
+    })
+    .catch(() => {})
+  return () => {
+    gone = true
+    remove?.()
+  }
+}
+
+/** Stream a shared file to `url` (the server's /upload) from native code; the answer's status and text. */
+export function uploadShared(path: string, url: string, headers: Record<string, string>) {
+  return ShareIn.upload({ path, url, headers })
+}
+
+/** Drop the copies of shared files once they are sent or let go. */
+export async function clearShared(): Promise<void> {
+  if (!isNative()) return
+  try {
+    await ShareIn.clear()
+  } catch {
+    // Left in the cache, which Android empties when it needs the room.
+  }
+}
+
 // ── Dictation ─────────────────────────────────────────────────────────────
 
 interface SpeechInputPlugin {

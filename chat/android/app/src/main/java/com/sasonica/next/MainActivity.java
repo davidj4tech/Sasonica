@@ -17,6 +17,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SecureStorePlugin.class);
         registerPlugin(OutputSwitcherPlugin.class);
         registerPlugin(AssistPlugin.class);
+        registerPlugin(ShareInPlugin.class);
         registerPlugin(SpeechInputPlugin.class);
         registerPlugin(NotifyPlugin.class);
         registerPlugin(SpeechPlugin.class);

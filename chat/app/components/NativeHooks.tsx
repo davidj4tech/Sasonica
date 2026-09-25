@@ -1,6 +1,7 @@
 /**
  * What the Android shell needs from the app's life, rendered once in root:
- * a tap on a "New reply" notification opens that thread, the phone's
+ * a tap on a "New reply" notification opens that thread, something shared
+ * from another app opens the share screen, the phone's
  * assistant button listens at once — into the thread on screen, else in a
  * new chat — and once paired
  * the app asks (once) to be allowed to post notifications, then starts the
@@ -9,7 +10,7 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { hasCredential, serverBase } from '../api/auth'
-import { askNotificationPermission, isNative, onAssist, onNotificationTap, syncBackgroundNotify } from '../lib/native'
+import { askNotificationPermission, isNative, onAssist, onNotificationTap, onShare, syncBackgroundNotify } from '../lib/native'
 
 /** A press this soon after one that listened into a thread opens a new chat instead. */
 const AGAIN_MS = 20_000
@@ -46,6 +47,10 @@ export function NativeHooks() {
       }),
     [navigate]
   )
+  // Text, a link or files from another app's share sheet: the share screen
+  // asks where they go (routes/share.tsx), which sends to the pairing first
+  // when there is nowhere to send them.
+  useEffect(() => onShare((share) => navigate('/share', { state: { share } })), [navigate])
   // Then the background service (NotifyService): on by default once the
   // permission is there, so it is told after the question is answered — and
   // again whenever the page changes, which is cheap and covers a pairing

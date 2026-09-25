@@ -7,6 +7,7 @@ export default [
   route('t/:session', 'routes/thread.tsx'),
   route('t/:session/agents/:id', 'routes/agent.tsx'),
   route('new', 'routes/new.tsx'),
+  route('share', 'routes/share.tsx'),
   route('settings', 'routes/settings.tsx'),
   route('settings/agents', 'routes/harnesses.tsx'),
   route('about', 'routes/about.tsx'),

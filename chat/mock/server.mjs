@@ -1445,6 +1445,8 @@ const KNOWN_PROJECTS = new Set(['agent-media', 'sasonica', 'runlet'])
 
 /** The body of the last /reply or /ask, as sent: its `refs`, and `keep_reading` (the chip). */
 let LAST_SEND = null
+/** The last POST /share body (share.mjs). */
+let LAST_SHARE = null
 // §6.3 `refs`: a line at the foot per chip that names a session, as refs.py writes it.
 function withRefs(text, refs) {
   if (!refs || typeof refs !== 'object') return text
@@ -1458,7 +1460,7 @@ function withRefs(text, refs) {
   return lines.length ? `${text}\n\n${lines.join('\n')}` : text
 }
 
-const API = new Set(['/pair', '/dashboard', '/alerts/digests', '/alerts/digest', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/priority', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/harnesses/logout', '/harnesses/updates', '/search'])
+const API = new Set(['/pair', '/share', '/dashboard', '/alerts/digests', '/alerts/digest', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/priority', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/harnesses/logout', '/harnesses/updates', '/search'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1524,6 +1526,10 @@ createServer(async (req, res) => {
     realSnap.t = 0
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end(String(realJump))
+  }
+  if (path === '/mock/last-share') {
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify(LAST_SHARE))
   }
   if (path === '/mock/last-send') {
     // Tests: the body of the last /reply or /ask (refs.mjs reads its `refs`,
@@ -1688,7 +1694,8 @@ createServer(async (req, res) => {
     return openStream(req, res, s)
   }
 
-  if (!API.has(path)) {
+  // GET /share is the app's share screen; POST /share the route.
+  if (!API.has(path) || (path === '/share' && req.method === 'GET')) {
     if (req.method === 'GET' && serveStatic(req, res, path)) return
     return fail(res, 404, 'no such route')
   }
@@ -2009,6 +2016,14 @@ async function route(method, path, q, body, res) {
       }
     ]
     return ok({ session: s.session, pane: s.pane, answered: choice, label: picked.label, waiting: false, approval: null })
+  }
+
+  if (method === 'POST' && path === '/share') {
+    // §6.3: a link played by agent-media; the verdict's line for the toast.
+    LAST_SHARE = body
+    const url = (String(body.text || '').match(/https?:\/\/\S+/) || [])[0]
+    if (!url) return err(422, 'no link in that')
+    return ok({ url, channel: 'music', title: 'Mock track', line: 'music: Mock track' })
   }
 
   if (path === '/draft') {

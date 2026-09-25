@@ -11,6 +11,7 @@
 import { authHeaders, serverBase } from './auth'
 import { readSse } from '../lib/sse'
 import { refsIn } from '../lib/refs'
+import { uploadShared, type SharedFile } from '../lib/native'
 import type {
   Agent,
   AgentLogResponse,
@@ -481,6 +482,46 @@ export function getHarnessUpdates(refresh?: boolean, signal?: AbortSignal) {
  */
 export function logoutHarness(agent: Agent) {
   return request<HarnessLogout>('POST', '/harnesses/logout', { agent })
+}
+
+// ── Shared to the app (§6.18) ─────────────────────────────────────────────
+
+/** Where a shared file was kept on the host (`POST /upload`). */
+export interface Uploaded {
+  path: string
+  name: string
+  size: number
+}
+
+/**
+ * Send a file the share sheet handed the app to the host, which keeps it
+ * under ~/shared/<day>/ and answers where. Streamed from native code
+ * (lib/native.ts uploadShared) with this device's bearer.
+ */
+export async function uploadFile(file: SharedFile): Promise<Uploaded> {
+  const base = serverBase()
+  if (!base) throw new ApiError('No server address — set one in Settings', 0)
+  let res: { status: number; body: string }
+  try {
+    res = await uploadShared(file.path, `${base}/upload?name=${q(file.name)}`, authHeaders())
+  } catch (err) {
+    throw new ApiError(err instanceof Error ? err.message : `Could not reach ${base}`, 0)
+  }
+  let payload: Record<string, unknown> = {}
+  try {
+    payload = JSON.parse(res.body)
+  } catch {
+    // Not our server's answer.
+  }
+  if (res.status >= 400 || payload.ok === false || typeof payload.path !== 'string') {
+    throw new ApiError(String(payload.error || `HTTP ${res.status}`), res.status, payload)
+  }
+  return payload as unknown as Uploaded
+}
+
+/** A link played by agent-media (`POST /share`): its one-line verdict. */
+export function playShared(text: string) {
+  return request<{ url: string; channel: string; title: string; line: string }>('POST', '/share', { text })
 }
 
 export type { SessionRow }
