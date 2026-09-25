@@ -272,6 +272,7 @@ public class MpvServerTest {
             return pos >= 0 && pos < playlist.size() ? playlist.get(pos) : null;
         }
         @Override public boolean idle() { return pos < 0; }
+        @Override public boolean eofReached() { return false; }
     }
 
     // ---- a client that talks the line protocol -----------------------------

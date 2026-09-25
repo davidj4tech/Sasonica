@@ -622,6 +622,11 @@ final class Media3Speech implements MpvServer.Player {
         return ended || (pos < 0 && playlistCount() == 0);
     }
 
+    @Override
+    public boolean eofReached() {
+        return ended;
+    }
+
     // ---- helpers -----------------------------------------------------------
 
     private synchronized String at(int index) {

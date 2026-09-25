@@ -107,6 +107,13 @@ final class MpvServer {
         String path();
         /** Nothing loaded and nothing playing — mpv's {@code idle-active}. */
         boolean idle();
+        /**
+         * Idle because the last clip played to its end, not because of a
+         * {@code stop} — mpv's {@code eof-reached}. The server's follower
+         * reads it to tell a heard-out question (its answer plays next) from a
+         * stopped one (nothing more plays).
+         */
+        boolean eofReached();
     }
 
     /** Properties the protocol stores but does not act on. */
@@ -481,6 +488,7 @@ final class MpvServer {
         if ("playlist-pos".equals(name)) return player.playlistPos();
         if ("playlist-count".equals(name)) return player.playlistCount();
         if ("idle-active".equals(name)) return player.idle();
+        if ("eof-reached".equals(name)) return player.eofReached();
         if ("path".equals(name) || "filename".equals(name)) {
             String p = player.path();
             return p == null ? NOT_FOUND : p;
