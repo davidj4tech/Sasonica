@@ -277,12 +277,15 @@ export function getAgentLog(session: SessionId, id: string, opts: { before?: str
 /**
  * A reply into an existing thread: `POST /reply {session, text}` (§10),
  * shelved or not. A closed session is reopened (`opened: true`); one with
- * no pane and no transcript is 404 "no such session".
+ * no pane and no transcript is 404 "no such session". The reply ends the
+ * thread's read-out at the close of its sentence unless `keepReading`
+ * (§6.3 `keep_reading`).
  */
-export function reply(session: SessionId, text: string) {
+export function reply(session: SessionId, text: string, keepReading?: boolean) {
   const body: ReplyRequest = { session, text }
   const refs = refsIn(text)
   if (refs) body.refs = refs
+  if (keepReading) body.keep_reading = true
   return request<ReplyResponse>('POST', '/reply', body)
 }
 

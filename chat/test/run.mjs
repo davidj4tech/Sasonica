@@ -83,6 +83,8 @@
 //   refs    another thread by chip: Share into… (list and ⋮, a thread or New
 //           chat) leaves it in the draft; a send carries `refs` and shows a
 //           link; `@` in the box offers threads by title
+//   keepreading  the reply box's chip while this thread is read: "Stops
+//           reading" (no `keep_reading`), a tap → "Keep reading" for one send
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -113,7 +115,7 @@ const moveMock = await mockAt(P + 4, { MOCK_SPEECH_REST_S: '0' })
 const unheardMock = await mockAt(P + 5, { MOCK_SPEECH_REST_S: '0', MOCK_UNHEARD: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['lostlive.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['notes-layout.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['rich.mjs'], ['peer.mjs'], ['search.mjs'], ['pinch.mjs'], ['notify.mjs'], ['resume.mjs'], ['unheard.mjs'], ['refs.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['lostlive.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['notes-layout.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['rich.mjs'], ['peer.mjs'], ['search.mjs'], ['pinch.mjs'], ['notify.mjs'], ['resume.mjs'], ['unheard.mjs'], ['refs.mjs'], ['keepreading.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
     failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' || file === 'resync.mjs' || file === 'lostlive.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : file === 'move.mjs' ? P + 4 : file === 'unheard.mjs' ? P + 5 : P}`, ...env })) ? 1 : 0
   }

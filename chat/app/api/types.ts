@@ -534,6 +534,12 @@ export interface ReplyRequest {
   mode?: 'continue' | 'branch'
   /** `{title: session}` for the `@[title]` chips in `text` (§6.3, 24 Sep 2026). */
   refs?: Record<string, SessionId>
+  /**
+   * The reply box's chip on Keep reading (§6.3, 25 Sep 2026): the thread's
+   * speech plays on. Without it a reply ends the read-out at the close of
+   * the sentence playing.
+   */
+  keep_reading?: boolean
 }
 
 export interface ReplyResponse extends Envelope {

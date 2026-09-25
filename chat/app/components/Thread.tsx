@@ -286,6 +286,8 @@ export interface ThreadProps {
   disabled?: boolean
   /** Docked at the top of the footer, above the composer: the speech bar. */
   speechBar?: ReactNode
+  /** On the reply box, just above it: what this send will do (the Stops/Keep reading chip). */
+  composerChip?: ReactNode
   /**
    * The dialog the session is stopped on (David, 23 Sep 2026): docked above
    * the speech bar, where it stays in view until it is answered rather than
@@ -591,6 +593,7 @@ export function Thread(props: ThreadProps) {
               {props.status}
               {!props.readOnly && (
               <>
+              {props.composerChip}
               <ComposerPrimitive.Root className="composer">
                 <MentionPicker />
                 {/*
