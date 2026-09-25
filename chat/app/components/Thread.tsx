@@ -30,7 +30,8 @@ import {
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Working } from '../api/types'
 import { useBottomFirst } from '../hooks/useBottomFirst'
-import { useDictation } from '../hooks/useDictation'
+import { useDictation, type Carry } from '../hooks/useDictation'
+import { handOff, handOffTargets, type HandOffTarget } from '../lib/native'
 import { useDraft, type DraftHandle } from '../hooks/useDraft'
 import { useFollowAlong } from '../hooks/useFollowAlong'
 import { useFollowOn } from '../lib/followOn'
@@ -312,6 +313,10 @@ export interface ThreadProps {
   onResync?: () => void
   /** A new value listens at once and sends the words after a countdown (the assistant button; hooks/useDictation.ts). */
   listenNow?: number
+  /** Words brought from another thread's "New chat instead": placed with the countdown. */
+  carry?: Carry
+  /** After the assistant button: a "New chat instead" chip, which takes the words there. */
+  onNewChatInstead?: (text: string) => void
 }
 
 /** How long a jump waits for its message to be drawn before giving up. */
@@ -513,7 +518,16 @@ export function Thread(props: ThreadProps) {
     suggestions,
     queue
   })
-  const dictation = useDictation(runtime, props.listenNow, props.placeholder || 'Say something back')
+  const dictation = useDictation(runtime, props.listenNow, props.placeholder || 'Say something back', props.carry)
+  const [targets, setTargets] = useState<HandOffTarget[]>([])
+  useEffect(() => {
+    if (!dictation.offer) return
+    let live = true
+    void handOffTargets().then((t) => live && setTargets(t))
+    return () => {
+      live = false
+    }
+  }, [dictation.offer])
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -621,6 +635,21 @@ export function Thread(props: ThreadProps) {
                 )}
                 <ComposerPrimitive.Send className="send">↑</ComposerPrimitive.Send>
               </ComposerPrimitive.Root>
+              {dictation.offer && (props.onNewChatInstead || targets.length > 0) && (
+                // The assistant button's words, taken somewhere else instead.
+                <div className="chips handoff">
+                  {props.onNewChatInstead && (
+                    <button type="button" className="chip" onClick={() => props.onNewChatInstead?.(dictation.take())}>
+                      New chat instead
+                    </button>
+                  )}
+                  {targets.map((t) => (
+                    <button key={t.id} type="button" className="chip" onClick={() => void handOff(t, dictation.take()).catch(() => {})}>
+                      {t.label} →
+                    </button>
+                  ))}
+                </div>
+              )}
               {dictation.sendIn > 0 && <p className="status">Sending in {dictation.sendIn}… tap the text to edit it</p>}
               {/* Only where there is a real keyboard: app.css hides it on touch-only devices. */}
               <p className="send-hint">{SEND_KEYS} to send</p>

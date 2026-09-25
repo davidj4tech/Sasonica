@@ -82,6 +82,11 @@ function ThreadPage({ session }: { session: string }) {
   const autoRename = useAutoRename()
   const acts = useSessionActions()
   const navigate = useNavigate()
+  // "New chat instead" (after the assistant button): the words go with it.
+  const newChatInstead = useCallback(
+    (text: string) => navigate('/new', { state: { carry: { text, at: Date.now() } } }),
+    [navigate]
+  )
   useSessionFlags()
   const archived = archivedOf(session, knownArchived(session))
   // The speech level (§6.4 /session/priority): what the server last said, per thread.
@@ -405,6 +410,7 @@ function ThreadPage({ session }: { session: string }) {
         actions={actions}
         draftKey={session}
         listenNow={assist}
+        onNewChatInstead={assist ? newChatInstead : undefined}
         composerRef={composerRef}
         empty={empty}
         older={log.older && !log.stale}

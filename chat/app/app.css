@@ -335,6 +335,8 @@ a { color: var(--accent); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { border: 1px solid var(--line); background: var(--panel); border-radius: 99px; padding: 5px 12px; cursor: pointer; }
 .chip.on { border-color: var(--accent); color: var(--accent); }
+/* Under the composer after the assistant button (Thread.tsx): a new chat, another assistant. */
+.chips.handoff { margin: 4px 4px 0; }
 
 /* Pair this device: the mark large, the name, the tagline. */
 .brand-hero { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 0 4px; text-align: center; }

@@ -60,8 +60,17 @@ export async function openOutputSwitcher(): Promise<void> {
 
 // ── The assistant button ──────────────────────────────────────────────────
 
+/** Another assistant on the phone the words can be handed to (AssistPlugin.java targets()). */
+export interface HandOffTarget {
+  id: string
+  label: string
+  share: string
+}
+
 interface AssistPlugin {
   addListener(event: 'assist', fn: (e: { at: number; shown?: boolean }) => void): Promise<{ remove: () => Promise<void> }>
+  targets(): Promise<{ targets: HandOffTarget[] }>
+  handOff(o: { id: string; share: string; text: string }): Promise<void>
 }
 const Assist = registerPlugin<AssistPlugin>('Assist')
 
@@ -83,6 +92,21 @@ export function onAssist(fn: (shown: boolean) => void): () => void {
     gone = true
     remove?.()
   }
+}
+
+let targetsP: Promise<HandOffTarget[]> | null = null
+/** The other assistants that take shared text (asked once a page load). Never on the web. */
+export function handOffTargets(): Promise<HandOffTarget[]> {
+  if (!isNative()) return Promise.resolve([])
+  targetsP ??= Assist.targets()
+    .then((r) => r.targets || [])
+    .catch(() => [])
+  return targetsP
+}
+
+/** Share the words to another assistant; with none, open it as its assistant. */
+export async function handOff(t: HandOffTarget, text: string): Promise<void> {
+  await Assist.handOff({ id: t.id, share: t.share, text })
 }
 
 // ── Dictation ─────────────────────────────────────────────────────────────

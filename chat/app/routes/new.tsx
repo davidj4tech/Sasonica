@@ -11,6 +11,7 @@ import { askNew, getHarnesses } from '../api'
 import type { Agent, HarnessRow } from '../api/types'
 import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
+import type { Carry } from '../hooks/useDictation'
 import { useTargets } from '../hooks/useThreads'
 import { draftSent, NEW_CHAT } from '../lib/drafts'
 
@@ -60,7 +61,10 @@ export default function NewThread() {
   const signedOut = chosen?.present && chosen.auth === 'out'
   // Opened by the phone's assistant button (components/NativeHooks.tsx): a
   // stamp per press, and each new one listens straight away.
-  const assist = (useLocation().state as { assist?: number } | null)?.assist
+  // Or by a thread's "New chat instead" chip, with the words it took.
+  const navState = useLocation().state as { assist?: number; carry?: Carry } | null
+  const assist = navState?.assist
+  const carry = navState?.carry
 
   const onSend = useCallback(
     async (text: string) => {
@@ -105,6 +109,7 @@ export default function NewThread() {
         placeholder="Start a new chat…"
         draftKey={NEW_CHAT}
         listenNow={assist}
+        carry={carry}
         speechBar={<SpeechBar />}
         empty={
           <div className="new-pickers">
