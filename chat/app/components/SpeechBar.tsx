@@ -103,7 +103,8 @@ const IconVolume = ({ muted }: { muted: boolean }) => (
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function clock(s: number | null | undefined): string {
+/** 1:24 — a position or length in the reply, as the bar and a resume key say it. */
+export function clock(s: number | null | undefined): string {
   if (s == null || !isFinite(s)) return ''
   const t = Math.max(0, Math.round(s))
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`

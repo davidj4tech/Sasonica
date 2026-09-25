@@ -824,6 +824,8 @@ function speechCtl(action, arg, body = {}) {
       const { offsets } = speechOf(t.line)
       const from = Number.isInteger(body.sentence) ? Math.min(body.sentence, offsets.length - 1) : 0
       vSay(t.s, t.line, offsets[from] || 0)
+      // Played again: no longer an interrupted reply (§6.2.2 `resume`).
+      delete t.line.resume
       return String(turns.indexOf(t) + 1)
     }
     case 'goto-sentence': {
@@ -1121,6 +1123,8 @@ function messagesOf(s, lines) {
             at: l.at,
             ...(l.images ? { images: l.images, figure: !!l.figure } : {}),
             ...(l.live ? { live: Object.fromEntries(LIVE_KEYS.map((k) => [k, l[k]])) } : {}),
+            // Stopped part way and not heard since (GET /mock/resume).
+            ...(l.resume && !l.live ? { resume: l.resume } : {}),
             // The newest turn's timeline when nothing is live (§6.2).
             ...(!l.live && l.sentences
               ? { timeline: { sentences: l.sentences, offsets: l.offsets || [], measured: !!l.measured } }
@@ -1531,6 +1535,25 @@ createServer(async (req, res) => {
     if (url.searchParams.get('clear') === '1') CTL_LOG.length = 0
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
     return res.end(JSON.stringify(CTL_LOG))
+  }
+  if (path === '/mock/resume') {
+    // Tests: a reply the listener stopped part way (§6.2.2 `spoken.resume`) —
+    // the only reply of `title` (default the table-and-links one, whose
+    // spoken sentences differ from its text), from `sentence` (default 3);
+    // `?clear=1` takes it off. Answers the `resume` it set. Replaying the
+    // reply clears it, as the server does.
+    const q = url.searchParams
+    const s = Object.values(S).find((x) => x.title === (q.get('title') || 'Mock: a table and links'))
+    const line = s && [...s.lines].reverse().find((l) => l.who === 'agent' && l.id)
+    let resume = null
+    if (line && q.get('clear') === '1') delete line.resume
+    else if (line) {
+      const { offsets, len } = speechOf(line)
+      const sentence = Math.min(Number(q.get('sentence') ?? 3), offsets.length - 1)
+      resume = line.resume = { sentence, at_s: offsets[sentence], dur_s: len }
+    }
+    res.writeHead(line ? 200 : 404, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify({ id: line?.id ?? null, resume }))
   }
   if (path === '/mock/voice') {
     // Tests: `?loop=0` stops the speaking fixture coming back after it ends

@@ -77,7 +77,8 @@ export interface Speech {
    * another thread was read out from inside this one (25 Sep 2026).
    */
   replayLatest: (session?: SessionId) => void
-  replayId: (id: number) => void
+  /** Replay history row `id` — from sentence `sentence` when given (a resume), else from the top. */
+  replayId: (id: number, sentence?: number) => void
   /**
    * "Read from here" in the message being said: jump the voice to sentence
    * `index` of its live `sentences` (§6.5 `goto-sentence`). Resolves true
@@ -239,7 +240,10 @@ export function SpeechProvider({ children }: { children: ReactNode }) {
     }
   }, [ctl, histIdx])
 
-  const replayId = useCallback((id: number) => void ctl('replay-id', id), [ctl])
+  const replayId = useCallback(
+    (id: number, sentence?: number) => void ctl('replay-id', id, undefined, sentence === undefined ? undefined : { sentence }),
+    [ctl]
+  )
 
   const gotoSentence = useCallback(
     async (session: SessionId, index: number) => {

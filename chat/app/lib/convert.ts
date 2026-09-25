@@ -12,7 +12,7 @@
  * |                   | result while running, isError on error); ask → tool-call    |
  * |                   | AskUserQuestion; pictures from `spoken.images`              |
  * | status            | running while `turn.running`, else complete                 |
- * | metadata.custom   | {command, spoken id, figure, live, liveText}                |
+ * | metadata.custom   | {command, spoken id, figure, resume, live, liveText}        |
  *
  * `approval` (what is on screen now) is a message of its own at the foot of
  * the thread, answered with POST /session/answer — except a question
@@ -23,7 +23,7 @@
  */
 import type { ThreadMessageLike } from '@assistant-ui/react'
 import { pictureUrl } from '../api'
-import type { Approval, AskQuestion, Message, SessionId } from '../api/types'
+import type { Approval, AskQuestion, Message, SessionId, Spoken } from '../api/types'
 import type { LiveClock } from './followAlong'
 import { replyStart, shownText, userText } from './messages'
 import type { PendingSend } from './pending'
@@ -57,6 +57,10 @@ export interface LineCustom {
   /** The thread, for `goto-sentence` ("read from here" in the live message). */
   session?: SessionId
   figure?: boolean
+  /** Stopped part way and not heard since: the key resumes, the rest is dimmed. */
+  resume?: Spoken['resume']
+  /** The newest turn's sentences (`spoken.timeline`), so a resumed one needs no fetch. */
+  sentences?: string[]
   live?: LiveClock | null
   /** The text part the follow-along bolds: the spoken reply, as shown. */
   liveText?: string
@@ -138,6 +142,8 @@ export function convertItem(item: ChatItem): ThreadMessageLike {
     peer: m.peer ?? undefined,
     id: spoken?.id ?? undefined,
     figure: spoken?.figure,
+    resume: spoken?.resume,
+    sentences: spoken?.timeline?.sentences,
     live: item.live,
     session
   }
