@@ -1,28 +1,48 @@
 /**
  * What the Android shell needs from the app's life, rendered once in root:
  * a tap on a "New reply" notification opens that thread, the phone's
- * assistant button opens a new chat that listens at once, and once paired
+ * assistant button listens at once — into the thread on screen, else in a
+ * new chat — and once paired
  * the app asks (once) to be allowed to post notifications, then starts the
  * background notifier (lib/native.ts syncBackgroundNotify). Nothing on the web.
  */
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { hasCredential, serverBase } from '../api/auth'
 import { askNotificationPermission, isNative, onAssist, onNotificationTap, syncBackgroundNotify } from '../lib/native'
+
+/** A press this soon after one that listened into a thread opens a new chat instead. */
+const AGAIN_MS = 20_000
 
 export function NativeHooks() {
   const navigate = useNavigate()
   const location = useLocation()
   useEffect(() => onNotificationTap((session) => navigate(`/t/${encodeURIComponent(session)}`)), [navigate])
-  // The assistant button: /new with a fresh `assist` stamp (routes/new.tsx
-  // listens on each new one). Replace when already there, so pressing it
-  // twice does not stack two empty new chats. Not before pairing: there is
-  // nowhere to send the words.
+  // The assistant button. With a thread on screen (the app was showing, not
+  // just left there), it listens into that thread: the same path with a
+  // fresh `assist` stamp, which routes/thread.tsx hands to the composer.
+  // Otherwise /new with the stamp (routes/new.tsx listens on each new one),
+  // replacing when already there so two presses do not stack two empty new
+  // chats. A second press soon after one that went into a thread means "no,
+  // a new chat". Not before pairing: there is nowhere to send the words.
+  const here = useRef(location)
+  here.current = location
+  const lastIntoThread = useRef(0)
   useEffect(
     () =>
-      onAssist(() => {
+      onAssist((shown) => {
         if (!hasCredential()) return
-        navigate('/new', { replace: window.location.pathname === '/new', state: { assist: Date.now() } })
+        const at = Date.now()
+        const loc = here.current
+        const again = at - lastIntoThread.current < AGAIN_MS
+        lastIntoThread.current = 0
+        if (shown && !again && loc.pathname.startsWith('/t/')) {
+          lastIntoThread.current = at
+          const state = { ...((loc.state as object | null) || {}), assist: at }
+          navigate(loc.pathname + loc.search, { replace: true, state })
+          return
+        }
+        navigate('/new', { replace: loc.pathname === '/new', state: { assist: at } })
       }),
     [navigate]
   )

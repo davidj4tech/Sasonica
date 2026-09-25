@@ -596,7 +596,9 @@ What is native (all of it goes through `app/lib/native.ts`, a no-op on the web):
   Next; the assist gesture, the power key's long press, an earbud's long
   press): an `ACTION_ASSIST` filter on the activity, turned into a retained
   `assist` event by `AssistPlugin.java`. `NativeHooks.tsx` opens `/new`
-  with a fresh stamp, and the new chat listens at once; the words wait 3 s
+  with a fresh stamp, and the new chat listens at once — or, when a thread
+  was on screen at the press, that thread does (a second press within 20 s
+  opens a new chat instead); the words wait 3 s
   and send themselves unless the box is tapped or edited
   (`hooks/useDictation.ts`). Set it by hand or with
   `agent-phone-adb shell cmd role add-role-holder android.app.role.ASSISTANT com.sasonica.next 0`.

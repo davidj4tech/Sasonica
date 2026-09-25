@@ -5,7 +5,8 @@
  * - The mic key listens once (lib/native.ts dictate(): the platform
  *   recogniser's own screen) and puts the words in the box, after anything
  *   already there. Nothing is sent: the send key or Ctrl+Enter does that.
- * - `listenNow` changing (the assistant button, via routes/new.tsx) listens
+ * - `listenNow` changing (the assistant button, via routes/new.tsx or
+ *   routes/thread.tsx) listens
  *   at once, and the words then wait AUTO_SEND_S seconds before they send
  *   themselves, as in the old app: a button pressed to say something should
  *   not then need a tap, but the recogniser gets words wrong, and a message

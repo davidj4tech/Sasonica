@@ -55,6 +55,9 @@ function ThreadPage({ session }: { session: string }) {
   // this page load, else the saved list (a cold start straight into a thread).
   const [savedTitle, setSavedTitle] = useState('')
   const serverTitle = (location.state as { title?: string } | null)?.title || knownTitle(session) || savedTitle
+  // The phone's assistant button pressed with this thread on screen
+  // (components/NativeHooks.tsx): a stamp per press, each listens at once.
+  const assist = (location.state as { assist?: number } | null)?.assist
   useEffect(() => {
     if (serverTitle) return
     let cancelled = false
@@ -401,6 +404,7 @@ function ThreadPage({ session }: { session: string }) {
         onStop={onStop}
         actions={actions}
         draftKey={session}
+        listenNow={assist}
         composerRef={composerRef}
         empty={empty}
         older={log.older && !log.stale}

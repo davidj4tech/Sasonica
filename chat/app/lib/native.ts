@@ -61,16 +61,19 @@ export async function openOutputSwitcher(): Promise<void> {
 // ── The assistant button ──────────────────────────────────────────────────
 
 interface AssistPlugin {
-  addListener(event: 'assist', fn: (e: { at: number }) => void): Promise<{ remove: () => Promise<void> }>
+  addListener(event: 'assist', fn: (e: { at: number; shown?: boolean }) => void): Promise<{ remove: () => Promise<void> }>
 }
 const Assist = registerPlugin<AssistPlugin>('Assist')
 
-/** The phone's assistant button was pressed (retained across a cold start). Returns the unsubscribe. */
-export function onAssist(fn: () => void): () => void {
+/**
+ * The phone's assistant button was pressed (retained across a cold start).
+ * `shown`: the app was on screen at the press. Returns the unsubscribe.
+ */
+export function onAssist(fn: (shown: boolean) => void): () => void {
   if (!isNative()) return () => {}
   let remove: (() => void) | null = null
   let gone = false
-  Assist.addListener('assist', () => fn())
+  Assist.addListener('assist', (e) => fn(e?.shown === true))
     .then((h) => {
       if (gone) void h.remove()
       else remove = () => void h.remove()

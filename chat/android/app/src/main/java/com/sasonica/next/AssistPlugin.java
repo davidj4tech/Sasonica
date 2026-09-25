@@ -16,25 +16,46 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * `assist` event. It is retained until the page has a listener, which on a
  * cold start is some seconds after load() runs.
  *
- * JS: Assist.addListener('assist', ({at}) => …) — lib/native.ts onAssist().
+ * `shown` says whether the app was on screen when the button was pressed
+ * (started and not stopped: a press from another app, the lock screen or a
+ * cold start is false), so the page can tell "into the chat I am looking at"
+ * from "a new chat".
+ *
+ * JS: Assist.addListener('assist', ({at, shown}) => …) — lib/native.ts onAssist().
  */
 @CapacitorPlugin(name = "Assist")
 public class AssistPlugin extends Plugin {
+    /** Between onStart and onStop. A new intent only pauses a visible activity. */
+    private boolean started = false;
+
     @Override
     public void load() {
-        if (getActivity() != null) assist(getActivity().getIntent());
+        if (getActivity() != null) assist(getActivity().getIntent(), false);
+    }
+
+    @Override
+    protected void handleOnStart() {
+        super.handleOnStart();
+        started = true;
+    }
+
+    @Override
+    protected void handleOnStop() {
+        super.handleOnStop();
+        started = false;
     }
 
     @Override
     protected void handleOnNewIntent(Intent intent) {
         super.handleOnNewIntent(intent);
-        assist(intent);
+        assist(intent, started);
     }
 
-    private void assist(Intent intent) {
+    private void assist(Intent intent, boolean shown) {
         if (intent == null || !Intent.ACTION_ASSIST.equals(intent.getAction())) return;
         JSObject ev = new JSObject();
         ev.put("at", System.currentTimeMillis());
+        ev.put("shown", shown);
         notifyListeners("assist", ev, true);
         // Consumed: a rotation or a recreate re-delivers the launching intent.
         intent.setAction(null);
