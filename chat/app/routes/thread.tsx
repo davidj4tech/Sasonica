@@ -20,7 +20,7 @@ import { ApprovalCard } from '../components/parts'
 import { Thread } from '../components/Thread'
 import { useThread } from '../hooks/useThread'
 import { useSpeech } from '../hooks/useSpeech'
-import { knownArchived, knownLive, knownSpeech, knownProject, knownProjects, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
+import { knownArchived, knownLive, knownSpeech, knownSpeechOwn, knownProject, knownProjects, knownTitle, noteRow, useSessionStates } from '../hooks/useThreads'
 import { useSessionActions } from '../hooks/useSessionActions'
 import { ACTION_LABEL, ProjectPickerSheet, sessionMenuItems, ShareSheet, SPEECH_LEVELS, SpeechSheet, type SessionAction } from '../components/SessionSheets'
 import { chipIntoDraft, chipOf, remember } from '../lib/refs'
@@ -82,8 +82,9 @@ function ThreadPage({ session }: { session: string }) {
   useSessionFlags()
   const archived = archivedOf(session, knownArchived(session))
   // The speech level (§6.4 /session/priority): what the server last said, per thread.
-  const [speechSet, setSpeechSet] = useState<Record<string, SpeechLevel>>({})
-  const speechLevel = speechSet[session] ?? knownSpeech(session)
+  const [speechSet, setSpeechSet] = useState<Record<string, { level: SpeechLevel; own: boolean }>>({})
+  const speechLevel = speechSet[session]?.level ?? knownSpeech(session)
+  const speechOwn = speechSet[session]?.own ?? knownSpeechOwn(session)
   const [pickingSpeech, setPickingSpeech] = useState(false)
   const speechBadge = SPEECH_LEVELS.find((s) => s.level === speechLevel)?.badge
 
@@ -383,12 +384,13 @@ function ThreadPage({ session }: { session: string }) {
       {pickingSpeech && (
         <SpeechSheet
           current={speechLevel}
+          own={speechOwn}
           onClose={() => setPickingSpeech(false)}
           onPick={(level) => {
             setPickingSpeech(false)
             setStatus(null)
             void acts.speech(session, level).then((r) => {
-              if (r.ok) setSpeechSet((m) => ({ ...m, [session]: level }))
+              if (r.ok) setSpeechSet((m) => ({ ...m, [session]: { level: knownSpeech(session), own: knownSpeechOwn(session) } }))
               setStatus({ text: r.message, failed: !r.ok })
             })
           }}

@@ -61,6 +61,12 @@ export function knownSpeech(session: string): SpeechLevel {
   return row?.speech || (row?.priority ? 'auto' : 'normal')
 }
 
+/** Whether the thread's speech level is its own, not the default. */
+export function knownSpeechOwn(session: string): boolean {
+  const row = known.get(session) || peekTargets()?.sessions.find((r) => r.session === session)
+  return !!row?.speech_own
+}
+
 /** An exit or archive the server accepted (or its rollback), for the rows seen in this page load. */
 export function noteRow(session: string, patch: Partial<SessionRow>) {
   const row = known.get(session)

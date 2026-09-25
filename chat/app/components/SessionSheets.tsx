@@ -12,6 +12,8 @@ import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { candidates, matching, type RefCandidate } from '../lib/refs'
 import type { ProjectOption } from '../lib/threadSort'
 import type { SpeechLevel } from '../api/types'
+import { getSpeechDefault } from '../api'
+import { Link } from 'react-router'
 import { useScrim } from '../lib/layers'
 import { createPortal } from 'react-dom'
 
@@ -202,7 +204,24 @@ export const SPEECH_LEVELS: { level: SpeechLevel; label: string; note: string; b
   { level: 'quiet', label: 'Quiet', note: 'Never plays by itself and no toast; waits here with a Play', badge: 'Quiet' }
 ]
 
-export function SpeechSheet(props: { current: SpeechLevel; onPick: (level: SpeechLevel) => void; onClose: () => void }) {
+/**
+ * A thread's speech priority. The server's default (GET /speech/default) is
+ * tagged, and when the thread has a level of its own (`own`), "Use the
+ * default" clears it. The default itself is changed in Settings only: it is
+ * the server's, so every device's.
+ */
+export function SpeechSheet(props: { current: SpeechLevel; own?: boolean; onPick: (level: SpeechLevel | 'default') => void; onClose: () => void }) {
+  const [dflt, setDflt] = useState<SpeechLevel | null>(null)
+  useEffect(() => {
+    let live = true
+    getSpeechDefault()
+      .then((r) => live && setDflt(r.level))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+  const label = (l: SpeechLevel) => SPEECH_LEVELS.find((s) => s.level === l)?.label || l
   return (
     <Sheet label="Speech priority" onClose={props.onClose} className="action-sheet speech-sheet">
       <p className="action-title">Speech — what its replies do</p>
@@ -210,10 +229,22 @@ export function SpeechSheet(props: { current: SpeechLevel; onPick: (level: Speec
         {SPEECH_LEVELS.map((s) => (
           <button key={s.level} role="menuitemradio" aria-checked={props.current === s.level} className={props.current === s.level ? 'on' : ''} onClick={() => props.onPick(s.level)}>
             {s.label}
+            {dflt === s.level && <span className="default-tag"> · default</span>}
             <small>{s.note}</small>
           </button>
         ))}
+        {props.own && dflt && (
+          <button role="menuitem" className="use-default" onClick={() => props.onPick('default')}>
+            Use the default ({label(dflt)})
+            <small>Clears this thread’s own priority</small>
+          </button>
+        )}
       </div>
+      {dflt && (
+        <p className="speech-default-line">
+          Default for all threads: {label(dflt)} · <Link to="/settings">Change in Settings</Link>
+        </p>
+      )}
       <div className="row">
         <button type="button" className="quiet" onClick={props.onClose}>
           Cancel

@@ -881,7 +881,7 @@ function liveLine(line) {
 }
 
 // §6.1 (22 Sep 2026): every row carries archived, rested (null while live) and pinned.
-const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, priority: ['interrupt', 'auto'].includes(s.speech || SPEECH_DEFAULT.level), speech: s.speech || SPEECH_DEFAULT.level, project: s.project ?? null, cwd: s.cwd ?? null, harness: s.harness || 'claude', ...(s.store ? { source: 'store' } : {}) })
+const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, priority: ['interrupt', 'auto'].includes(s.speech || SPEECH_DEFAULT.level), speech: s.speech || SPEECH_DEFAULT.level, speech_own: !!s.speech, project: s.project ?? null, cwd: s.cwd ?? null, harness: s.harness || 'claude', ...(s.store ? { source: 'store' } : {}) })
 const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, recap: s.recap || null, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, recap: s.recap || null, ...flags(s) })
 
 // ── Search (§6.14) ────────────────────────────────────────────────────────
@@ -2077,9 +2077,12 @@ async function route(method, path, q, body, res) {
       if (typeof flag !== 'boolean') return err(400, 'priority must be true or false')
       level = flag ? 'auto' : 'normal'
     }
-    if (!['interrupt', 'auto', 'normal', 'quiet'].includes(level)) return err(400, 'level must be interrupt, auto, normal or quiet')
-    s.speech = level
-    return ok({ session: sid, level, priority: level === 'interrupt' || level === 'auto' })
+    if (!['interrupt', 'auto', 'normal', 'quiet', 'default'].includes(level)) return err(400, 'level must be interrupt, auto, normal, quiet or default')
+    // The default level, or "default", clears its own (§6.4 /speech/default).
+    if (level === 'default' || level === SPEECH_DEFAULT.level) delete s.speech
+    else s.speech = level
+    const now = s.speech || SPEECH_DEFAULT.level
+    return ok({ session: sid, level: now, own: !!s.speech, priority: now === 'interrupt' || now === 'auto' })
   }
   if (method === 'POST' && path === '/session/archive') {
     const sid = String(body.session || '')

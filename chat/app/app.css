@@ -112,6 +112,10 @@ a { color: var(--accent); }
 .action-list button.on { color: var(--accent); font-weight: 600; }
 /* The speech sheet: each level says what it does, under its name. */
 .speech-sheet .action-list button { padding: 8px 12px; }
+.speech-sheet .default-tag { color: var(--muted); font-weight: 400; }
+.speech-sheet .use-default { border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; }
+.speech-default-line { margin: 8px 12px 0; color: var(--muted); font-size: .867rem; }
+.speech-default-line a { color: var(--accent); }
 .speech-sheet .action-list small { display: block; font-weight: 400; color: color-mix(in srgb, var(--text) 75%, var(--muted)); font-size: .9rem; }
 .badge.speech.interrupt { color: var(--warn); border-color: var(--warn); }
 .sheet-hint { margin: 6px 12px 0; color: var(--muted); font-size: .9rem; }

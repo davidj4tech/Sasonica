@@ -202,6 +202,29 @@ ok((await rowFlags(shelved)).speech === 'quiet' && (await rowFlags(shelved)).pri
 await pickSpeech('Normal')
 await page.waitForTimeout(400)
 ok((await page.locator('.badge.speech').count()) === 0 && (await rowFlags(shelved)).speech === 'normal', 'Normal: no badge, mock agrees')
+// The default (§6.4 /speech/default): tagged in the sheet, a line to Settings,
+// and "Use the default" only while the thread has a level of its own.
+const openSpeech = async () => {
+  await page.getByRole('button', { name: 'Thread menu' }).click()
+  await page.getByRole('menuitem', { name: 'Speech priority…' }).click()
+  await page.waitForSelector('.speech-sheet .speech-default-line')
+}
+await openSpeech()
+ok((await page.locator('.speech-sheet [role=menuitemradio]', { hasText: 'Normal' }).innerText()).includes('· default'), 'the default level is tagged')
+ok((await page.locator('.speech-sheet .speech-default-line').innerText()).startsWith('Default for all threads: Normal'), 'the sheet names the default')
+ok((await page.locator('.speech-sheet a[href="/settings"]').count()) === 1, 'and links to Settings')
+ok((await page.locator('.speech-sheet .use-default').count()) === 0, 'no "Use the default" while it follows the default')
+await page.locator('.speech-sheet [role=menuitemradio]', { hasText: 'Quiet' }).click()
+await page.waitForSelector('.badge.speech.quiet')
+ok((await rowFlags(shelved)).speech_own === true, 'Quiet is its own')
+await openSpeech()
+const useDefault = page.locator('.speech-sheet .use-default')
+ok((await useDefault.count()) === 1 && (await useDefault.innerText()).startsWith('Use the default (Normal)'), '"Use the default (Normal)" while it has its own')
+await useDefault.click()
+await page.waitForFunction(() => !document.querySelector('.badge.speech'))
+const cleared = posts.filter((p) => p.p === '/session/priority').at(-1)
+ok(cleared && cleared.body.level === 'default', 'POST /session/priority {level: default}')
+ok((await rowFlags(shelved)).speech_own === false && (await rowFlags(shelved)).speech === 'normal', 'it follows the default again')
 
 ok(!errors.length, `no page errors ${errors.join('; ')}`)
 
