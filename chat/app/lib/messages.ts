@@ -10,6 +10,70 @@ import type { LiveEvent, LiveFields, Message, MessagePart } from '../api/types'
 const MARKER = /\[\[\s*(?:visual|reveal)\s*:\s*[\s\S]+?\s*\]\]/gi
 
 /**
+ * Hidden marks inside a shown text (Unicode private use, never typed): what
+ * lets the chat draw a link, a table or a code block while the words stay the
+ * string the follow-along walks. A link is LINK_OPEN words LINK_URL url
+ * LINK_CLOSE — its words are visible text, the rest is skipped by the walk. A
+ * table or code block is BLOCK_OPEN kind source BLOCK_CLOSE on its own line:
+ * one unit the walk steps over whole, because the voice describes it
+ * ("a table of three rows…") instead of reading it (§6.2, David 25 Sep 2026).
+ */
+export const LINK_OPEN = '\uE001'
+export const LINK_URL = '\uE003'
+export const LINK_CLOSE = '\uE002'
+export const BLOCK_OPEN = '\uE010'
+/** A bare address: SAY_OPEN url SAY_AS spoken SAY_CLOSE — shown as the url, walked as what the voice says for it ("github.com link", intake/_text.py suppress_urls). */
+export const SAY_OPEN = '\uE004'
+export const SAY_AS = '\uE006'
+export const SAY_CLOSE = '\uE005'
+export const BLOCK_CLOSE = '\uE012'
+
+/** A markdown table's separator row: `|---|:--:|`. */
+const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/
+const TABLE_ROW = /^\s*\|.*\|\s*$/
+const FENCE = /^\s*(`{3,}|~{3,})/
+
+/** What the server says for an address: its host and "link" (intake/_text.py `_url_host`). */
+function spokenUrl(url: string): string {
+  const host = url
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .split('/')[0]
+    .split('?')[0]
+    .split('#')[0]
+    .trim()
+    .replace(/[.,;:!?]+$/, '')
+  return host ? `${host} link` : 'link'
+}
+
+/** A markdown link, an autolink or a bare address — one pass, so an address inside a link is not seen twice. */
+const LINKS = /\[([^\]\n]+)\]\(([^)\s]+)\)|<(https?:\/\/[^>\s]+)>|\bhttps?:\/\/[^\s)>\]`]+/gi
+
+/** The inline rules, on prose only (never inside a table or code block). */
+function inline(text: string): string {
+  let out = text.replace(LINKS, (all, words?: string, url?: string, auto?: string) => {
+    if (words !== undefined) return `${LINK_OPEN}${words}${LINK_URL}${url}${LINK_CLOSE}`
+    let addr = auto ?? all
+    let trail = ''
+    // Sentence punctuation stays outside a bare address, as the server keeps it.
+    if (auto === undefined) {
+      while (addr && '.,;:!?'.includes(addr[addr.length - 1])) {
+        trail = addr[addr.length - 1] + trail
+        addr = addr.slice(0, -1)
+      }
+    }
+    return `${SAY_OPEN}${addr}${SAY_AS}${spokenUrl(addr)}${SAY_CLOSE}${trail}`
+  })
+  out = out.replace(/^#{1,6}\s+/gm, '')
+  out = out.replace(/\*\*([\s\S]+?)\*\*/g, '$1')
+  out = out.replace(/(?<!\*)\*([^*\n]+)\*/g, '$1')
+  out = out.replace(/`([^`\n]+)`/g, '$1')
+  out = out.replace(/^[ \t]*[-*][ \t]+/gm, '')
+  out = out.replace(/^[ \t]*>[ \t]?/gm, '')
+  return out.replace(/\*\*/g, '')
+}
+
+/**
  * A text part as the chat shows it. REALITY (red5, 22 Sep 2026): message
  * text is the transcript's own — markdown and `[[visual:]]` markers
  * included — where lines were the spoken, stripped words. The speech's
@@ -17,25 +81,43 @@ const MARKER = /\[\[\s*(?:visual|reveal)\s*:\s*[\s\S]+?\s*\]\]/gi
  * `strip_markdown`), and the follow-along walks the shown text against
  * them character by character, so the same inline rules are applied here:
  * markers out, emphasis/code/heading/bullet/quote markers off, a link's
- * text kept. Paragraph breaks are kept (the walk skips whitespace).
- * Code fences are left as they are (the server speaks a placeholder for
- * them; the reader wants the code), which only puts the bold back on its
- * space-joined fallback for that reply.
+ * text kept (its url rides along hidden, for the tap). Paragraph breaks are
+ * kept (the walk skips whitespace). Tables and code fences become one block
+ * each (BLOCK_OPEN): drawn as themselves, stepped over by the walk.
  */
 export function shownText(raw: string): string {
   if (!raw) return ''
-  let out = raw.replace(MARKER, ' ')
-  out = out.replace(/\[([^\]\n]+)\]\((?:[^)\s]+)\)/g, '$1')
-  out = out.replace(/^#{1,6}\s+/gm, '')
-  out = out.replace(/\*\*([\s\S]+?)\*\*/g, '$1')
-  out = out.replace(/(?<!\*)\*([^*\n]+)\*/g, '$1')
-  out = out.replace(/`([^`\n]+)`/g, '$1')
-  out = out.replace(/^[ \t]*[-*][ \t]+/gm, '')
-  out = out.replace(/^[ \t]*>[ \t]?/gm, '')
-  out = out.replace(/\*\*/g, '')
+  const lines = raw.replace(MARKER, ' ').split('\n')
+  const out: string[] = []
+  let prose: string[] = []
+  const flush = () => {
+    if (prose.length) out.push(inline(prose.join('\n')))
+    prose = []
+  }
+  for (let i = 0; i < lines.length; ) {
+    const fence = lines[i].match(FENCE)
+    if (fence) {
+      let j = i + 1
+      while (j < lines.length && !lines[j].trim().startsWith(fence[1])) j++
+      flush()
+      out.push(`${BLOCK_OPEN}c${lines.slice(i + 1, j).join('\n')}${BLOCK_CLOSE}`)
+      i = Math.min(j + 1, lines.length)
+      continue
+    }
+    if (TABLE_ROW.test(lines[i]) && i + 1 < lines.length && TABLE_SEP.test(lines[i + 1])) {
+      let j = i + 2
+      while (j < lines.length && TABLE_ROW.test(lines[j])) j++
+      flush()
+      out.push(`${BLOCK_OPEN}t${lines.slice(i, j).join('\n')}${BLOCK_CLOSE}`)
+      i = j
+      continue
+    }
+    prose.push(lines[i])
+    i++
+  }
+  flush()
   // A marker alone on a line leaves spaces behind; tidy the ends of lines.
-  out = out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n')
-  return out.trim()
+  return out.join('\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
 }
 
 /**

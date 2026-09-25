@@ -73,8 +73,11 @@
 //           and resets with a key of its own
 //   tapread  "Read from here": a tap on a sentence of the message being said
 //           jumps the voice (goto-sentence, bold at once, then the real
-//           position); a selection in an older reply → the chip → replay-id
-//           from that sentence; drags, selections and the keys are not taps
+//           position); an older reply sends nothing on a tap or selection
+//           and plays from its ▶; drags, selections and the keys are not taps
+//   rich    a reply's table, links, bare address and code drawn as
+//           themselves; while spoken the described table is one bold step
+//           and the sentences after it are still followed
 //   pinch   two fingers step the text size up/down, saved as the Settings
 //           choice, capped at both ends; the page never zooms
 //   refs    another thread by chip: Share into… (list and ⋮, a thread or New
@@ -110,7 +113,7 @@ const moveMock = await mockAt(P + 4, { MOCK_SPEECH_REST_S: '0' })
 const unheardMock = await mockAt(P + 5, { MOCK_SPEECH_REST_S: '0', MOCK_UNHEARD: '1' })
 let failed = 0
 try {
-  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['lostlive.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['notes-layout.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['peer.mjs'], ['search.mjs'], ['pinch.mjs'], ['notify.mjs'], ['resume.mjs'], ['unheard.mjs'], ['refs.mjs']]) {
+  for (const [file, env] of [['pair.mjs'], ['follow.mjs'], ['follow.mjs', { SIZE: 'largest' }], ['keys.mjs'], ['skew.mjs'], ['resync.mjs'], ['lostlive.mjs'], ['rename.mjs'], ['finished.mjs'], ['send.mjs'], ['draft.mjs'], ['arrivals.mjs'], ['stream.mjs'], ['notes.mjs'], ['notes-show.mjs'], ['notes-edit.mjs'], ['notes-layout.mjs'], ['sessions.mjs'], ['brand.mjs'], ['about.mjs'], ['harnesses.mjs'], ['ask.mjs'], ['dashboard.mjs'], ['agents.mjs'], ['sort.mjs'], ['filter.mjs'], ['move.mjs'], ['tapread.mjs'], ['rich.mjs'], ['peer.mjs'], ['search.mjs'], ['pinch.mjs'], ['notify.mjs'], ['resume.mjs'], ['unheard.mjs'], ['refs.mjs']]) {
     console.log(`\n── ${file} ${env ? JSON.stringify(env) : ''}`)
     failed += (await run(file, { BASE: `http://127.0.0.1:${file === 'skew.mjs' || file === 'resync.mjs' || file === 'lostlive.mjs' ? P + 1 : file === 'dashboard.mjs' ? P + 2 : file === 'agents.mjs' || file === 'sort.mjs' || file === 'filter.mjs' ? P + 3 : file === 'move.mjs' ? P + 4 : file === 'unheard.mjs' ? P + 5 : P}`, ...env })) ? 1 : 0
   }

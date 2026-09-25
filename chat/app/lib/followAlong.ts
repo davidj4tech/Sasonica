@@ -11,6 +11,7 @@
  * and the bold leads the clock by the per-device lead (lib/followLead.ts),
  * because a sentence is taken in as it starts.
  */
+import { BLOCK_CLOSE, BLOCK_OPEN, LINK_CLOSE, LINK_OPEN, LINK_URL, SAY_AS, SAY_CLOSE, SAY_OPEN } from './messages'
 import type { Line, LiveFields, Message, SpeechNow, Timeline } from '../api/types'
 import { getFollowLead } from './followLead'
 
@@ -160,6 +161,8 @@ export function sentenceAt(clock: LiveClock, nowMs: number): number {
  * splitter joins and trims on any whitespace, so a newline between list items
  * would come back as a space until the turn ended. Walked character by
  * character; anything that does not line up falls back to space-joined.
+ * A table or code block (lib/messages.ts BLOCK_OPEN) is one step: the voice
+ * describes it, so the sentence(s) saying it are bold on the block itself.
  *
  * `tail` is the text the sentences do not cover yet. REALITY (red5, 22 Sep
  * 2026, streamed clips): a live reply's `sentences` (and `offsets`) GROW
@@ -170,7 +173,20 @@ export function sentenceAt(clock: LiveClock, nowMs: number): number {
  * thread's auto-scroll answered by jumping to the bottom. The whole text is
  * shown from the start; the uncovered part is plain, unsaid text.
  */
-export function liveParts(text: string, sentences: string[]): { parts: { lead: string; text: string }[]; tail: string } {
+export type LivePart = {
+  /** Whitespace (and any block the voice skipped) before the sentence. */
+  lead: string
+  /** The sentence as shown — or a whole table/code block the voice described. */
+  text: string
+  /** The first sentence index this part is; `span` sentences in all (a described block can take several). */
+  i: number
+  span: number
+}
+
+/** How many sentences a described table or code block may take before the walk gives up on it. */
+const BLOCK_SENTENCES = 4
+
+export function liveParts(text: string, sentences: string[]): { parts: LivePart[]; tail: string } {
   const gap = (from: number) => {
     let p = from
     while (p < text.length && /\s/.test(text[p])) p++
@@ -178,24 +194,45 @@ export function liveParts(text: string, sentences: string[]): { parts: { lead: s
     return { end: p, ws: breaks || ' ' }
   }
   const fallback = () => {
-    const parts = sentences.map((t, i) => ({ lead: i ? ' ' : '', text: t }))
+    const parts = sentences.map((t, i) => ({ lead: i ? ' ' : '', text: t, i, span: 1 }))
     // Where the last sentence ends in the real text, by its last few words.
     const last = sentences[sentences.length - 1] || ''
     const probe = last.slice(-24)
     const at = probe ? text.lastIndexOf(probe) : -1
     return { parts, tail: at >= 0 ? text.slice(at + probe.length) : '' }
   }
-  const parts: { lead: string; text: string }[] = []
-  let p = 0
-  for (let i = 0; i < sentences.length; i++) {
-    const lead = gap(p)
-    p = lead.end
-    const sentence = sentences[i]
+  // A link's marks are copied, never compared: its open and close are zero
+  // width, its url is not spoken. `opens` is false at a sentence's end, so a
+  // link that follows starts the next part rather than trailing this one.
+  const hidden = (p: number, opens = true) => {
+    for (;;) {
+      if (text[p] === LINK_CLOSE || (opens && text[p] === LINK_OPEN)) p++
+      else if (text[p] === LINK_URL) {
+        const c = text.indexOf(LINK_CLOSE, p)
+        p = c < 0 ? text.length : c + 1
+      } else return p
+    }
+  }
+  const match = (sentence: string, from: number): { out: string; end: number } | null => {
+    let p = from
     let out = ''
     for (let k = 0; k < sentence.length; ) {
-      if (/\s/.test(sentence[k])) {
+      const h = hidden(p)
+      out += text.slice(p, h)
+      p = h
+      if (text[p] === SAY_OPEN) {
+        // A bare address: shown as itself, said as "<host> link".
+        const as = text.indexOf(SAY_AS, p)
+        const close = text.indexOf(SAY_CLOSE, p)
+        if (as < 0 || close < as) return null
+        const said = text.slice(as + 1, close)
+        if (!sentence.startsWith(said, k)) return null
+        out += text.slice(p, close + 1)
+        p = close + 1
+        k += said.length
+      } else if (/\s/.test(sentence[k])) {
         while (k < sentence.length && /\s/.test(sentence[k])) k++
-        if (!/\s/.test(text[p] || '')) return fallback()
+        if (!/\s/.test(text[p] || '')) return null
         const run = gap(p)
         p = run.end
         out += run.ws
@@ -203,10 +240,49 @@ export function liveParts(text: string, sentences: string[]): { parts: { lead: s
         out += sentence[k++]
         p++
       } else {
-        return fallback()
+        return null
       }
     }
-    parts.push({ lead: i ? lead.ws : '', text: out })
+    const h = hidden(p, false)
+    return { out: out + text.slice(p, h), end: h }
+  }
+  const blockEnd = (p: number) => {
+    const c = text.indexOf(BLOCK_CLOSE, p)
+    return c < 0 ? text.length : c + 1
+  }
+  const parts: LivePart[] = []
+  let p = 0
+  for (let i = 0; i < sentences.length; i++) {
+    const lead = gap(p)
+    p = lead.end
+    let before = i ? lead.ws : ''
+    let described = false
+    while (text[p] === BLOCK_OPEN) {
+      const end = blockEnd(p)
+      const after = gap(end)
+      if (match(sentences[i], after.end)) {
+        // Not spoken at all: the block is part of the gap before this sentence.
+        before += text.slice(p, end) + after.ws
+        p = after.end
+        continue
+      }
+      // Said as a description: this sentence and any after it that do not
+      // yet line up with the words past the block.
+      let span = 1
+      while (i + span < sentences.length && !match(sentences[i + span], after.end)) {
+        if (++span > BLOCK_SENTENCES) return fallback()
+      }
+      parts.push({ lead: before, text: text.slice(p, end), i, span })
+      i += span - 1
+      p = end
+      described = true
+      break
+    }
+    if (described) continue
+    const m = match(sentences[i], p)
+    if (!m) return fallback()
+    parts.push({ lead: before, text: m.out, i, span: 1 })
+    p = m.end
   }
   return { parts, tail: text.slice(p) }
 }
@@ -245,56 +321,3 @@ export function withSkew(clock: LiveClock, skewS: number): LiveClock {
   return { ...clock, delay: clock.delay + skewS }
 }
 
-/**
- * Where each of the server's `sentences` sits in the shown `text`, as
- * `[start, end)` character offsets (null for a sentence that cannot be
- * found) — for "Read from here" on a reply that is not playing, where the
- * app knows a character (the start of the reader's selection) and the
- * server wants a sentence index. The sentences are the server's
- * (GET /speech/sentences); this only places them. Whitespace is ignored on
- * both sides (the splitter re-joins on single spaces); a sentence the shown
- * text renders differently (a code fence) is found by its first few
- * characters, or skipped.
- */
-export function sentenceSpans(text: string, sentences: string[]): ([number, number] | null)[] {
-  const map: number[] = []
-  let flat = ''
-  for (let i = 0; i < text.length; i++) {
-    if (/\s/.test(text[i])) continue
-    map.push(i)
-    flat += text[i]
-  }
-  const out: ([number, number] | null)[] = []
-  let from = 0
-  for (const s of sentences) {
-    const want = s.replace(/\s+/g, '')
-    if (!want) {
-      out.push(null)
-      continue
-    }
-    let at = flat.indexOf(want, from)
-    let len = want.length
-    if (at < 0) {
-      const probe = want.slice(0, 12)
-      at = flat.indexOf(probe, from)
-      len = probe.length
-    }
-    if (at < 0) {
-      out.push(null)
-      continue
-    }
-    const end = at + len
-    out.push([map[at], map[end - 1] + 1])
-    from = end
-  }
-  return out
-}
-
-/** The sentence a character of the shown text belongs to: the last one starting at or before it (0 if none). */
-export function sentenceOfChar(spans: ([number, number] | null)[], offset: number): number {
-  let idx = 0
-  spans.forEach((sp, i) => {
-    if (sp && sp[0] <= offset) idx = i
-  })
-  return idx
-}

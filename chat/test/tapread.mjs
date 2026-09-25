@@ -1,8 +1,7 @@
 // "Read from here" (server-contract.md §6.5): a tap on a sentence of the
 // message being said jumps the voice there (goto-sentence, optimistic bold
-// that then follows the real position); a selection in an older spoken reply
-// offers "Read from here", which replays it from the sentence the selection
-// starts in (replay-id + sentence, one call). Scrolls, drags, selections and
+// that then follows the real position); an older spoken reply sends nothing on
+// a tap or a selection, and plays from its ▶. Scrolls, drags, selections and
 // the reply's own keys are not taps.
 import { chromium, SHOTS } from './lib.mjs'
 const BASE = process.env.BASE || 'http://127.0.0.1:8811'
@@ -107,54 +106,30 @@ ok(got.length === 1 && got[0].action === 'toggle', `the live reply's pause key s
 await page.locator('.msg.agent .msg-key.on').last().tap() // and resume
 await page.waitForTimeout(400)
 
-// ── T5: an older reply — a tap does nothing; a selection offers the chip ───
+// ── T5: an older reply — a tap or a selection sends nothing; ▶ plays it ────
+// (The "Read from here" chip under a selection went 25 Sep 2026: a tap on the
+// reply being said is the way to jump, and an older one plays from its ▶.)
 const OLD = 'Here is the shape of it.'
 const old = page.locator('.line-text[data-rid]', { hasText: OLD })
 ok((await old.count()) === 1, 'an older spoken reply carries its history row')
 await old.scrollIntoViewIfNeeded()
 await log(true)
 await old.tap()
-await page.waitForTimeout(500)
-ok((await log()).length === 0 && (await page.locator('.read-from-here').count()) === 0, 'a plain tap on an older reply sends nothing and shows no chip')
-// A long press selects a word natively; do the same by script.
 await page.evaluate((word) => {
   const p = [...document.querySelectorAll('.line-text[data-rid]')].find((e) => e.textContent.includes(word))
-  const node = p.firstChild
-  const at = node.textContent.indexOf('shape')
-  const r = document.createRange()
-  r.setStart(node, at)
-  r.setEnd(node, at + 'shape'.length)
-  const sel = document.getSelection()
-  sel.removeAllRanges()
-  sel.addRange(r)
-}, OLD)
-await page.waitForSelector('.read-from-here', { timeout: 3000 })
-const chip = await page.locator('.read-from-here').boundingBox()
-const word = await page.evaluate(() => document.getSelection().getRangeAt(0).getBoundingClientRect().toJSON())
-ok(chip.y >= word.bottom - 1, `the chip sits under the selection, clear of the native Copy bar (chip ${Math.round(chip.y)}, words end ${Math.round(word.bottom)})`)
-ok(chip.x >= 0 && chip.x + chip.width <= 390, 'the chip is on screen')
-await page.screenshot({ path: `${SHOTS}/tapread-chip.png` })
-const rid = Number(await old.getAttribute('data-rid'))
-await page.locator('.read-from-here').tap()
-await page.waitForTimeout(500)
-got = (await log()).filter((x) => x.action === 'replay-id')
-ok(got.length === 1 && got[0].arg === rid && got[0].sentence === 1, `one replay-id ${rid} from sentence 1: ${JSON.stringify(got)}`)
-ok((await page.locator('.read-from-here').count()) === 0, 'the chip goes once pressed')
-await page.waitForSelector('.live-text', { timeout: 8000 })
-await page.waitForFunction((w) => { const n = document.querySelector('.live-text .sentence.now'); return n && n.textContent.includes(w) }, 'shape', { timeout: 8000 }).catch(() => {})
-const liveNow = await page.evaluate(() => document.querySelector('.live-text .sentence.now')?.textContent || '')
-ok(liveNow.includes('shape'), `the replay plays from that sentence ("${liveNow}")`)
-
-// ── T6: a sentence past the end, and a selection outside any reply ─────────
-await page.evaluate(() => {
-  const p = document.querySelector('.msg.user .bubble')
   const r = document.createRange()
   r.selectNodeContents(p)
   document.getSelection().removeAllRanges()
   document.getSelection().addRange(r)
-})
+}, OLD)
+await page.waitForTimeout(600)
+ok((await log()).length === 0, 'a tap or a selection in an older reply sends nothing')
+ok((await page.locator('.read-from-here').count()) === 0, 'and offers no chip')
+const rid = Number(await old.getAttribute('data-rid'))
+await page.locator('.msg.agent', { hasText: OLD }).locator('.msg-key').first().tap()
 await page.waitForTimeout(500)
-ok((await page.locator('.read-from-here').count()) === 0, 'a selection in your own message offers no chip')
+got = (await log()).filter((x) => x.action === 'replay-id')
+ok(got.length === 1 && got[0].arg === rid, `its ▶ replays it: ${JSON.stringify(got)}`)
 
 await b.close()
 await fetch(BASE + '/mock/voice?loop=1')
