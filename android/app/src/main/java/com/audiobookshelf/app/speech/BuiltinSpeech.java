@@ -496,6 +496,11 @@ final class BuiltinSpeech implements MpvServer.Player {
         return ended || (player == null && pos < 0);
     }
 
+    @Override
+    public boolean eofReached() {
+        return ended;
+    }
+
     private String current() {
         int p = pos;
         return p >= 0 && p < playlist.size() ? playlist.get(p) : null;
