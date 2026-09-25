@@ -1457,7 +1457,7 @@ function withRefs(text, refs) {
   return lines.length ? `${text}\n\n${lines.join('\n')}` : text
 }
 
-const API = new Set(['/pair', '/dashboard', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/priority', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/harnesses/logout', '/harnesses/updates', '/search'])
+const API = new Set(['/pair', '/dashboard', '/alerts/digests', '/alerts/digest', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/priority', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/harnesses/logout', '/harnesses/updates', '/search'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1778,6 +1778,15 @@ async function route(method, path, q, body, res) {
   const notes = (await notesRoute(method, path, q, body, ok, err)) || setupWindowRoute(method, path, q, body, ok, err)
   if (notes) return notes
 
+  const DIGESTS = () => [
+    { n: 1, id: 'digest.org-agenda', at: r3(now() - 90000), level: 'info', title: 'Org agenda: 9 items due today', detail: 'inbox: TODO yesterday thing', speech: null },
+    { n: 2, id: 'digest.describe', at: r3(now() - 7200), level: 'info', title: 'Describe 24h: 2 calls', detail: 'Two calls.', speech: { id: null, heard: false } },
+    { n: 3, id: 'digest.org-agenda', at: r3(now() - 3600), level: 'info', title: 'Org agenda: 14 items due today', speech: { id: 9001, heard: false }, view: 'agenda',
+      detail: '  inbox:       9:00...... Scheduled:  NEXT Ring the plumber :home:\n  tickler:    Scheduled:  TODO Renew the passport\n  inbox:      Sched. 2x:  TODO An old thing since refiled :inbox:\nSacred Brain alerts.\n  memory store healthy' },
+    { n: 4, id: 'digest.landscape', at: r3(now() - 1800), level: 'info', title: 'Landscape watch', speech: null,
+      detail: '# Landscape\n\nFrom GitHub only.\n\n## Worth stealing\n\n- **Session recovery** after the daemon\n  forgets.\n- A phone mode, see [happy](https://example.com/happy)\n\n| tool | stars |\n|---|---|\n| happy | 9k |' }
+  ]
+
   if (method === 'GET' && path === '/dashboard') {
     // §6.11: one answer for the home screen, from the same fixtures (recent:
     // 12 here, not ~8, so the older fixtures with recaps make the cut).
@@ -1796,10 +1805,26 @@ async function route(method, path, q, body, res) {
       hosts: dashHosts(),
       // §6.11 digests: one waiting to be heard, one still rendering.
       digests: [
-        { id: 'digest.org-agenda', title: 'Org agenda: 14 items due today', level: 'info', changed_at: r3(now() - 3600), speech: { id: 9001, heard: false } },
-        { id: 'digest.describe', title: 'Describe 24h: 2 calls', level: 'info', changed_at: r3(now() - 7200), speech: { id: null, heard: false } }
+        { id: 'digest.org-agenda', title: 'Org agenda: 14 items due today', level: 'info', changed_at: r3(now() - 3600), speech: { id: 9001, heard: false }, n: 3 },
+        { id: 'digest.describe', title: 'Describe 24h: 2 calls', level: 'info', changed_at: r3(now() - 7200), speech: { id: null, heard: false }, n: 2 }
       ]
     })
+  }
+
+  // §6.17 the digest log: browse (no bodies) and read one.
+  if (method === 'GET' && path === '/alerts/digests') {
+    const before = Number(q.get('before')) || Infinity
+    const id = q.get('id')
+    return ok({ digests: DIGESTS().filter((d) => d.n < before && (!id || d.id === id)).sort((a, b) => b.n - a.n).map(({ detail, ...d }) => d) })
+  }
+  if (method === 'GET' && path === '/alerts/digest') {
+    const all = DIGESTS()
+    const d = all.find((x) => x.n === Number(q.get('n')))
+    if (!d) return err(404, 'no such digest')
+    const same = all.filter((x) => x.id === d.id).map((x) => x.n)
+    const before = same.filter((m) => m < d.n)
+    const after = same.filter((m) => m > d.n)
+    return ok({ digest: { ...d, prev: before.length ? Math.max(...before) : null, next: after.length ? Math.min(...after) : null } })
   }
 
   if (method === 'GET' && path === '/search') {

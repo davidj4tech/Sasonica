@@ -950,4 +950,27 @@ export interface DashDigest {
   changed_at: number
   /** `id` is the history row `replay-id` plays; null while it renders. */
   speech: { id: number | null; heard: boolean } | null
+  /** The latest in the digest log, to open and read (§6.17 `GET /alerts/digest`). Absent on an older server. */
+  n?: number | null
+}
+
+/** A past digest (§6.17 `GET /alerts/digests`): newest first, no body. */
+export interface DigestEntry {
+  n: number
+  id: string
+  at: number
+  level: 'ok' | 'info' | 'warn' | 'needs'
+  title: string
+  /** The Organiser view its lines are items of (`agenda`), shown as that view's live rows; null for a plain body. */
+  view?: string | null
+  speech: { id: number | null; heard: boolean } | null
+}
+
+export interface DigestsResponse extends Envelope {
+  digests: DigestEntry[]
+}
+
+/** One digest to read (§6.17 `GET /alerts/digest?n=`): its markdown body and the same id's neighbours. */
+export interface DigestResponse extends Envelope {
+  digest: DigestEntry & { detail: string; prev: number | null; next: number | null }
 }

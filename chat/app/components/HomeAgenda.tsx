@@ -64,25 +64,9 @@ export function HomeAgenda() {
       {due.length === 0 && <p className="agenda-empty">Nothing due today{later ? ` · ${later} later this week` : ''}.</p>}
       {due.length > 0 && (
         <ul className="notes">
-          {due.slice(0, SHOWN).map((h) => {
-            const doable = canMarkDone(meta, h)
-            return (
-              <li key={`${h.path}:${h.at}`} className="note-item">
-                {doable ? (
-                  <button className="done-key" onClick={() => void markDone(h)} title="Mark done" aria-label={`Mark done: ${h.title}`}>
-                    ○
-                  </button>
-                ) : (
-                  <span className="done-key" aria-hidden />
-                )}
-                <Link className="note-row" to={noteHref(h.path, h.at)}>
-                  <StateBadge state={h.state} />
-                  <span className="title">{h.title}</span>
-                  <span className={h.overdue ? 'agenda-when overdue' : 'agenda-when'}>{h.overdue ? 'overdue' : 'today'}</span>
-                </Link>
-              </li>
-            )
-          })}
+          {due.slice(0, SHOWN).map((h) => (
+            <AgendaItem key={`${h.path}:${h.at}`} h={h} doable={canMarkDone(meta, h)} markDone={markDone} when={h.overdue ? 'overdue' : 'today'} />
+          ))}
         </ul>
       )}
       {toast && (
@@ -102,5 +86,25 @@ export function HomeAgenda() {
         {more ? `${more} more in the organiser →` : 'Open the organiser →'}
       </Link>
     </section>
+  )
+}
+
+/** One agenda row: ○ to mark it done where it stands, the heading to open it. Home's Agenda and an agenda digest (routes/digest.tsx). */
+export function AgendaItem({ h, doable, markDone, when }: { h: NoteHeading; doable: boolean; markDone: (h: NoteHeading) => unknown; when: string }) {
+  return (
+    <li className="note-item">
+      {doable ? (
+        <button className="done-key" onClick={() => void markDone(h)} title="Mark done" aria-label={`Mark done: ${h.title}`}>
+          ○
+        </button>
+      ) : (
+        <span className="done-key" aria-hidden />
+      )}
+      <Link className="note-row" to={noteHref(h.path, h.at)}>
+        <StateBadge state={h.state} />
+        <span className="title">{h.title}</span>
+        {when && <span className={h.overdue ? 'agenda-when overdue' : 'agenda-when'}>{when}</span>}
+      </Link>
+    </li>
   )
 }

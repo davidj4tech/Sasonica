@@ -28,6 +28,8 @@ import type {
   AudioChannel,
   AudioTargetsResponse,
   DashboardResponse,
+  DigestResponse,
+  DigestsResponse,
   Envelope,
   ConversationLog,
   DraftResponse,
@@ -392,6 +394,17 @@ export function speechCtl(action: SpeechAction, arg?: number, extra?: { sentence
  * as `replay-id` + `sentence` counts them — the server's list, so the app
  * never re-splits the words. `[]`: it can only be replayed from the top.
  */
+/** Past digests, newest first (§6.17): all, or one id's; `before` an `n` to page back. */
+export function getDigests(opts: { id?: string; before?: number } = {}, signal?: AbortSignal) {
+  const qs = [opts.id ? `id=${q(opts.id)}` : '', opts.before ? `before=${opts.before}` : ''].filter(Boolean).join('&')
+  return request<DigestsResponse>('GET', `/alerts/digests${qs ? `?${qs}` : ''}`, undefined, signal)
+}
+
+/** One digest with its body (§6.17). */
+export function getDigest(n: number, signal?: AbortSignal) {
+  return request<DigestResponse>('GET', `/alerts/digest?n=${n}`, undefined, signal)
+}
+
 export function getSpeechSentences(id: number, signal?: AbortSignal) {
   return request<SpeechSentencesResponse>('GET', `/speech/sentences?id=${encodeURIComponent(String(id))}`, undefined, signal)
 }
