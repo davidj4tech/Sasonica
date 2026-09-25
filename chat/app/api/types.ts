@@ -713,6 +713,11 @@ export interface ArchiveResponse extends Envelope {
 /** What happens to a thread's replies (§6.4 /session/priority). */
 export type SpeechLevel = 'interrupt' | 'auto' | 'normal' | 'quiet'
 
+/** GET|POST /speech/default (§6.4): the level of a thread with none of its own. */
+export interface SpeechDefaultResponse extends Envelope {
+  level: SpeechLevel
+}
+
 /** POST /session/priority {session, level} (§6.4): the thread's speech level. */
 export interface PriorityResponse extends Envelope {
   session: SessionId

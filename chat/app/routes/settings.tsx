@@ -12,7 +12,9 @@
 import { BackLink } from '../components/Nav'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { getTargets } from '../api'
+import { getSpeechDefault, getTargets, setSpeechDefault } from '../api'
+import type { SpeechLevel } from '../api/types'
+import { SPEECH_LEVELS } from '../components/SessionSheets'
 import { credentialKind, hasLegacyToken, pairedDevice, serverBase, setBaseUrl, setLegacyToken, storedBaseUrl, unpair } from '../api/auth'
 import { LEAD_DEFAULT_S, LEAD_MAX_S, LEAD_MIN_S, LEAD_STEP_S, setFollowLead, useFollowLead } from '../lib/followLead'
 import { backgroundNotifyStatus, setBackgroundNotify, syncBackgroundNotify, speechStatus, setSpeechHere, type BackgroundNotifyStatus, type SpeechStatus } from '../lib/native'
@@ -44,6 +46,19 @@ export default function Settings() {
   }, [])
   const [ambient, setAmbient] = useState(() => getShowAmbient())
   const [kind, setKind] = useState(() => credentialKind())
+  // The default speech priority is the server's (GET /speech/default): null
+  // until it answers, and the picker hidden if it never does (an older one).
+  const [speechDefault, setSpeechDefaultState] = useState<SpeechLevel | null>(null)
+  const [speechDefaultError, setSpeechDefaultError] = useState('')
+  useEffect(() => {
+    let live = true
+    getSpeechDefault()
+      .then((r) => live && setSpeechDefaultState(r.level))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
   const lead = useFollowLead()
   const advanced = useAdvanced()
   const followOn = useFollowOn()
@@ -232,7 +247,7 @@ export default function Settings() {
         )}
         {speech && (
           <fieldset data-testid="speech-here">
-            <legend>Speech</legend>
+            <legend>Speech on this phone</legend>
             <label className="check">
               <input
                 type="checkbox"
@@ -254,6 +269,39 @@ export default function Settings() {
                   : 'Starting\u2026'
                 : `Off: replies are spoken by the old Sasonica app. While both are installed this one answers on port ${speech.port}, so you can try it without losing the other.`}
             </small>
+          </fieldset>
+        )}
+        {speechDefault && (
+          <fieldset data-testid="speech-default">
+            <legend>Default speech priority</legend>
+            <div className="text-sizes" role="group">
+              {SPEECH_LEVELS.map((s) => (
+                <button
+                  key={s.level}
+                  type="button"
+                  aria-pressed={speechDefault === s.level}
+                  onClick={() => {
+                    const was = speechDefault
+                    setSpeechDefaultState(s.level)
+                    setSpeechDefaultError('')
+                    setSpeechDefault(s.level)
+                      .then((r) => setSpeechDefaultState(r.level))
+                      .catch((e: unknown) => {
+                        setSpeechDefaultState(was)
+                        setSpeechDefaultError(e instanceof Error ? e.message : 'Could not save it')
+                      })
+                  }}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <small>{SPEECH_LEVELS.find((s) => s.level === speechDefault)?.note}.</small>
+            <small className="server-wide">
+              Saved on the server, not this phone: it changes every device paired with it. A thread given its own priority in its
+              menu keeps it.
+            </small>
+            {speechDefaultError && <small className="failed">{speechDefaultError}</small>}
           </fieldset>
         )}
         <fieldset>
