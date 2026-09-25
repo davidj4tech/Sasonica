@@ -1437,8 +1437,9 @@ function serveStatic(req, res, path) {
 /** The projects /session/move will accept, as the canvas's layout knows them. */
 const KNOWN_PROJECTS = new Set(['agent-media', 'sasonica', 'runlet'])
 
-// §6.3 `refs`: a line at the foot per chip that names a session, as refs.py writes it.
+/** The body of the last /reply or /ask, as sent: its `refs`, and `keep_reading` (the chip). */
 let LAST_SEND = null
+// §6.3 `refs`: a line at the foot per chip that names a session, as refs.py writes it.
 function withRefs(text, refs) {
   if (!refs || typeof refs !== 'object') return text
   const lines = []
@@ -1511,7 +1512,8 @@ createServer(async (req, res) => {
     return res.end(String(realJump))
   }
   if (path === '/mock/last-send') {
-    // Tests: the body of the last /reply or /ask (refs.mjs reads its `refs`).
+    // Tests: the body of the last /reply or /ask (refs.mjs reads its `refs`,
+    // keepreading.mjs its `keep_reading`).
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
     return res.end(JSON.stringify(LAST_SEND))
   }

@@ -148,6 +148,18 @@ function ThreadPage({ session }: { session: string }) {
     [session, log.messages, log.approval, live, played, log.liveId, log.optimistic]
   )
 
+  // A reply ends this thread's read-out at the close of its sentence (§6.3).
+  // While the thread is being read (speaking or paused, /speech/now), a chip
+  // on the box says so, and a tap turns it to Keep reading for the next send
+  // only (`keep_reading`); then it is back to the default.
+  const readingHere = !!speech.now?.live && speech.now.session === session
+  const [keepReading, setKeepReading] = useState(false)
+  const keepRef = useRef(false)
+  keepRef.current = readingHere && keepReading
+  useEffect(() => {
+    if (!readingHere) setKeepReading(false)
+  }, [readingHere])
+
   // The message shows at once ("sending…") and is replaced by the server's
   // own line when that comes back (lib/pending.ts). A refusal keeps the
   // words in the bubble with Retry; nothing is thrown, so the box empties,
@@ -158,8 +170,10 @@ function ThreadPage({ session }: { session: string }) {
     async (text: string): Promise<boolean> => {
       const id = sending(text)
       setStatus(null)
+      const keep = keepRef.current
+      if (keep) setKeepReading(false)
       try {
-        const res = await reply(session, text)
+        const res = await reply(session, text, keep)
         sent(id)
         draftSent(session, text)
         // Sending resumes an ended session and un-archives the thread (the
@@ -410,6 +424,20 @@ function ThreadPage({ session }: { session: string }) {
         placeholder={closed ? 'Session closed. Sending resumes it' : undefined}
         dock={log.approval ? <ApprovalCard approval={log.approval} /> : null}
         speechBar={<SpeechBar here={session} />}
+        composerChip={
+          readingHere && (
+            <button
+              className={`chip reading-chip${keepReading ? ' on' : ''}`}
+              aria-pressed={keepReading}
+              title={keepReading ? 'This reply leaves the voice reading' : 'This reply stops the voice at the end of its sentence'}
+              // Keep the keyboard up: the words are still being written.
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => setKeepReading((k) => !k)}
+            >
+              {keepReading ? 'Keep reading' : 'Stops reading'}
+            </button>
+          )
+        }
         jumpTo={jumpTo}
         onResync={resync}
         status={
