@@ -88,8 +88,8 @@ function ThreadList() {
   const states = useSessionStates()
   usePrefetch(sessions, !stale && !loading && !error)
   const [renaming, setRenaming] = useState<{ session: string; title: string } | null>(null)
-  const [speechFor, setSpeechFor] = useState<{ session: string; speech: SpeechLevel } | null>(null)
-  const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean; speech: SpeechLevel } | null>(null)
+  const [speechFor, setSpeechFor] = useState<{ session: string; speech: SpeechLevel; speechOwn?: boolean } | null>(null)
+  const [menu, setMenu] = useState<{ session: string; title: string; live: boolean; archived: boolean; speech: SpeechLevel; speechOwn?: boolean } | null>(null)
   const [moving, setMoving] = useState<{ session: string; title: string; live: boolean } | null>(null)
   const [sharing, setSharing] = useState<{ session: string; title: string } | null>(null)
   const navigate = useNavigate()
@@ -203,7 +203,7 @@ function ThreadList() {
       state={states[row.session]}
       markArchived={filter.show === 'all' && isArchived(row)}
       hideProject={sort === 'project'}
-      onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived), speech: speechOf(row) })}
+      onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived), speech: speechOf(row), speechOwn: row.speech_own })}
     />
   )
 
@@ -351,6 +351,7 @@ function ThreadList() {
       {speechFor && (
         <SpeechSheet
           current={speechFor.speech}
+          own={speechFor.speechOwn}
           onClose={() => setSpeechFor(null)}
           onPick={(level) => {
             const m = speechFor

@@ -49,6 +49,8 @@ export interface SessionRow {
   priority?: boolean
   /** The thread's speech level (POST /session/priority {level}, 24 Sep 2026). */
   speech?: SpeechLevel
+  /** Whether `speech` is the thread's own, not the default (25 Sep 2026). */
+  speech_own?: boolean
   /** "Where this thread was" (§6.1 Recaps), or null. */
   recap?: Recap | null
   /** The project it runs in, for display (§6.1, 22 Sep 2026), or null. */
@@ -722,6 +724,8 @@ export interface SpeechDefaultResponse extends Envelope {
 export interface PriorityResponse extends Envelope {
   session: SessionId
   level: SpeechLevel
+  /** Whether that level is the thread's own (25 Sep 2026). */
+  own?: boolean
   priority: boolean
 }
 

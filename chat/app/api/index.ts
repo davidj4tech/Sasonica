@@ -358,8 +358,8 @@ export function closeSession(session: SessionId) {
   return request<CloseResponse>('POST', '/session/close', { session })
 }
 
-/** POST /session/priority (§6.4): the thread's speech level. */
-export function prioritySession(session: SessionId, level: SpeechLevel) {
+/** POST /session/priority (§6.4): the thread's speech level; `default` clears its own. */
+export function prioritySession(session: SessionId, level: SpeechLevel | 'default') {
   return request<PriorityResponse>('POST', '/session/priority', { session, level })
 }
 

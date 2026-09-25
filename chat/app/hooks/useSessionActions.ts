@@ -59,12 +59,12 @@ const SPEECH_SAID: Record<SpeechLevel, string> = {
 }
 
 /** The speech level (§6.4 /session/priority): not optimistic — the server's word is what the menu shows next. */
-async function speech(session: string, level: SpeechLevel): Promise<ActionOutcome> {
+async function speech(session: string, level: SpeechLevel | 'default'): Promise<ActionOutcome> {
   try {
     const res = await prioritySession(session, level)
-    patchTargetRow(session, { priority: res.priority, speech: res.level })
-    noteRow(session, { priority: res.priority, speech: res.level })
-    return { ok: true, message: SPEECH_SAID[res.level] }
+    patchTargetRow(session, { priority: res.priority, speech: res.level, speech_own: res.own })
+    noteRow(session, { priority: res.priority, speech: res.level, speech_own: res.own })
+    return { ok: true, message: level === 'default' ? `It follows the default: ${SPEECH_SAID[res.level].toLowerCase()}` : SPEECH_SAID[res.level] }
   } catch (err) {
     return { ok: false, message: `Not changed: ${why(err)}` }
   }
