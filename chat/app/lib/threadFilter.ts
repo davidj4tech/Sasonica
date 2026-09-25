@@ -14,11 +14,14 @@
  * of states — Needs you / Working / Your turn (§6.2
  * /sessions/state). A state is something a running thread is doing, so
  * picking one leaves the shelved rows out; picking none asks nothing.
+ * Speech priority is the same kind of choice (David, 25 Sep 2026): any
+ * number of the four levels (§6.4), a row's own or the server's default —
+ * /targets says which applies — and none ticked asks nothing.
  *
  * `older` is the one that costs a request: the server lists the last 30 days
  * of each harness's store, and `history=all` lifts that window (§6.16).
  */
-import type { Harness, SessionRow, SessionState } from '../api/types'
+import type { Harness, SessionRow, SessionState, SpeechLevel } from '../api/types'
 import { OTHER_PROJECT, projectOf, projectOptions } from './threadSort'
 
 export type ThreadShow = 'active' | 'live' | 'closed' | 'archived' | 'all'
@@ -28,6 +31,12 @@ export const SHOWS: ThreadShow[] = ['active', 'live', 'closed', 'archived', 'all
 
 export const STATE_FILTER_LABEL: Record<SessionState, string> = { approval: 'Needs you', working: 'Working', waiting: 'Your turn' }
 export const STATE_FILTERS: SessionState[] = ['approval', 'working', 'waiting']
+
+export const SPEECH_FILTER_LABEL: Record<SpeechLevel, string> = { interrupt: 'Interrupt', auto: 'Auto speak', normal: 'Normal', quiet: 'Quiet' }
+export const SPEECH_FILTERS: SpeechLevel[] = ['interrupt', 'auto', 'normal', 'quiet']
+
+/** A row's speech level; rows from before the server said so have only `priority`. */
+export const speechOf = (row: SessionRow): SpeechLevel => row.speech || (row.priority ? 'auto' : 'normal')
 
 export const HARNESS_LABEL: Record<Harness, string> = { claude: 'Claude', codex: 'Codex', pi: 'pi', hermes: 'Hermes' }
 export const HARNESSES: Harness[] = ['claude', 'codex', 'pi', 'hermes']
@@ -41,9 +50,10 @@ export type ThreadFilter = {
   project: string | null
   harness: Harness | null
   states: SessionState[]
+  speech: SpeechLevel[]
   older: boolean
 }
-export const DEFAULT_FILTER: ThreadFilter = { show: 'active', project: null, harness: null, states: [], older: false }
+export const DEFAULT_FILTER: ThreadFilter = { show: 'active', project: null, harness: null, states: [], speech: [], older: false }
 
 const KEY = 'sasonica.chat.threadFilter'
 
@@ -55,7 +65,8 @@ export function loadThreadFilter(): ThreadFilter {
       project: typeof v?.project === 'string' && v.project ? v.project : null,
       harness: HARNESSES.includes(v?.harness) ? v.harness : null,
       older: v?.older === true,
-      states: Array.isArray(v?.states) ? STATE_FILTERS.filter((k) => v.states.includes(k)) : []
+      states: Array.isArray(v?.states) ? STATE_FILTERS.filter((k) => v.states.includes(k)) : [],
+      speech: Array.isArray(v?.speech) ? SPEECH_FILTERS.filter((k) => v.speech.includes(k)) : []
     }
   } catch {
     return DEFAULT_FILTER
@@ -69,19 +80,20 @@ export function saveThreadFilter(f: ThreadFilter) {
   }
 }
 
-/** The button's words: "Active", "Archived · sasonica", "Active · Needs you, Working". */
+/** The button's words: "Active", "Archived · sasonica", "Active · Needs you, Working", "Active · Quiet speech". */
 export function filterLabel(f: ThreadFilter): string {
   const parts = [SHOW_LABEL[f.show]]
   if (f.project) parts.push(f.project)
   if (f.harness) parts.push(HARNESS_LABEL[f.harness])
   if (f.older) parts.push('all time')
   if (f.states.length) parts.push(STATE_FILTERS.filter((k) => f.states.includes(k)).map((k) => STATE_FILTER_LABEL[k]).join(', '))
+  if (f.speech.length) parts.push(SPEECH_FILTERS.filter((k) => f.speech.includes(k)).map((k) => SPEECH_FILTER_LABEL[k]).join(', ') + ' speech')
   return parts.join(' · ')
 }
 
 /** Nothing asked of the list but the default Show. */
 export const isDefaultFilter = (f: ThreadFilter) =>
-  f.show === DEFAULT_FILTER.show && !f.project && !f.harness && !f.states.length && !f.older
+  f.show === DEFAULT_FILTER.show && !f.project && !f.harness && !f.states.length && !f.speech.length && !f.older
 
 /**
  * Split the rows: `main` is the list, `folded` the Archived section at its
@@ -100,6 +112,7 @@ export function filterThreads(
   for (const row of rows) {
     if (f.project && projectOf(row) !== f.project) continue
     if (f.harness && harnessOf(row) !== f.harness) continue
+    if (f.speech.length && !f.speech.includes(speechOf(row))) continue
     // A state belongs to a running thread: with any picked, the rest go.
     if (f.states.length) {
       const st = live(row) ? state(row) : undefined
