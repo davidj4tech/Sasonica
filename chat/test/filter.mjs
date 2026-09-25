@@ -8,6 +8,8 @@
 //   project   one project's rows, combined with the show choice
 //   states    Needs you / Working / Your turn, any number of them at once:
 //             the menu stays open, shelved rows go, the button names them
+//   speech    the four speech priorities, a multiple choice like the states;
+//             a thread set Quiet shows alone, then with the default's Normal
 //   empty     nothing matches → a line with "Show all", which resets
 //   device    the choice survives a reload (localStorage)
 import { chromium, SHOTS } from './lib.mjs'
@@ -174,6 +176,36 @@ await page.locator('.filter-button').click()
 await page.getByRole('menuitemradio', { name: 'All agents', exact: true }).click()
 await page.waitForTimeout(150)
 ok((await page.locator('.threads .thread-row .harness-chip').allInnerTexts()).includes('Claude'), 'every row wears one')
+
+// Speech priority (§6.4): the level /targets gives each row — its own, or
+// the server's default — any number at once, the menu staying open.
+const shelved = targets.find((x) => !x.live && !x.archived)
+const setLevel = (level) => fetch(BASE + '/session/priority', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ session: shelved.session, level }) })
+await setLevel('quiet')
+await page.reload()
+await page.waitForSelector('.thread-row')
+const speech = async (name) => {
+  if ((await page.locator('.filter-menu').count()) === 0) await page.locator('.filter-button').click()
+  await page.getByRole('menuitemcheckbox', { name, exact: true }).click()
+  await page.waitForTimeout(100)
+}
+await speech('Quiet')
+ok((await page.locator('.filter-menu').count()) === 1, 'the menu stays open on a speech level')
+ok((await titles()).join() === shelved.title, `Quiet: only the quiet thread (${(await titles()).join(', ')})`)
+ok((await label()).includes('Quiet speech'), `the button names it (${await label()})`)
+await page.screenshot({ path: SHOTS + '/filter-06-speech.png' })
+await speech('Normal')
+t = await titles()
+ok(t.includes(shelved.title) && t.length > 1, `and Normal: the default's threads too (${t.length} rows)`)
+await speech('Quiet')
+ok(!(await titles()).includes(shelved.title), 'unticked Quiet: the quiet thread goes')
+await speech('Normal')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(100)
+ok(!(await label()).includes('·'), 'none ticked asks nothing')
+await setLevel('normal')
+await page.reload()
+await page.waitForSelector('.thread-row')
 
 // Older than 30 days: a second request, not a second view.
 const asked = []

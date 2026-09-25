@@ -52,6 +52,9 @@ import {
   saveThreadFilter,
   SHOW_LABEL,
   SHOWS,
+  SPEECH_FILTER_LABEL,
+  SPEECH_FILTERS,
+  speechOf,
   STATE_FILTER_LABEL,
   STATE_FILTERS,
   type ThreadFilter
@@ -118,11 +121,18 @@ function ThreadList() {
     setFilterState(next)
     saveThreadFilter(next)
   }
-  // The states are a multiple choice: the menu stays open while they are
-  // ticked and unticked, and none ticked asks nothing of the list.
+  // The states and speech levels are a multiple choice: the menu stays open
+  // while they are ticked and unticked, and none ticked asks nothing of the list.
   const toggleState = (k: SessionState) => {
     setFilterState((prev) => {
       const next = { ...prev, states: prev.states.includes(k) ? prev.states.filter((x) => x !== k) : [...prev.states, k] }
+      saveThreadFilter(next)
+      return next
+    })
+  }
+  const toggleSpeech = (k: SpeechLevel) => {
+    setFilterState((prev) => {
+      const next = { ...prev, speech: prev.speech.includes(k) ? prev.speech.filter((x) => x !== k) : [...prev.speech, k] }
       saveThreadFilter(next)
       return next
     })
@@ -193,7 +203,7 @@ function ThreadList() {
       state={states[row.session]}
       markArchived={filter.show === 'all' && isArchived(row)}
       hideProject={sort === 'project'}
-      onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived), speech: row.speech || (row.priority ? 'auto' : 'normal') })}
+      onMenu={(title, live) => setMenu({ session: row.session, title, live, archived: archivedOf(row.session, row.archived), speech: speechOf(row) })}
     />
   )
 
@@ -264,6 +274,15 @@ function ThreadList() {
               {STATE_FILTER_LABEL[k]}
             </button>
           ))}
+          <div className="menu-head" role="presentation">Speech priority</div>
+          {SPEECH_FILTERS.map((k) => (
+            <button key={k} role="menuitemcheckbox" aria-checked={filter.speech.includes(k)} className={filter.speech.includes(k) ? 'on' : ''} onClick={() => toggleSpeech(k)}>
+              <span className="mark" aria-hidden="true">
+                {filter.speech.includes(k) ? '✓' : ''}
+              </span>
+              {SPEECH_FILTER_LABEL[k]}
+            </button>
+          ))}
           <div className="menu-head" role="presentation">Agent</div>
           {[null, ...harnesses].map((hn) => (
             <button key={hn ?? ''} role="menuitemradio" aria-checked={filter.harness === hn} className={filter.harness === hn ? 'on' : ''} onClick={() => setFilter({ ...filter, harness: hn })}>
@@ -304,7 +323,8 @@ function ThreadList() {
         <p className="notice filter-empty">
           No {filter.show === 'all' || filter.show === 'active' ? '' : SHOW_LABEL[filter.show].toLowerCase() + ' '}threads
           {filter.project ? ` in ${filter.project}` : ''}
-          {filter.states.length ? ` (${STATE_FILTERS.filter((k) => filter.states.includes(k)).map((k) => STATE_FILTER_LABEL[k].toLowerCase()).join(' or ')})` : ''}.{' '}
+          {filter.states.length ? ` (${STATE_FILTERS.filter((k) => filter.states.includes(k)).map((k) => STATE_FILTER_LABEL[k].toLowerCase()).join(' or ')})` : ''}
+          {filter.speech.length ? ` with ${SPEECH_FILTERS.filter((k) => filter.speech.includes(k)).map((k) => SPEECH_FILTER_LABEL[k].toLowerCase()).join(' or ')} speech` : ''}.{' '}
           <button type="button" className="link" onClick={() => setFilter(DEFAULT_FILTER)}>
             Show all
           </button>
