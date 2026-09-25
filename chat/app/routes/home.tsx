@@ -127,6 +127,9 @@ function HomeScreen() {
                     <DigestRow key={d.id} d={d} skew={skew} />
                   ))}
                 </ul>
+                <Link className="digest-all" to="/digests">
+                  All digests
+                </Link>
               </Section>
             )}
 
@@ -181,7 +184,7 @@ function HomeScreen() {
  * A morning digest (the agenda, …): never read out on its own — its read-out
  * is rendered held on the server, and ▶ plays it (`replay-id`), which marks
  * it heard. The dot is "not heard yet"; a press clears it at once rather than
- * at the next poll.
+ * at the next poll. The title opens it to read (routes/digest.tsx).
  */
 function DigestRow({ d, skew }: { d: DashDigest; skew: number }) {
   const { replayId } = useSpeechActions()
@@ -202,7 +205,13 @@ function DigestRow({ d, skew }: { d: DashDigest; skew: number }) {
       >
         <IconPlay />
       </button>
-      <span className="digest-title">{d.title}</span>
+      {d.n != null ? (
+        <Link className="digest-title" to={`/digests/${d.n}`}>
+          {d.title}
+        </Link>
+      ) : (
+        <span className="digest-title">{d.title}</span>
+      )}
       {unheard && <span className="digest-new" aria-label="not heard yet" />}
       <span className="digest-when">{ago(d.changed_at, skew)}</span>
     </li>

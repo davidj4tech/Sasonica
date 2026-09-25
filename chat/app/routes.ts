@@ -10,6 +10,8 @@ export default [
   route('settings', 'routes/settings.tsx'),
   route('settings/agents', 'routes/harnesses.tsx'),
   route('about', 'routes/about.tsx'),
+  route('digests', 'routes/digests.tsx'),
+  route('digests/:n', 'routes/digest.tsx'),
   route('pairing', 'routes/pairing.tsx'),
   route('organiser', 'routes/notes.tsx'),
   route('organiser/note', 'routes/note.tsx'),

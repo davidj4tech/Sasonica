@@ -321,6 +321,9 @@ a { color: var(--accent); }
 .share-sheet .share-title { overflow-wrap: anywhere; }
 .share-sheet .share-project { font-size: .8em; }
 .composer .stop { background: var(--panel-2); color: var(--text); font-size: 0.933rem; }
+/* The reply box's chip while this thread is being read (routes/thread.tsx):
+   what the send does to the voice, a .chip, smaller. */
+.reading-chip { align-self: flex-start; margin: 0 4px; padding: 3px 10px; font-size: .8rem; color: var(--muted); }
 
 /* New chat */
 .new-pickers { padding: 8px 4px; }
@@ -607,6 +610,31 @@ a { color: var(--accent); }
 .digest-row .digest-new { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 .digest-row .digest-when { flex: none; font-size: .8rem; color: var(--muted); }
 .digest-row .digest-play:disabled { opacity: .4; }
+a.digest-title { color: inherit; text-decoration: none; }
+.digest-row .digest-when { white-space: nowrap; }
+.digest-all { display: inline-block; margin: .4rem 0 0 .2rem; font-size: .85rem; color: var(--accent); }
+.digest-filter { margin: 0 0 .6rem; color: var(--muted); font-size: .9rem; }
+.digest-more { margin-top: .8rem; }
+.digest-page .digest-play { flex: none; }
+.digest-page .digest-play:disabled { opacity: .4; }
+.digest-read { box-sizing: border-box; width: 100%; padding: .8rem 1rem 6rem; max-width: 46rem; margin: 0 auto; }
+.digest-meta { margin: 0 0 1rem; color: var(--muted); font-size: .9rem; display: flex; gap: .6rem; align-items: center; }
+.digest-level { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; padding: .05rem .4rem; border-radius: 4px; border: 1px solid currentColor; }
+.digest-level.needs, .digest-level.warn { color: var(--accent); }
+.md-doc { line-height: 1.5; overflow-wrap: anywhere; }
+.md-doc h2, .md-doc h3, .md-doc h4 { margin: 1.3rem 0 .5rem; line-height: 1.25; }
+.md-doc h2 { font-size: 1.25rem; }
+.md-doc h3 { font-size: 1.1rem; }
+.md-doc h4 { font-size: 1rem; }
+.md-doc > :first-child { margin-top: 0; }
+.md-doc p { margin: 0 0 .8rem; }
+.md-doc ul, .md-doc ol { margin: 0 0 .8rem; padding-left: 1.3rem; }
+.md-doc li { margin: 0 0 .5rem; }
+.digest-nav { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.6rem; padding-top: .8rem; border-top: 1px solid var(--line); }
+.digest-nav a { color: var(--accent); }
+.digest-gone .title { text-decoration: line-through; color: var(--muted); }
+.digest-notes { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
+.digest-notes p { margin: 0 0 .4rem; }
 .recap-row { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .8rem; }
 .recap-head { display: flex; align-items: center; gap: 8px; min-height: 32px; }
 .recap-head .dash-title { flex: 1; }
