@@ -881,7 +881,7 @@ function liveLine(line) {
 }
 
 // §6.1 (22 Sep 2026): every row carries archived, rested (null while live) and pinned.
-const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, priority: s.speech === 'interrupt' || s.speech === 'auto', speech: s.speech || 'normal', project: s.project ?? null, cwd: s.cwd ?? null, harness: s.harness || 'claude', ...(s.store ? { source: 'store' } : {}) })
+const flags = (s) => ({ archived: !!s.archived, rested: s.live ? null : s.rested || null, pinned: !!s.pinned, priority: ['interrupt', 'auto'].includes(s.speech || SPEECH_DEFAULT.level), speech: s.speech || SPEECH_DEFAULT.level, project: s.project ?? null, cwd: s.cwd ?? null, harness: s.harness || 'claude', ...(s.store ? { source: 'store' } : {}) })
 const row = (s) => (s.live ? { session: s.session, title: s.title, live: true, pane: s.pane, recap: s.recap || null, ...flags(s) } : { session: s.session, title: s.title, live: false, pane: null, at: s.at, recap: s.recap || null, ...flags(s) })
 
 // ── Search (§6.14) ────────────────────────────────────────────────────────
@@ -1456,7 +1456,7 @@ function withRefs(text, refs) {
   return lines.length ? `${text}\n\n${lines.join('\n')}` : text
 }
 
-const API = new Set(['/pair', '/dashboard', '/alerts/digests', '/alerts/digest', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/priority', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/search'])
+const API = new Set(['/pair', '/dashboard', '/alerts/digests', '/alerts/digest', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/speech/default', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/priority', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/search'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1748,6 +1748,8 @@ const PLACES = () => [
 ]
 
 // §6.9: where the voice plays. POST /audio/target moves it (mock state only).
+// The level of a thread with none of its own (§6.4 /speech/default).
+const SPEECH_DEFAULT = { level: 'normal' }
 const AUDIO = { speech: 'app', default: 'app', overridden: false }
 const AUDIO_OPTIONS = [
   { name: 'app', label: 'Phone (Sasonica)', available: true, why: null },
@@ -2057,6 +2059,13 @@ async function route(method, path, q, body, res) {
     return ok({ session: sid, pane, live: false, closed: true })
   }
   // §6.4 POST /session/archive {session, archived} → {session, archived}.
+  if (path === '/speech/default' && (method === 'GET' || method === 'POST')) {
+    if (method === 'POST') {
+      if (!['interrupt', 'auto', 'normal', 'quiet'].includes(body.level)) return err(400, 'level must be interrupt, auto, normal or quiet')
+      SPEECH_DEFAULT.level = body.level
+    }
+    return ok({ level: SPEECH_DEFAULT.level })
+  }
   if (method === 'POST' && path === '/session/priority') {
     const sid = String(body.session || '')
     if (!SESSION_RE.test(sid)) return err(400, 'not a session id')

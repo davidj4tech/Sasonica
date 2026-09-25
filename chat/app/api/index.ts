@@ -17,7 +17,7 @@ import type {
   AgentsResponse,
   AnswerRequest,
   ArchiveResponse,
-  PriorityResponse,
+  PriorityResponse, SpeechDefaultResponse,
   SpeechLevel,
   MoveResponse,
   CloseResponse,
@@ -358,6 +358,16 @@ export function closeSession(session: SessionId) {
 /** POST /session/priority (§6.4): the thread's speech level. */
 export function prioritySession(session: SessionId, level: SpeechLevel) {
   return request<PriorityResponse>('POST', '/session/priority', { session, level })
+}
+
+/** GET /speech/default (§6.4): the level of every thread with none of its own. */
+export function getSpeechDefault() {
+  return request<SpeechDefaultResponse>('GET', '/speech/default')
+}
+
+/** POST /speech/default (§6.4): set it — the server's, so every device's. */
+export function setSpeechDefault(level: SpeechLevel) {
+  return request<SpeechDefaultResponse>('POST', '/speech/default', { level })
 }
 
 /** POST /session/archive (§6.4): file the thread under Archived, or take it out. */
