@@ -23,7 +23,7 @@ export const ACTION_LABEL: Record<SessionAction, string> = {
   rename: 'Rename…',
   'auto-rename': 'Auto rename',
   move: 'Move to project…',
-  speech: 'Speech…',
+  speech: 'Speech priority…',
   exit: 'Exit session',
   archive: 'Archive',
   unarchive: 'Unarchive',
@@ -204,7 +204,7 @@ export const SPEECH_LEVELS: { level: SpeechLevel; label: string; note: string; b
 
 export function SpeechSheet(props: { current: SpeechLevel; onPick: (level: SpeechLevel) => void; onClose: () => void }) {
   return (
-    <Sheet label="Speech" onClose={props.onClose} className="action-sheet speech-sheet">
+    <Sheet label="Speech priority" onClose={props.onClose} className="action-sheet speech-sheet">
       <p className="action-title">Speech — what its replies do</p>
       <div role="menu" className="action-list">
         {SPEECH_LEVELS.map((s) => (
