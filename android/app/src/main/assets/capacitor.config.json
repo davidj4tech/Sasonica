@@ -1,5 +1,5 @@
 {
-	"appId": "com.sasonica.app",
+	"appId": "com.sasonica.abs",
 	"appName": "audiobookshelf-app",
 	"webDir": "dist",
 	"plugins": {

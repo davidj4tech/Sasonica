@@ -58,8 +58,8 @@ public final class SasonicaHolds {
     private static final long TICK_MS = 500;
     private static final String CARD_CHANNEL = "sasonica-speech-waiting";
     private static final int CARD_ID = 7874;
-    public static final String ACTION_SPEAK_NOW = "com.sasonica.app.SPEAK_NOW";
-    public static final String ACTION_LATER = "com.sasonica.app.SPEAK_LATER";
+    public static final String ACTION_SPEAK_NOW = "com.sasonica.abs.SPEAK_NOW";
+    public static final String ACTION_LATER = "com.sasonica.abs.SPEAK_LATER";
 
     /** The book, as the book player sees it. Called on the main thread. */
     public interface Book {

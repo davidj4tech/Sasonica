@@ -33,14 +33,14 @@ android {
   }
   compileSdk rootProject.ext.compileSdkVersion
   defaultConfig {
-    applicationId "com.sasonica.app"
+    applicationId "com.sasonica.abs"
     minSdkVersion rootProject.ext.minSdkVersion
     targetSdkVersion rootProject.ext.targetSdkVersion
     versionCode 117
     versionName "0.13.0-beta"
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     manifestPlaceholders = [
-      "appAuthRedirectScheme": "com.sasonica.app"
+      "appAuthRedirectScheme": "com.sasonica.abs"
     ]
     aaptOptions {
       // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

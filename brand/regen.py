@@ -35,8 +35,8 @@ def png(master, out, px, background=None):
 # the app never drift. The debug variant keeps its own icons on purpose: they
 # are how you tell a debug install from the release one side by side.
 # --- the ABS variant ---------------------------------------------------------
-# Sasonica (com.sasonica.app) is the Audiobookshelf fork; Sasonica Next
-# (com.sasonica.next) is the chat app. They sit side by side on the home
+# Sasonica ABS (com.sasonica.abs) is the Audiobookshelf fork, kept for books;
+# Sasonica (com.sasonica.app, once Sasonica Next) is the chat app. They sit side by side on the home
 # screen, so the old one carries an ABS wordmark under the mark. The letters
 # are drawn from the mark's own vocabulary — monoline, round caps — rather than
 # set in a typeface, so regenerating needs no font installed.
@@ -85,8 +85,8 @@ def build_abs(source, out, centre, lift, scale, baseline, cap, weight):
 ABS_MARK = HERE / ".abs-mark.svg"
 ABS_FOREGROUND = HERE / ".abs-foreground.svg"
 
-# Two apps ship the mark: Sasonica (android/, com.sasonica.app) and Sasonica
-# Next (chat/android/, com.sasonica.next). Both are written from these masters
+# Two apps ship the mark: Sasonica ABS (android/, com.sasonica.abs) and
+# Sasonica (chat/android/, com.sasonica.app). Both are written from these masters
 # so brand/ and the apps cannot drift. Sasonica's debug variant keeps its own
 # icons on purpose: they are how you tell a debug install from the release one.
 APP_RES = ROOT / "android/app/src/main/res"

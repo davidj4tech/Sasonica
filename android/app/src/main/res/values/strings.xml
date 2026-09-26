@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Sasonica</string>
-    <string name="title_activity_main">Sasonica</string>
-    <string name="package_name">com.sasonica.app</string>
+    <string name="app_name">Sasonica ABS</string>
+    <string name="title_activity_main">Sasonica ABS</string>
+    <string name="package_name">com.sasonica.abs</string>
     <string name="custom_url_scheme">audiobookshelf</string>
     <string name="add_widget">Add widget</string>
     <string name="app_widget_description">Simple widget for audiobookshelf playback</string>
