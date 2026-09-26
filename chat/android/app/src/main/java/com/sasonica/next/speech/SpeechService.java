@@ -134,7 +134,7 @@ public class SpeechService extends Service {
      * that is only noticed when a reply goes missing.
      */
     public static boolean enabled(Context ctx) {
-        return prefs(ctx).getBoolean("enabled", false);
+        return prefs(ctx).getBoolean("enabled", true);
     }
 
     public static void setEnabled(Context ctx, boolean on) {
