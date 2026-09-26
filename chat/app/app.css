@@ -346,8 +346,8 @@ a { color: var(--accent); }
 .reading-chip { align-self: flex-start; margin: 0 4px; padding: 3px 10px; font-size: .8rem; color: var(--muted); }
 /* In the reply box, a small New chat stacked on the send button. */
 .send-stack { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
-.new-chat-mini { width: 1.7rem; height: 1.7rem; min-width: 32px; min-height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); display: grid; place-items: center; padding: 0; cursor: pointer; }
-.new-chat-mini:hover { color: var(--text); }
+.new-chat-mini { width: 1.7rem; height: 1.7rem; min-width: 32px; min-height: 32px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; padding: 0; cursor: pointer; }
+.new-chat-mini:hover { filter: brightness(1.1); }
 .new-chat-mini svg { width: 55%; height: 55%; display: block; }
 
 /* New chat */
