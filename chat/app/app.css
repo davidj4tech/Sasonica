@@ -360,7 +360,10 @@ a { color: var(--accent); }
 
 /* New chat */
 .new-pickers { padding: 8px 4px; }
-.picker-label { margin: 10px 0 6px; color: var(--muted); font-size: 0.867rem; }
+/* The new chat's where and agent, folded to one line; the sheet holds the choices. */
+.new-summary { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 99px; min-height: 40px; padding: 0 14px; cursor: pointer; }
+.new-summary span { color: var(--muted); }
+.new-sheet .action-list { max-height: 40vh; overflow-y: auto; }
 .picker-note { margin: 6px 0 0; color: var(--muted); font-size: 0.8rem; }
 /* Installed but signed out: still pickable, visibly not ready. */
 .chip.chip-out { opacity: .55; }

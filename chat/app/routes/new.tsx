@@ -3,12 +3,17 @@
  * and an agent picker. It becomes real on the first send:
  * POST /ask {text, target: "new", cwd?, agent?}; the returned session becomes
  * the thread id (§14 onSwitchToNewThread / onNew in a new thread).
+ *
+ * Both pickers fold into one line, "agent-media · Claude ▾" (as Home's quick chips say it), with the choices
+ * in a sheet (David, 26 Sep 2026): as chips they took the screen from the box
+ * once a message ran to several lines.
  */
 import { BackLink } from '../components/Nav'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { askNew, getHarnesses } from '../api'
 import type { Agent, HarnessRow } from '../api/types'
+import { Sheet } from '../components/SessionSheets'
 import { SpeechBar } from '../components/SpeechBar'
 import { Thread } from '../components/Thread'
 import type { Carry } from '../hooks/useDictation'
@@ -47,6 +52,7 @@ export default function NewThread() {
     return a && AGENTS.some((x) => x.id === a) ? a : 'claude'
   })
   const [status, setStatus] = useState<{ text: string; failed?: boolean } | null>(null)
+  const [picking, setPicking] = useState(false)
   // What the host has. Null until it answers: all four are offered until
   // there is a reason not to, so a slow check never holds up a chat.
   const [harnesses, setHarnesses] = useState<HarnessRow[] | null>(null)
@@ -114,36 +120,9 @@ export default function NewThread() {
         speechBar={<SpeechBar />}
         empty={
           <div className="new-pickers">
-            <p className="picker-label">Where</p>
-            <div className="chips">
-              <button className={cwd === '' ? 'chip on' : 'chip'} onClick={() => setCwd('')}>
-                default
-              </button>
-              {places.map((p) => (
-                <button key={p.path} className={cwd === p.path ? 'chip on' : 'chip'} onClick={() => setCwd(p.path)} title={p.path}>
-                  {p.name}
-                </button>
-              ))}
-            </div>
-            <p className="picker-label">Agent</p>
-            <div className="chips">
-              {AGENTS.filter((a) => {
-                const row = pickable(harnesses, a.id)
-                return !row || row.present || a.id === agent
-              }).map((a) => {
-                const row = pickable(harnesses, a.id)
-                const out = row ? !row.present || row.auth === 'out' : false
-                return (
-                  <button
-                    key={a.id}
-                    className={`${agent === a.id ? 'chip on' : 'chip'}${out ? ' chip-out' : ''}`}
-                    onClick={() => setAgent(a.id)}
-                  >
-                    {a.label}
-                  </button>
-                )
-              })}
-            </div>
+            <button type="button" className="new-summary" onClick={() => setPicking(true)} aria-label="Where and which agent">
+              {where || 'Default place'} · {AGENTS.find((a) => a.id === agent)?.label} <span aria-hidden="true">▾</span>
+            </button>
             {chosen && !chosen.present && (
               <p className="picker-note">
                 {chosen.name} is not installed here. <Link to="/harnesses">Coding agents</Link> installs it.
@@ -155,6 +134,46 @@ export default function NewThread() {
               </p>
             )}
             {error && <p className="error">{error}</p>}
+            {picking && (
+              <Sheet label="Where and which agent" onClose={() => setPicking(false)} className="action-sheet new-sheet">
+                {/* Newest first, as the server sends them (sessions.places). */}
+                <p className="action-title">Where</p>
+                <div role="menu" className="action-list">
+                  <button role="menuitem" className={cwd === '' ? 'on' : ''} onClick={() => setCwd('')}>
+                    default
+                  </button>
+                  {places.map((p) => (
+                    <button key={p.path} role="menuitem" className={cwd === p.path ? 'on' : ''} onClick={() => setCwd(p.path)} title={p.path}>
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+                <p className="action-title">Agent</p>
+                <div className="chips">
+                  {AGENTS.filter((a) => {
+                    const row = pickable(harnesses, a.id)
+                    return !row || row.present || a.id === agent
+                  }).map((a) => {
+                    const row = pickable(harnesses, a.id)
+                    const out = row ? !row.present || row.auth === 'out' : false
+                    return (
+                      <button
+                        key={a.id}
+                        className={`${agent === a.id ? 'chip on' : 'chip'}${out ? ' chip-out' : ''}`}
+                        onClick={() => setAgent(a.id)}
+                      >
+                        {a.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="row">
+                  <button type="button" className="primary" onClick={() => setPicking(false)}>
+                    Done
+                  </button>
+                </div>
+              </Sheet>
+            )}
           </div>
         }
         status={status && <p className={status.failed ? 'status failed' : 'status'}>{status.text}</p>}

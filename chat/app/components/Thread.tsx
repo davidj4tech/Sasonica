@@ -128,6 +128,12 @@ function DraftKeeper({ draftKey, handle }: { draftKey?: string; handle: React.Re
   return null
 }
 
+/** Its children only while the box is empty, or while `unless` holds. */
+function WhileEmpty({ unless, children }: { unless?: boolean; children: ReactNode }) {
+  const empty = useAuiState((s) => !s.composer.text.trim())
+  return empty || unless ? <>{children}</> : null
+}
+
 /** Further than this (in viewport heights) from an end, its pill shows. */
 const AWAY_SCREENS = 0.75
 /** The pills go this long after the reader's hand last moved the thread. */
@@ -678,18 +684,22 @@ export function Thread(props: ThreadProps) {
               </ComposerPrimitive.Root>
               {offering && ((dictation.offer && props.onNewChatInstead) || targets.length > 0) && (
                 // The assistant button's words, taken somewhere else instead.
-                <div className="chips handoff">
-                  {dictation.offer && props.onNewChatInstead && (
-                    <button type="button" className="chip" onClick={() => props.onNewChatInstead?.(dictation.take())}>
-                      New chat instead
-                    </button>
-                  )}
-                  {targets.map((t) => (
-                    <button key={t.id} type="button" className="chip" onClick={() => void handOff(t, dictation.take()).catch(() => {})}>
-                      {t.label} →
-                    </button>
-                  ))}
-                </div>
+                // Shown all the time (a new chat), they go once typing starts:
+                // by then Sasonica is the assistant being written to.
+                <WhileEmpty unless={dictation.offer}>
+                  <div className="chips handoff">
+                    {dictation.offer && props.onNewChatInstead && (
+                      <button type="button" className="chip" onClick={() => props.onNewChatInstead?.(dictation.take())}>
+                        New chat instead
+                      </button>
+                    )}
+                    {targets.map((t) => (
+                      <button key={t.id} type="button" className="chip" onClick={() => void handOff(t, dictation.take()).catch(() => {})}>
+                        {t.label} →
+                      </button>
+                    ))}
+                  </div>
+                </WhileEmpty>
               )}
               {attachNote && <p className={attachNote.failed ? 'status failed' : 'status'}>{attachNote.text}</p>}
               {dictation.sendIn > 0 && <p className="status">Sending in {dictation.sendIn}… tap the text to edit it</p>}
