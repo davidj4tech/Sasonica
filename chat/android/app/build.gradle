@@ -4,7 +4,10 @@ android {
     namespace "com.sasonica.next"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.sasonica.next"
+        // The Sasonica id since 26 Sep 2026: the Audiobookshelf fork that had
+        // it became Sasonica ABS (com.sasonica.abs), kept for books. The Java
+        // package (namespace) stays com.sasonica.next.
+        applicationId "com.sasonica.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // CI passes its run number, so each build installs over the last.
@@ -28,12 +31,32 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Release builds carry the Sasonica release key — the one the old app
+        // shipped under com.sasonica.app. CI decodes it from repo secrets into
+        // SASONICA_KEYSTORE_FILE; the key itself lives encrypted in
+        // dotfiles-secrets/secrets/sasonica/. Without the env, release builds
+        // are left unsigned.
+        release {
+            def ksFile = System.getenv("SASONICA_KEYSTORE_FILE")
+            if (ksFile) {
+                storeFile file(ksFile)
+                storePassword System.getenv("SASONICA_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("SASONICA_KEY_ALIAS") ?: "sasonica"
+                keyPassword System.getenv("SASONICA_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            // Beside the release build, not over it: the two keys differ.
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
         }
         release {
+            if (System.getenv("SASONICA_KEYSTORE_FILE")) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

@@ -512,25 +512,30 @@ It passed the mock and failed on the phone because real live lines differ:
 ## Android shell (Sasonica Next)
 
 `chat/` is also a Capacitor 7 project: `capacitor.config.ts` + `android/`.
-The app is **Sasonica Next**, applicationId `com.sasonica.next`, installed
-BESIDE the old Sasonica (`com.sasonica.app`), which owns the phone's ports
-8773 / 6613 and its MediaSession. Next has no MediaSession, and the one port
-it binds is **6614**, its own speech listener (below) — so both apps can
-answer for speech while the two are compared. Its foreground services are
-the background notifier and the speech player, and its notification channels
-(`replies`, `needs-you`, `listening`, `speech`) are its own package's. It
-takes over `com.sasonica.app` only when it replaces the old app.
+The app is **Sasonica**, applicationId `com.sasonica.app` since 26 Sep 2026
+(built as Sasonica Next, `com.sasonica.next`, until then; the Java package is
+still `com.sasonica.next`). The Audiobookshelf fork that had the id is
+**Sasonica ABS** (`com.sasonica.abs`), kept for books; it owns the phone's
+ports 8772 / 8773 and the book MediaSession. This app has no MediaSession and
+binds **6614**, its speech listener (below, tailnet), and **8774**, the
+readouts on loopback (`/mic` for call_guard, `/ringer` for ringer.py, `/state`
+for `media doctor`). Its foreground services are the background notifier and
+the speech player (specialUse when started after a reboot or an update,
+mediaPlayback otherwise), and its notification channels (`replies`,
+`needs-you`, `listening`, `speech`) are its own package's.
 
 - **Build:** CI only (red5 has no Android SDK). `.github/workflows/build-next-apk.yml`
   runs on every push to `android-next`: `pnpm install` → `typecheck` →
-  `build` → `cap sync android` → `assembleDebug`, artifact
-  **`sasonica-next-apk`**. versionCode = the run number; debug builds are
-  signed with the committed `android/app/sasonica-next-debug.keystore`, so
-  each APK installs over the last.
-- **Update the phone:** push to `android-next`, then
-  `gh run download <id> -n sasonica-next-apk`,
-  `agent-phone-adb connect`, `agent-phone-adb install <apk>` (or
-  `adb install -r`), launch with `am start -n com.sasonica.next/.MainActivity`.
+  `build` → `cap sync android` → `assembleDebug` + `assembleRelease`.
+  Artifact **`sasonica-apk`** is the release build, signed with the Sasonica
+  release key from repo secrets — the one the phone runs. **`sasonica-debug-apk`**
+  is `com.sasonica.app.debug`, signed with the committed
+  `android/app/sasonica-next-debug.keystore`, and installs beside it.
+  versionCode = the run number, so each APK installs over the last.
+- **Update the phone:** push to `android-next`, then `agent-phone-adb sasonica`
+  (latest green run's `sasonica-apk`); launch with
+  `am start -n com.sasonica.app/com.sasonica.next.MainActivity`.
+  `agent-phone-adb sasonica-abs` does the same for the books app.
 - **Pair it:** `media-visual-canvas pair --device "Pixel 8a (Next)" --host 100.103.43.93`
   and open/paste the link on the pairing screen.
 - **Local check** (no SDK): `pnpm build && pnpm exec cap sync android`
@@ -604,7 +609,7 @@ What is native (all of it goes through `app/lib/native.ts`, a no-op on the web):
   opens a new chat instead); the words wait 3 s
   and send themselves unless the box is tapped or edited
   (`hooks/useDictation.ts`). Set it by hand or with
-  `agent-phone-adb shell cmd role add-role-holder android.app.role.ASSISTANT com.sasonica.next 0`.
+  `agent-phone-adb shell cmd role add-role-holder android.app.role.ASSISTANT com.sasonica.app 0`.
   Only the intent arrives: no wake word, nothing over the lock screen.
 - **Dictation**: the composer's mic key (every thread), through the platform
   recogniser's own screen (`SpeechInputPlugin.java`,

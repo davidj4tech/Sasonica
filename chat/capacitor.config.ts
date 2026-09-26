@@ -1,13 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
-// Sasonica Next: the chat app in a Capacitor 7 Android shell, installed BESIDE
-// the old Sasonica (com.sasonica.app), which owns the phone's ports 8773/6613.
-// This app has no MediaSession, and binds one port: 6614, its own speech
-// listener, so both apps can answer for speech while the two are compared.
-// See README.md "Android shell (Sasonica Next)".
+// Sasonica: the chat app in a Capacitor 7 Android shell (built as Sasonica
+// Next until 26 Sep 2026, when it took com.sasonica.app). The Audiobookshelf
+// fork that had the id is Sasonica ABS (com.sasonica.abs), kept for books; it
+// owns the phone's ports 8772/8773. This app binds 6614 (speech, tailnet) and
+// 8774 (readouts, loopback). See README.md "Android shell (Sasonica Next)".
 const config: CapacitorConfig = {
-  appId: 'com.sasonica.next',
-  appName: 'Sasonica Next',
+  appId: 'com.sasonica.app',
+  appName: 'Sasonica',
   webDir: 'build/client',
   server: {
     // http://localhost, not https: the canvas is plain http on the tailnet,
