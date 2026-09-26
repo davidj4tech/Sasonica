@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <!-- The debug build installs beside the release one (com.sasonica.app.debug);
-         its name tells them apart on the home screen. -->
-    <string name="app_name">Sasonica debug</string>
-    <string name="title_activity_main">Sasonica debug</string>
-</resources>

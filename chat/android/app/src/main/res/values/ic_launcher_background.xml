@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- The brand tile (brand/README.md "Tile"), behind the adaptive icon's mark. -->
-    <color name="ic_launcher_background">#15201C</color>
-</resources>
