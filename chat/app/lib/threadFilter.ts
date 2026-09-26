@@ -32,7 +32,7 @@ export const SHOWS: ThreadShow[] = ['active', 'live', 'closed', 'archived', 'all
 export const STATE_FILTER_LABEL: Record<SessionState, string> = { approval: 'Needs you', working: 'Working', waiting: 'Your turn' }
 export const STATE_FILTERS: SessionState[] = ['approval', 'working', 'waiting']
 
-export const SPEECH_FILTER_LABEL: Record<SpeechLevel, string> = { interrupt: 'Interrupt', auto: 'Auto speak', normal: 'Normal', quiet: 'Quiet' }
+export const SPEECH_FILTER_LABEL: Record<SpeechLevel, string> = { interrupt: 'Interrupt', auto: 'Auto speak', normal: 'When open', quiet: 'Quiet' }
 export const SPEECH_FILTERS: SpeechLevel[] = ['interrupt', 'auto', 'normal', 'quiet']
 
 /** A row's speech level; rows from before the server said so have only `priority`. */
