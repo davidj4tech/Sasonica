@@ -72,7 +72,8 @@
       <template v-else-if="confirm">
         <p class="text-sm">{{ confirm.text }}</p>
         <p class="text-sm text-fg-muted pt-3">
-          Sending to <span class="text-fg">{{ confirm.title }}</span> in {{ countdown }}…
+          <template v-if="countdown">Sending to <span class="text-fg">{{ confirm.title }}</span> in {{ countdown }}…</template>
+          <template v-else>Send to <span class="text-fg">{{ confirm.title }}</span>?</template>
         </p>
         <div class="flex items-center pt-3">
           <ui-btn color="primary" small @click="changeDestination">Change</ui-btn>
@@ -119,7 +120,7 @@
           <span class="material-symbols text-xl">send</span>
         </ui-btn>
       </div>
-      <p v-if="autoSendIn" class="text-xs text-fg-muted pt-1.5">Sending in {{ autoSendIn }}… tap the text to edit it</p>
+      <p v-if="autoSendIn" class="text-xs text-fg-muted pt-1.5">Sending in {{ autoSendIn }}… tap to edit it</p>
     </div>
   </div>
 </template>
@@ -389,14 +390,19 @@ export default {
     startConfirm(confirm) {
       this.confirm = confirm
       this.countdown = 4
+      // A tap anywhere stops the count, as it does the one before it (see
+      // mixins/autoSend): the words then wait for "Send now" or "Change".
+      document.addEventListener('pointerdown', this.stopConfirm, true)
       this.countdownTimer = setInterval(() => {
         this.countdown -= 1
         if (this.countdown <= 0) this.commitConfirmed()
       }, 1000)
     },
     stopConfirm() {
+      document.removeEventListener('pointerdown', this.stopConfirm, true)
       if (this.countdownTimer) clearInterval(this.countdownTimer)
       this.countdownTimer = null
+      this.countdown = 0
     },
     async commitConfirmed() {
       const c = this.confirm

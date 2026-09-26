@@ -68,7 +68,7 @@
       </ui-btn>
     </div>
 
-    <p v-if="autoSendIn" class="text-xs text-fg-muted pt-1.5">Sending in {{ autoSendIn }}… tap the text to edit it</p>
+    <p v-if="autoSendIn" class="text-xs text-fg-muted pt-1.5">Sending in {{ autoSendIn }}… tap to edit it</p>
 
     <div v-if="status" class="mt-1.5 flex items-center">
       <p class="text-xs" :class="failed ? 'text-error' : 'text-fg-muted'">{{ status }}</p>
