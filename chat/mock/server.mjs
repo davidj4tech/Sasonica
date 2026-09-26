@@ -1451,6 +1451,8 @@ const KNOWN_PROJECTS = new Set(['agent-media', 'sasonica', 'runlet'])
 let LAST_SEND = null
 /** The last POST /share body (share.mjs). */
 let LAST_SHARE = null
+/** Files sent to POST /upload (share.mjs). */
+const UPLOADS = []
 // §6.3 `refs`: a line at the foot per chip that names a session, as refs.py writes it.
 function withRefs(text, refs) {
   if (!refs || typeof refs !== 'object') return text
@@ -1464,7 +1466,7 @@ function withRefs(text, refs) {
   return lines.length ? `${text}\n\n${lines.join('\n')}` : text
 }
 
-const API = new Set(['/pair', '/share', '/dashboard', '/alerts/digests', '/alerts/digest', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/speech/default', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/priority', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/harnesses/logout', '/harnesses/updates', '/search'])
+const API = new Set(['/pair', '/share', '/upload', '/dashboard', '/alerts/digests', '/alerts/digest', '/audio/targets', '/audio/target', '/targets', '/conversations', '/sessions/state', '/conversation', '/conversation/log', '/reply', '/ask', '/session/answer', '/session/resume', '/session/close', '/session/archive', '/session/priority', '/speech/default', '/session/move', '/draft', '/commands', '/rename', '/speech/now', '/speech/ctl', '/speech/sentences', '/notes', '/notes/view', '/notes/read', '/notes/search', '/notes/capture', '/notes/say', '/notes/setup', '/notes/state', '/notes/refile', '/notes/date', '/notes/priority', '/notes/ask', '/harnesses', '/harnesses/run', '/harnesses/screen', '/harnesses/keys', '/harnesses/close', '/harnesses/logout', '/harnesses/updates', '/search'])
 
 // Every row's project (§6.1, 22 Sep 2026: `project` and `cwd`, null when
 // not known): a mix, some null, for By project and the row's small line.
@@ -1530,6 +1532,10 @@ createServer(async (req, res) => {
     realSnap.t = 0
     res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS })
     return res.end(String(realJump))
+  }
+  if (path === '/mock/uploads') {
+    res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
+    return res.end(JSON.stringify(UPLOADS))
   }
   if (path === '/mock/last-share') {
     res.writeHead(200, { 'Content-Type': 'application/json', ...CORS })
@@ -1754,6 +1760,15 @@ createServer(async (req, res) => {
   }
   if (device) device.last_seen = r3(now())
 
+  // §6.18: a file as the raw body, kept nowhere; the answer names where the host would keep it.
+  if (req.method === 'POST' && path === '/upload') {
+    let size = 0
+    for await (const c of req) size += c.length
+    const name = (url.searchParams.get('name') || 'shared').replace(/.*[\/\\]/, '') || 'shared'
+    UPLOADS.push({ name, size })
+    log(200)
+    return send(res, 200, { ok: true, path: `/home/you/shared/2026-09-26/${name}`, name, size })
+  }
   const body = req.method === 'POST' ? await readBody(req) : {}
   if (DELAY_MS) await sleep(DELAY_MS)
   const status = await route(req.method, path, url.searchParams, body, res)

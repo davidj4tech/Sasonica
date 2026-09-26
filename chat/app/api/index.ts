@@ -529,6 +529,36 @@ export async function uploadFile(file: SharedFile): Promise<Uploaded> {
   return payload as unknown as Uploaded
 }
 
+/**
+ * A file picked in the reply box (its attach button), sent the same way from
+ * the page: the WebView's file chooser hands the page a File, streamed here
+ * as the body.
+ */
+export async function uploadPicked(file: File): Promise<Uploaded> {
+  const base = serverBase()
+  if (!base) throw new ApiError('No server address — set one in Settings', 0)
+  let res: Response
+  try {
+    res = await fetch(`${base}/upload?name=${q(file.name || 'file')}`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/octet-stream' },
+      body: file
+    })
+  } catch {
+    throw new ApiError(`Could not reach ${base}`, 0)
+  }
+  let payload: Record<string, unknown> = {}
+  try {
+    payload = await res.json()
+  } catch {
+    // Not our server's answer.
+  }
+  if (!res.ok || payload.ok === false || typeof payload.path !== 'string') {
+    throw new ApiError(String(payload.error || res.statusText || `HTTP ${res.status}`), res.status, payload)
+  }
+  return payload as unknown as Uploaded
+}
+
 /** A link played by agent-media (`POST /share`): its one-line verdict. */
 export function playShared(text: string) {
   return request<{ url: string; channel: string; title: string; line: string }>('POST', '/share', { text })

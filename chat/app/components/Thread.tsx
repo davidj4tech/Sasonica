@@ -17,6 +17,7 @@
 import { useNavigate } from 'react-router'
 import { AutoGrowTextarea } from './AutoGrow'
 import { MentionPicker } from './MentionPicker'
+import { AttachButton } from './AttachButton'
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
@@ -477,6 +478,7 @@ export function Thread(props: ThreadProps) {
     toTop()
   }, [props.older, onLoadEarlier, toTop])
   const draftRef = useRef<DraftHandle>(null)
+  const [attachNote, setAttachNote] = useState<{ text: string; failed?: boolean } | null>(null)
   useImperativeHandle(props.composerRef, () => ({ insert: (t: string) => draftRef.current?.insert(t) }), [])
   const navigate = useNavigate()
   const newChat = () => {
@@ -644,6 +646,7 @@ export function Thread(props: ThreadProps) {
                     ■
                   </ComposerPrimitive.Cancel>
                 )}
+                <AttachButton onPicked={(t) => draftRef.current?.insert(t)} onStatus={setAttachNote} />
                 {dictation.can && (
                   <button
                     type="button"
@@ -685,6 +688,7 @@ export function Thread(props: ThreadProps) {
                   ))}
                 </div>
               )}
+              {attachNote && <p className={attachNote.failed ? 'status failed' : 'status'}>{attachNote.text}</p>}
               {dictation.sendIn > 0 && <p className="status">Sending in {dictation.sendIn}… tap the text to edit it</p>}
               {/* Only where there is a real keyboard: app.css hides it on touch-only devices. */}
               <p className="send-hint">{SEND_KEYS} to send</p>

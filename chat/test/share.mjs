@@ -65,7 +65,21 @@ await page.waitForSelector('.status:has-text("Mock track")')
 const last = await (await fetch(BASE + '/mock/last-share')).json()
 ok(last?.text === 'https://example.com/song', 'POST /share with the link')
 
-// 5. Nothing shared.
+// 5. The reply box's attach button: each file sent, a line at the caret.
+await page.goto(`${BASE}/t/${into}`)
+await page.waitForSelector('.composer textarea')
+await box().fill('look at')
+await page.locator('.composer input[type=file]').setInputFiles([
+  { name: 'photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.alloc(3000, 1) },
+  { name: 'notes.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') }
+])
+await page.waitForFunction(() => document.querySelector('.composer textarea')?.value.includes('notes.pdf'))
+ok((await box().inputValue()).startsWith('look at Shared file: /home/you/shared/2026-09-26/photo.jpg\nShared file: /home/you/shared/2026-09-26/notes.pdf'), 'attach: a line per file at the caret')
+const ups = await (await fetch(BASE + '/mock/uploads')).json()
+ok(ups.length === 2 && ups[0].size === 3000, 'attach: POST /upload per file, the raw bytes')
+await page.screenshot({ path: SHOTS + '/share-01-attach.png' })
+
+// 6. Nothing shared.
 await page.evaluate(() => sessionStorage.clear())
 await page.goto(BASE + '/share')
 await page.waitForSelector('.notice:has-text("Nothing was shared")')
