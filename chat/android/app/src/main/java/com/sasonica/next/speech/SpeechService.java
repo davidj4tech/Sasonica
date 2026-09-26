@@ -129,9 +129,9 @@ public class SpeechService extends Service {
     }
 
     /**
-     * Off until turned on. The old app is still the speech player on this
-     * phone, and two listeners both claiming to be it is the kind of thing
-     * that is only noticed when a reply goes missing.
+     * On until turned off, since 26 Sep 2026: this is the phone's only
+     * speech player now, and a fresh install that waited to be switched on
+     * was a phone that said nothing.
      */
     public static boolean enabled(Context ctx) {
         return prefs(ctx).getBoolean("enabled", true);
