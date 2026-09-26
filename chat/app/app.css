@@ -458,7 +458,7 @@ a { color: var(--accent); }
 .dock .fab { position: absolute; right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(100% + var(--fab-gap)); width: var(--fab-size); height: var(--fab-size); z-index: 3; }
 .dock .speech-bar { margin: 8px 12px; }
 .threads, .dash { padding-bottom: var(--fab-room); }
-.speech-bar { position: relative; display: flex; align-items: center; gap: 2px; min-height: 48px; padding: 2px 4px 2px .8rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.speech-bar { position: relative; display: flex; align-items: center; gap: 0; min-height: 48px; padding: 2px 4px 2px .8rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .speech-progress { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
 .speech-progress i { display: block; height: 100%; background: var(--accent); transition: width 1.5s linear; }
 .speech-bar.paused .speech-progress i { background: var(--accent-2); }
@@ -477,6 +477,9 @@ a { color: var(--accent); }
 .skey.more { color: var(--muted); }
 .skey.big { width: max(56px, 3.3rem); height: max(56px, 3.3rem); }
 .skey.big .ico { width: 1.8rem; height: 1.8rem; }
+/* The bar's steps sit shoulder to shoulder: full height, narrow. Five round
+ * 44 px keys spread the transport across the row and squeezed the title. */
+.speech-bar > .skey:not(.main) { width: max(32px, 1.8rem); border-radius: 10px; }
 
 /*
  * Finished: a slim strip, half the bar — 1.8rem (30 px at Default), capped at

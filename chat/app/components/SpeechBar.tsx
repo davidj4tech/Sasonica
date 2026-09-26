@@ -3,8 +3,8 @@
  *
  * Collapsed, it is one row: what is being said (the conversation's title —
  * tap to open it — over the current sentence), a progress sliver along its
- * top edge from `pos`/`dur`, and the keys wanted most: back a sentence,
- * pause/resume, on a sentence, end of reply. The chevron (or a tap on the sentence) opens
+ * top edge from `pos`/`dur`, and the keys wanted most, packed close: start
+ * of reply, back a sentence, pause/resume, on a sentence, end of reply. The chevron (or a tap on the sentence) opens
  * the full set in a sheet: turns, paragraphs, end of reply, replay, speed,
  * volume and mute — every key the canvas takes from the app (§6.5).
  *
@@ -49,6 +49,11 @@ export const IconPause = () => (
 export const IconReplay = () => (
   <Svg>
     <path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z" fill="currentColor" />
+  </Svg>
+)
+const IconStart = () => (
+  <Svg>
+    <path d="M4 6h2v12H4zm2.5 6 7 5V7zm6.5 0 7 5V7z" fill="currentColor" />
   </Svg>
 )
 const IconBackSentence = () => (
@@ -240,6 +245,11 @@ export function SpeechBar({ here }: { here?: SessionId }) {
             </>
           )}
         </div>
+        {live && (
+          <button className="skey" aria-label="Start of reply" onClick={() => void (session ? speech.gotoSentence(session, 0) : speech.ctl('goto-sentence', 0))}>
+            <IconStart />
+          </button>
+        )}
         {live && (
           <button className="skey" aria-label="Back a sentence" onClick={() => void speech.ctl('skip-')}>
             <IconBackSentence />
