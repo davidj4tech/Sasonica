@@ -520,8 +520,12 @@ a { color: var(--accent); }
    12px padding. The jump pills float over the messages, so they have to
    clear that column or they land on a reply's play button — which is
    exactly what they did: "the little play button seems to be hidden below
-   the scroll to top button" (David, 23 Sep 2026). */
-:root { --keys-lane: calc(44px + 12px + 4px); }
+   the scroll to top button" (David, 23 Sep 2026).
+   The footer already sits inside that 12px padding, so the lane is the
+   column plus a 4px gap; counting the padding again left the pills 12px
+   further in than they needed to be (David, 26 Sep 2026: "a little bit more"
+   to the right). */
+:root { --keys-lane: calc(44px + 4px); }
 .jump-pills { position: absolute; right: var(--keys-lane); bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 /* See-through: they sit over the conversation and are only wanted when you
    are already looking for them, so they tint what is behind rather than

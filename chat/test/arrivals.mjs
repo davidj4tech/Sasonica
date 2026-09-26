@@ -132,6 +132,13 @@ for (const [name, viewport, size] of [['portrait', { width: 390, height: 780 }],
     return pills.some((a) => others.some((o) => hit(a, o)))
   })
   ok(!overlap, `${name}: pills clear of the composer, speech bar and centred pills`)
+  // Clear of the ▶ lane: a reply's key can scroll under them at any height.
+  const lane = await p.evaluate(() => {
+    const right = Math.max(...[...document.querySelectorAll('.jump-pill')].map((el) => el.getBoundingClientRect().right))
+    const keys = Math.min(...[...document.querySelectorAll('.msg-keys')].map((el) => el.getBoundingClientRect().left))
+    return { right: Math.round(right), keys: Math.round(keys) }
+  })
+  ok(lane.right <= lane.keys && lane.keys - lane.right <= 8, `${name}: pills just left of the ▶ lane (${JSON.stringify(lane)})`)
   await p.screenshot({ path: `${SHOTS}/arrivals-pills-${name}.png` })
   const settle = async () => {
     let last = -1
