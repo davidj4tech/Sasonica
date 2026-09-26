@@ -96,6 +96,12 @@
             android:name=".speech.SpeechReceiver"
             android:exported="false" />
 
+        <!-- call_guard's quiet knock (am broadcast from Termux) when the
+             readouts on :8774 are gone: starts speech again, if it is on. -->
+        <receiver
+            android:name=".speech.WakeReceiver"
+            android:exported="true" />
+
         <!-- Restarts it (and speech) after a reboot or an update, when on. -->
         <receiver
             android:name=".NotifyBootReceiver"
