@@ -34,7 +34,8 @@ const pinch = async (a, z, steps = 12) => {
 }
 const saved = () => page.evaluate(() => localStorage.getItem('sasonica.chat.textSize2') || 'default')
 const rootPx = () => page.evaluate(() => getComputedStyle(document.documentElement).fontSize)
-const pressed = () => page.locator('.text-sizes button[aria-pressed=true]').innerText()
+// The text sizes come first; Default speech priority below reuses the look.
+const pressed = () => page.locator('.text-sizes button[aria-pressed=true]').first().innerText()
 const scale = () => page.evaluate(() => window.visualViewport?.scale ?? 1)
 
 ok((await saved()) === 'default' && (await rootPx()) === '15px', 'starts at Default, 15 px')
