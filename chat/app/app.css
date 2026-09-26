@@ -340,8 +340,11 @@ a { color: var(--accent); }
 .composer .stop { background: var(--panel-2); color: var(--text); font-size: 0.933rem; }
 /* Dictation (hooks/useDictation.ts): only in the Android shell. */
 .composer .mic { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 0; background: var(--panel-2); color: var(--text); font-size: 1.1rem; cursor: pointer; flex: none; }
-.composer .attach { width: 2.4rem; height: 2.4rem; border-radius: 50%; border: 0; background: none; color: var(--muted); cursor: pointer; flex: none; display: grid; place-items: center; padding: 0; }
-.composer .attach svg { width: 1.3rem; height: 1.3rem; }
+.mic-stack { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
+.composer .attach { width: 1.6rem; height: 1.6rem; position: relative; border-radius: 50%; border: 0; background: none; color: var(--muted); cursor: pointer; flex: none; display: grid; place-items: center; padding: 0; }
+/* A 36px target around the small icon, as the New chat + has. */
+.composer .attach::before { content: ""; position: absolute; inset: -5px; border-radius: 50%; }
+.composer .attach svg { width: 1.2rem; height: 1.2rem; }
 .composer .attach.busy { opacity: .5; }
 .composer .mic.listening { animation: mic-pulse 1.2s ease-in-out infinite; }
 @keyframes mic-pulse { 50% { opacity: .45; } }

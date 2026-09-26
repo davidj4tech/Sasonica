@@ -646,19 +646,22 @@ export function Thread(props: ThreadProps) {
                     ■
                   </ComposerPrimitive.Cancel>
                 )}
-                <AttachButton onPicked={(t) => draftRef.current?.insert(t)} onStatus={setAttachNote} />
-                {dictation.can && (
-                  <button
-                    type="button"
-                    className={dictation.listening ? 'mic listening' : 'mic'}
-                    aria-label="Dictate"
-                    title="Dictate"
-                    disabled={dictation.listening}
-                    onClick={dictation.listen}
-                  >
-                    🎙
-                  </button>
-                )}
+                {/* Attach sits on top of the mic, the way New chat sits on Send. */}
+                <div className="mic-stack">
+                  <AttachButton onPicked={(t) => draftRef.current?.insert(t)} onStatus={setAttachNote} />
+                  {dictation.can && (
+                    <button
+                      type="button"
+                      className={dictation.listening ? 'mic listening' : 'mic'}
+                      aria-label="Dictate"
+                      title="Dictate"
+                      disabled={dictation.listening}
+                      onClick={dictation.listen}
+                    >
+                      🎙
+                    </button>
+                  )}
+                </div>
                 {props.newChatTo ? (
                   // Inside the box, stacked on the send button: a new chat that takes the words.
                   <div className="send-stack">
