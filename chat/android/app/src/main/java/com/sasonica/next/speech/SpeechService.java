@@ -82,6 +82,7 @@ public class SpeechService extends Service {
 
     private Media3Speech player;
     private MpvServer server;
+    private Readouts readouts;
 
     /**
      * The player, as {@link Holds} needs to see it.
@@ -254,6 +255,7 @@ public class SpeechService extends Service {
             // after the socket: the holds read the player, and a player that
             // failed to build is a service that has already given up.
             Holds.start(this, holds);
+            startReadouts();
         } catch (Throwable t) {
             // The port may be taken, or the player may not build. Say so on the
             // notification rather than dying silently: the symptom otherwise is
@@ -263,7 +265,21 @@ public class SpeechService extends Service {
         }
     }
 
+    /** call_guard's /mic, ringer.py's /ringer and the doctor's /state, on
+     *  loopback. Its own try: a taken port costs the readouts, not the speech. */
+    private void startReadouts() {
+        try {
+            readouts = new Readouts(Readouts.PORT, Readouts.holds());
+            readouts.start();
+        } catch (Throwable t) {
+            Log.w(TAG, "readouts unavailable on " + Readouts.PORT + ": " + t);
+            readouts = null;
+        }
+    }
+
     private synchronized void stop() {
+        if (readouts != null) readouts.stop();
+        readouts = null;
         Holds.stop();
         if (rebinder != null) rebinder.shutdownNow();
         rebinder = null;
