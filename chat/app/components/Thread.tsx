@@ -726,7 +726,7 @@ export function Thread(props: ThreadProps) {
                 </Sheet>
               )}
               {attachNote && <p className={attachNote.failed ? 'status failed' : 'status'}>{attachNote.text}</p>}
-              {dictation.sendIn > 0 && <p className="status">Sending in {dictation.sendIn}… tap the text to edit it</p>}
+              {dictation.sendIn > 0 && <p className="status">Sending in {dictation.sendIn}… tap to edit it</p>}
               {/* Only where there is a real keyboard: app.css hides it on touch-only devices. */}
               <p className="send-hint">{SEND_KEYS} to send</p>
               </>

@@ -10,8 +10,9 @@
  *   at once, and the words then wait AUTO_SEND_S seconds before they send
  *   themselves, as in the old app: a button pressed to say something should
  *   not then need a tap, but the recogniser gets words wrong, and a message
- *   that has gone cannot be fixed. A tap on the box or any edit stops the
- *   countdown and leaves the words to edit; the send key sends at once.
+ *   that has gone cannot be fixed. A tap anywhere on the screen or any edit
+ *   stops the countdown and leaves the words to edit; the send key sends at
+ *   once.
  *   If a draft was already in the box there is no countdown: the words join
  *   it and wait for a send.
  *
@@ -139,13 +140,17 @@ export function useDictation(
     void run(true)
   }, [listenNow, can, run])
 
-  // The countdown, and what stops it: an edit, a send, or the box emptied.
+  // The countdown, and what stops it: a tap anywhere, an edit, a send, or the
+  // box emptied. The tap is caught on the way down, so one that lands on
+  // something which stops it still counts.
   useEffect(() => {
     if (!sendIn) return
     const composer = runtime.thread.composer
     const off = composer.subscribe(() => {
       if (composer.getState().text !== placed.current) setSendIn(0)
     })
+    const tap = () => setSendIn(0)
+    document.addEventListener('pointerdown', tap, true)
     const t = window.setTimeout(() => {
       if (sendIn > 1) return setSendIn(sendIn - 1)
       setSendIn(0)
@@ -153,6 +158,7 @@ export function useDictation(
     }, 1000)
     return () => {
       off()
+      document.removeEventListener('pointerdown', tap, true)
       window.clearTimeout(t)
     }
   }, [sendIn, runtime])
