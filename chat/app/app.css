@@ -488,7 +488,7 @@ a { color: var(--accent); }
 .thread-row .unread-dot { width: .5rem; height: .5rem; border-radius: 50%; background: var(--accent); flex: none; }
 .thread-row.unread .title { font-weight: 600; }
 /* ↑ top / ↓ bottom in a thread: small, at the right, clear of the centred pills. */
-.jump-pills { position: absolute; right: 4px; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.jump-pills { position: absolute; right: -6px; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 .jump-pill { pointer-events: auto; width: 2.6rem; height: 2.6rem; min-width: 40px; min-height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font: inherit; font-size: 1rem; box-shadow: 0 3px 10px #0005; cursor: pointer; opacity: .9; }
 .jump-pill:hover { color: var(--text); opacity: 1; }
 
