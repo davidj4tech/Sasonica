@@ -584,18 +584,7 @@ export function Thread(props: ThreadProps) {
               {props.status}
               {!props.readOnly && (
               <>
-              {(props.composerChip || props.newChatTo) && (
-                <div className="composer-over">
-                  {props.composerChip}
-                  {props.newChatTo && (
-                    <button type="button" className="new-chat-mini" title="New chat (takes what is typed)" aria-label="New chat" onClick={newChat}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              )}
+              {props.composerChip}
               <ComposerPrimitive.Root className="composer">
                 <MentionPicker />
                 {/*
@@ -625,7 +614,19 @@ export function Thread(props: ThreadProps) {
                     ■
                   </ComposerPrimitive.Cancel>
                 )}
-                <ComposerPrimitive.Send className="send">↑</ComposerPrimitive.Send>
+                {props.newChatTo ? (
+                  // Inside the box, stacked on the send button: a new chat that takes the words.
+                  <div className="send-stack">
+                    <button type="button" className="new-chat-mini" title="New chat (takes what is typed)" aria-label="New chat" onClick={newChat}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                      </svg>
+                    </button>
+                    <ComposerPrimitive.Send className="send">↑</ComposerPrimitive.Send>
+                  </div>
+                ) : (
+                  <ComposerPrimitive.Send className="send">↑</ComposerPrimitive.Send>
+                )}
               </ComposerPrimitive.Root>
               {/* Only where there is a real keyboard: app.css hides it on touch-only devices. */}
               <p className="send-hint">{SEND_KEYS} to send</p>
