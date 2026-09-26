@@ -79,11 +79,16 @@
              and a foreground service because a player on an activity is
              frozen about a minute after it leaves the screen. mediaPlayback,
              which is what it is; that type may not start from BOOT_COMPLETED
-             on Android 15, so opening the app is what starts it. -->
+             on Android 15, so after a reboot or an update it starts as
+             specialUse (SpeechService.sync(ctx, true)). -->
         <service
             android:name=".speech.SpeechService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Plays spoken replies from the user's own self-hosted Sasonica server; started after a reboot, when Android does not allow the media playback type to start." />
+        </service>
 
         <!-- The two buttons on the waiting card, while a reply waits out a
              call or a conversation. -->
@@ -91,7 +96,7 @@
             android:name=".speech.SpeechReceiver"
             android:exported="false" />
 
-        <!-- Restarts it after a reboot or an update, when it is on. -->
+        <!-- Restarts it (and speech) after a reboot or an update, when on. -->
         <receiver
             android:name=".NotifyBootReceiver"
             android:exported="true">

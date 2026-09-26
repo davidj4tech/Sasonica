@@ -7,7 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 
 /**
- * Starts NotifyService after a reboot, and after the app is updated (a new
+ * Starts NotifyService (and SpeechService) after a reboot, and after the app is updated (a new
  * CI build installed over the last kills the running service) — but only
  * when background notifications are on, permitted and the device is paired
  * (NotifyService.sync decides). Both broadcasts are exempt from Android
@@ -19,6 +19,7 @@ public class NotifyBootReceiver extends BroadcastReceiver {
         String a = intent == null ? null : intent.getAction();
         if (Intent.ACTION_BOOT_COMPLETED.equals(a) || Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)) {
             NotifyService.sync(ctx);
+            com.sasonica.next.speech.SpeechService.sync(ctx, true);
         }
     }
 }

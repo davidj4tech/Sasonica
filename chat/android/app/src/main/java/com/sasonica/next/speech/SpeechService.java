@@ -82,6 +82,8 @@ public class SpeechService extends Service {
 
     private Media3Speech player;
     private MpvServer server;
+    private boolean foreground;
+    private static final String EXTRA_BACKGROUND = "background";
     private Readouts readouts;
 
     /**
@@ -179,13 +181,25 @@ public class SpeechService extends Service {
      * running, or "" when it is.
      */
     public static String sync(Context ctx) {
+        return sync(ctx, false);
+    }
+
+    /**
+     * The same, from a broadcast — a reboot or an update. Android 15 will not
+     * start a mediaPlayback service from BOOT_COMPLETED, so a background start
+     * goes foreground as specialUse instead: the same service playing the same
+     * speech, under the type a boot receiver may start. Opening the app still
+     * finds it running and leaves it be.
+     */
+    public static String sync(Context ctx, boolean background) {
         if (!enabled(ctx)) {
             ctx.stopService(new Intent(ctx, SpeechService.class));
             return "off";
         }
         if (running()) return "";
         try {
-            ContextCompat.startForegroundService(ctx, new Intent(ctx, SpeechService.class));
+            ContextCompat.startForegroundService(ctx, new Intent(ctx, SpeechService.class)
+                    .putExtra(EXTRA_BACKGROUND, background));
             return "";
         } catch (Exception e) {
             // ForegroundServiceStartNotAllowedException (12+): started from
@@ -207,9 +221,20 @@ public class SpeechService extends Service {
         super.onCreate();
         instance = this;
         channel();
+    }
+
+    /** Foreground on the first start command, which is the first place the
+     *  service learns who started it. A sticky restart (no intent) is a
+     *  background start too. */
+    private void goForeground(Intent intent) {
+        if (foreground) return;
+        foreground = true;
+        boolean background = intent == null || intent.getBooleanExtra(EXTRA_BACKGROUND, false);
         Notification n = status("Starting…");
         if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(ID_STATUS, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            startForeground(ID_STATUS, n, background
+                    ? ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                    : ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         } else {
             startForeground(ID_STATUS, n);
         }
@@ -218,6 +243,7 @@ public class SpeechService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        goForeground(intent);
         if (intent != null && ACTION_OFF.equals(intent.getAction())) {
             // "Turn off" on the notification: the same as the Settings toggle.
             setEnabled(this, false);
