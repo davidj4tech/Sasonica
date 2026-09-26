@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router'
 import { AutoGrowTextarea } from './AutoGrow'
 import { MentionPicker } from './MentionPicker'
 import { AttachButton } from './AttachButton'
+import { Sheet } from './SessionSheets'
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
@@ -549,6 +550,7 @@ export function Thread(props: ThreadProps) {
   })
   const dictation = useDictation(runtime, props.listenNow, props.placeholder || 'Say something back', props.carry)
   const [targets, setTargets] = useState<HandOffTarget[]>([])
+  const [pickingAssistant, setPickingAssistant] = useState(false)
   const offering = dictation.offer || !!props.handOffAlways
   useEffect(() => {
     if (!offering) return
@@ -693,13 +695,35 @@ export function Thread(props: ThreadProps) {
                         New chat instead
                       </button>
                     )}
+                    {/* One other assistant keeps its chip; more fold into one, as New chat's pickers do. */}
+                    {targets.length === 1 ? (
+                      <button type="button" className="chip" onClick={() => void handOff(targets[0], dictation.take()).catch(() => {})}>
+                        {targets[0].label} →
+                      </button>
+                    ) : targets.length > 1 ? (
+                      <button type="button" className="chip" onClick={() => (dictation.hold(), setPickingAssistant(true))}>
+                        Other assistants <span aria-hidden="true">▾</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </WhileEmpty>
+              )}
+              {pickingAssistant && (
+                // Outside the offer: it can run out while the sheet is open.
+                <Sheet label="Other assistants" onClose={() => setPickingAssistant(false)} className="action-sheet">
+                  <p className="action-title">Send to another assistant</p>
+                  <div role="menu" className="action-list">
                     {targets.map((t) => (
-                      <button key={t.id} type="button" className="chip" onClick={() => void handOff(t, dictation.take()).catch(() => {})}>
-                        {t.label} →
+                      <button
+                        key={t.id}
+                        role="menuitem"
+                        onClick={() => (setPickingAssistant(false), void handOff(t, dictation.take()).catch(() => {}))}
+                      >
+                        {t.label}
                       </button>
                     ))}
                   </div>
-                </WhileEmpty>
+                </Sheet>
               )}
               {attachNote && <p className={attachNote.failed ? 'status failed' : 'status'}>{attachNote.text}</p>}
               {dictation.sendIn > 0 && <p className="status">Sending in {dictation.sendIn}… tap the text to edit it</p>}
